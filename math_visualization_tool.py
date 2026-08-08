@@ -27,7 +27,7 @@ from scipy.integrate import solve_ivp
 
 
 MATH_VISUALIZATION_TOOL_SCHEMA = {
-    "name": "math_visualization_tool",
+    "name": "math_visualization",
     "description": (
         "Genera visualizaciones (PNG base64) de funciones, retratos de fase de "
         "sistemas ODE, diagramas de bifurcacion y campos vectoriales/gradiente."
