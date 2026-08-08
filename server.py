@@ -25,6 +25,9 @@ from percolation_theory_tool import compute_percolation_theory, PERCOLATION_THEO
 from reaction_diffusion_tool import compute_reaction_diffusion, REACTION_DIFFUSION_TOOL_SCHEMA
 from stochastic_processes_tool import compute_stochastic_processes, STOCHASTIC_PROCESSES_TOOL_SCHEMA
 from information_theory_tool import compute_information_theory, INFORMATION_THEORY_TOOL_SCHEMA
+from control_theory_tool import compute_control_theory, CONTROL_THEORY_TOOL_SCHEMA
+from optimal_control_tool import compute_optimal_control, OPTIMAL_CONTROL_TOOL_SCHEMA
+from spatial_statistics_tool import compute_spatial_statistics, SPATIAL_STATISTICS_TOOL_SCHEMA
 
 
 def run_octave(code):
@@ -69,6 +72,9 @@ TOOLS = [
     REACTION_DIFFUSION_TOOL_SCHEMA,
     STOCHASTIC_PROCESSES_TOOL_SCHEMA,
     INFORMATION_THEORY_TOOL_SCHEMA,
+    CONTROL_THEORY_TOOL_SCHEMA,
+    OPTIMAL_CONTROL_TOOL_SCHEMA,
+    SPATIAL_STATISTICS_TOOL_SCHEMA,
 ]
 
 
@@ -269,6 +275,27 @@ for line in sys.stdin:
 
             elif tool_name == "information_theory":
                 result = compute_information_theory(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+
+            elif tool_name == "control_theory":
+                result = compute_control_theory(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+
+            elif tool_name == "optimal_control":
+                result = compute_optimal_control(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+
+            elif tool_name == "spatial_statistics":
+                result = compute_spatial_statistics(**args)
                 resp = {
                     "jsonrpc": "2.0", "id": req_id,
                     "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
