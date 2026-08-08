@@ -31,6 +31,46 @@ from spatial_statistics_tool import compute_spatial_statistics, SPATIAL_STATISTI
 from text_analysis_math_tool import compute_text_analysis_math, TEXT_ANALYSIS_MATH_TOOL_SCHEMA
 from archaeoastronomy_tool import compute_archaeoastronomy, ARCHAEOASTRONOMY_TOOL_SCHEMA
 from quantum_information_tool import compute_quantum_information, QUANTUM_INFORMATION_TOOL_SCHEMA
+from octave_infra_tool import octave_run, octave_eval_expr, octave_run_script, octave_version
+from lyapunov_tool_v2 import compute_lyapunov_exponent as compute_lyapunov_v2
+from graph_tool import compute_graph_algorithms
+from qm_tool import compute_qm_potential_well
+from nuclear_decay_tool import compute_nuclear_decay_chain
+from fractal_dimension_tool import compute_fractal_dimension
+from ethnomath_tool import compute_ethnomath
+from ethnomath2_tool import compute_ethnomath2
+from ancient_calculators_tool import compute_ancient_calculator
+from ancestral_octave_tool import compute_ancestral_octave
+from filosofia_historia_mate_tool import compute_math_philosophy_history
+from levant_tool import compute_levant
+from originarios_tool import compute_originarios
+from cross_validation_tool import compute_cross_validation
+from entropy_structure_tool import compute_entropy_structure
+from music_math_tool import compute_music_math
+from linear_algebra_tool import compute_linear_algebra
+from persistent_homology_tool import compute_persistent_homology
+from statistics_tool import compute_statistics
+from number_theory_tool import compute_number_theory
+from symbolic_tool import compute_symbolic
+from optimization_tool import compute_optimization
+from pde_tool import compute_pde
+from braid_group_tool import compute_braid_group
+from population_dynamics_tool import compute_population_dynamics
+from reaction_diffusion_tool_real import compute_reaction_diffusion as reaction_diffusion_real
+from enzyme_kinetics_tool import compute_enzyme_kinetics
+from tritbraid_tool import compute_tritbraid
+from historian_tool import compute_historian
+from antibiotic_diffusion import compute_antibiotic_diffusion
+from plague_sir_tool import compute_plague_sir
+from settlement_clusters_tool import compute_settlement_clusters
+from historical_extractor_tool import compute_historical_extractor
+from workspace_tool import save_run
+from workspace_tool import load_run
+from workspace_tool import list_runs
+from workspace_tool import describe_run
+from workspace_tool import delete_run
+from plot_tool import plot_run
+from numeral_systems_embedding_tool import compute_numeral_systems_embedding
 
 
 def run_octave(code):
@@ -81,6 +121,49 @@ TOOLS = [
     TEXT_ANALYSIS_MATH_TOOL_SCHEMA,
     ARCHAEOASTRONOMY_TOOL_SCHEMA,
     QUANTUM_INFORMATION_TOOL_SCHEMA,
+    {"name": "octave_run", "description": "Ejecuta codigo Octave. timeout en segundos (default 60).", "inputSchema": {"type": "object", "properties": {"code": {"type": "string"}, "timeout": {"type": "integer"}}, "required": ["code"]}},
+    {"name": "octave_eval_expr", "description": "Evalua una expresion Octave con disp().", "inputSchema": {"type": "object", "properties": {"expression": {"type": "string"}, "timeout": {"type": "integer"}}, "required": ["expression"]}},
+    {"name": "octave_run_script", "description": "Ejecuta un script .m existente en disco.", "inputSchema": {"type": "object", "properties": {"script_path": {"type": "string"}, "timeout": {"type": "integer"}}, "required": ["script_path"]}},
+    {"name": "octave_version", "description": "Devuelve la version de Octave instalada.", "inputSchema": {"type": "object", "properties": {}}},
+    {"name": "compute_lyapunov_v2", "description": "Calcula el exponente de Lyapunov maximo (lambda1) de un sistema dinamico (presets: chen_lee, burke_shaw, lorenz, rossler, o ecuaciones custom) para cuantificar caos. lambda1>0 confirma comportamiento caotico. Si se indica run_id, guarda la trayectoria completa en el workspace (util para graficar el atractor despues con plot_tool).", "inputSchema": {"type": "object", "properties": {"system": {"type": "string"}, "custom_equations": {"type": "string"}, "custom_params": {"type": "object"}, "y0": {"type": "array"}, "dt": {"type": "number"}, "n_steps": {"type": "integer"}, "d0": {"type": "number"}, "run_id": {"type": "string"}, "save_trajectory_every": {"type": "integer"}}}},
+    {"name": "graph_algorithms", "description": "Corre algoritmos clasicos de grafos: Dijkstra, MST (Kruskal), deteccion de ciclos. Presets: small_weighted, disconnected, with_cycle, o custom via 'edges' [[u,v,peso],...].", "inputSchema": {"type": "object", "properties": {"preset": {"type": "string"}, "edges": {"type": "array"}, "directed": {"type": "boolean"}, "operation": {"type": "string"}, "source": {"type": "string"}}}},
+    {"name": "qm_potential_well", "description": "Resuelve la ecuacion de Schrodinger 1D independiente del tiempo por diferencias finitas. Presets: infinite_well, finite_well, harmonic_oscillator, o custom via custom_potential (expresion Octave en x).", "inputSchema": {"type": "object", "properties": {"preset": {"type": "string"}, "custom_potential": {"type": "string"}, "well_params": {"type": "object"}, "x_range": {"type": "array"}, "n_points": {"type": "integer"}, "mass": {"type": "number"}, "hbar": {"type": "number"}, "n_states": {"type": "integer"}}}},
+    {"name": "nuclear_decay_chain", "description": "Resuelve una cadena de decaimiento nuclear (Bateman) via ode45. Presets: cs137_ba137m, sr90_y90, o custom via 'chain'. stable_last=True no sigue la cadena mas alla del ultimo isotopo pero NUNCA anula su lambda (permite alcanzar equilibrio secular).", "inputSchema": {"type": "object", "properties": {"preset": {"type": "string"}, "chain": {"type": "array"}, "t_max": {"type": "number"}, "n_points": {"type": "integer"}, "stable_last": {"type": "boolean"}}}},
+    {"name": "fractal_dimension", "description": "Dimension fractal por box-counting. Presets: sierpinski_triangle, koch_curve, cantor_set (con dimension analitica de referencia), chen_lee_attractor (integra el sistema caotico en Octave), o custom via 'points'.", "inputSchema": {"type": "object", "properties": {"preset": {"type": "string"}, "points": {"type": "array"}, "n_points": {"type": "integer"}, "order": {"type": "integer"}, "n_scales": {"type": "integer"}, "eps_min_frac": {"type": "number"}, "eps_max_frac": {"type": "number"}, "chen_lee_params": {"type": "object"}}}},
+    {"name": "ethnomath", "description": "Algoritmos matematicos historicos: maya_long_count, chinese_remainder, vedic_multiply, quipu_encode, greek_archimedes_pi, japanese_enri_pi.", "inputSchema": {"type": "object", "properties": {"preset": {"type": "string"}, "params": {"type": "object"}}, "required": ["preset"]}},
+    {"name": "ethnomath2", "description": "Segunda tanda de algoritmos matematicos historicos: egyptian_duplation, persian_khwarizmi, persian_alkashi_sin1, russian_peasant, ottoman_taqi_al_din, norse_rune_calendar, southeast_asian_metonic.", "inputSchema": {"type": "object", "properties": {"preset": {"type": "string"}, "params": {"type": "object"}}, "required": ["preset"]}},
+    {"name": "ancient_calculator", "description": "Simula calculadoras historicas reales operando sus cuentas/fichas: suanpan, soroban, roman_hand_abacus, yupana_depasquale (hipotesis en disputa academica, ver advertencia en la respuesta).", "inputSchema": {"type": "object", "properties": {"preset": {"type": "string"}, "params": {"type": "object"}}, "required": ["preset"]}},
+    {"name": "ancestral_octave", "description": "Corre metodos ancestrales (suanpan_add, chinese_remainder, vedic_multiply, archimedes_pi, quipu_encode) como funciones Octave NATIVAS via ancestral.m, en el mismo motor que octave_run. extra_octave permite componer con otro codigo Octave en la misma sesion.", "inputSchema": {"type": "object", "properties": {"preset": {"type": "string"}, "params": {"type": "object"}, "extra_octave": {"type": "string"}}, "required": ["preset"]}},
+    {"name": "math_philosophy_history", "description": "Referencia sobre filosofia e historia de la matematica (8 topics).", "inputSchema": {"type": "object", "properties": {"topic": {"type": "string"}, "params": {"type": "object"}}}},
+    {"name": "levant", "description": "Matematica cananea y de Juda/Israel: hebrew_molad (conjuncion lunar media, ciclo metonico de 19 anios), hebrew_gematria (valor numerico de palabras hebreas y su inverso), canaanite_phoenician_numeral (sistema aditivo 1/10/20/100).", "inputSchema": {"type": "object", "properties": {"preset": {"type": "string"}, "params": {"type": "object"}}, "required": ["preset"]}},
+    {"name": "originarios", "description": "Numeracion de pueblos originarios: mapuche_numeral (rakin, decimal aditivo-multiplicativo) y aymara_numeral (decimal con sufijo -ni, mas nota sobre vestigio quinario).", "inputSchema": {"type": "object", "properties": {"preset": {"type": "string"}, "params": {"type": "object"}}, "required": ["preset"]}},
+    {"name": "cross_validation", "description": "Valida un resultado de dimension fractal corriendo el mismo sistema dinamico con dos motores numericos independientes (Octave ode45 y scipy RK45). Devuelve ambas dimensiones, la diferencia relativa, y un flag cross_validated. Sistemas disponibles: chen_lee.", "inputSchema": {"type": "object", "properties": {"system": {"type": "string"}, "params": {"type": "object"}, "t_max": {"type": "number"}, "n_steps": {"type": "integer"}, "transient_frac": {"type": "number"}, "tolerance": {"type": "number"}}}},
+    {"name": "entropy_structure", "description": "Calcula entropia de orden 0 y entropia condicional de orden 1 sobre una secuencia de simbolos, para evaluar evidencia de estructura combinatoria (compatible con codificacion tipo-lenguaje) vs. conteo simple/tally marks. Presets sinteticos validados (random_iid, markov_structured) o custom via 'sequence' con datos reales (khipu, yupana, corpus sin descifrar, etc).", "inputSchema": {"type": "object", "properties": {"preset": {"type": "string"}, "sequence": {"type": "array"}, "alphabet_size": {"type": "integer"}, "n_symbols": {"type": "integer"}, "seed": {"type": "integer"}}}},
+    {"name": "music_math", "description": "Calculos de matematica musical: pythagorean_comma, temperament_comparison, harmonic_series, ternary_scale (division de la octava en 3^n pasos, conexion con TritOS), spectral_analysis (FFT real via Octave sobre una senal).", "inputSchema": {"type": "object", "properties": {"preset": {"type": "string"}, "f0": {"type": "number"}, "n_harmonics": {"type": "integer"}, "n_power": {"type": "integer"}, "signal": {"type": "array"}, "fs": {"type": "number"}}}},
+    {"name": "linear_algebra", "description": "Algebra lineal via Octave: eigen (autovalores/autovectores), svd (descomposicion en valores singulares + verificacion), pca (componentes principales, varianza explicada), matrix_analysis (rango, condicion, determinante, inversa). Prerrequisito de persistent_homology_tool.", "inputSchema": {"type": "object", "properties": {"mode": {"type": "string"}, "preset": {"type": "string"}, "matrix": {"type": "array"}, "data": {"type": "array"}}}},
+    {"name": "persistent_homology", "description": "Homologia persistente (H0, H1) sobre una nube de puntos via complejo de Vietoris-Rips y reduccion de matriz de borde. Presets sinteticos validados (circle, two_clusters, random_noise) o custom via 'points' para datos reales -- por ejemplo nubes reconstruidas de un embedding de Takens (conexion directa con TritOS). Si se indica run_id, guarda points/h0_diagram/h1_diagram en el workspace para grafic", "inputSchema": {"type": "object", "properties": {"preset": {"type": "string"}, "points": {"type": "array"}, "max_edge_length": {"type": "number"}, "max_dim": {"type": "integer"}, "n_points": {"type": "integer"}, "seed": {"type": "integer"}, "run_id": {"type": "string"}}}},
+    {"name": "statistics", "description": "Estadistica e inferencia via Octave: linear_regression (minimos cuadrados), correlation (Pearson r), t_test (una muestra, t-stat + p-value via betainc), bayesian_beta_binomial (actualizacion conjugada Beta-Binomial). Pensado para analisis de riesgo (QGIS).", "inputSchema": {"type": "object", "properties": {"mode": {"type": "string"}, "preset": {"type": "string"}, "x": {"type": "array"}, "y": {"type": "array"}, "sample": {"type": "array"}, "mu0": {"type": "number"}, "prior_a": {"type": "number"}, "prior_b": {"type": "number"}, "successes": {"type": "integer"}, "trials": {"type": "integer"}}}},
+    {"name": "number_theory", "description": "Teoria de numeros con aplicacion criptografica: primality_test (Miller-Rabin, detecta numeros de Carmichael), rsa_toy (genera par de claves, cifra/descifra, valida contra ejemplo clasico del paper RSA), elliptic_curve_add (suma/duplicacion de puntos, validado contra Hankerson et al). Conecta con chinese_remainder via RSA-CRT.", "inputSchema": {"type": "object", "properties": {"mode": {"type": "string"}, "preset": {"type": "string"}, "n": {"type": "integer"}, "p": {"type": "integer"}, "q": {"type": "integer"}, "e": {"type": "integer"}, "message": {"type": "integer"}, "curve_a": {"type": "integer"}, "curve_b": {"type": "integer"}, "curve_p": {"type": "integer"}, "point1": {"type": "array"}, "point2": {"type": "array"}}}},
+    {"name": "symbolic", "description": "Algebra simbolica via sympy: simplify, solve (resolver ecuaciones), differentiate (derivada), integrate (indefinida o definida con limites), taylor_series. Puente necesario porque Octave es 100% numerico.", "inputSchema": {"type": "object", "properties": {"mode": {"type": "string"}, "preset": {"type": "string"}, "expression": {"type": "string"}, "variable": {"type": "string"}, "lower_limit": {"type": "string"}, "upper_limit": {"type": "string"}, "point": {"type": "string"}, "order": {"type": "integer"}}}},
+    {"name": "optimization", "description": "Optimizacion: linear_programming (via glpk nativo de Octave), gradient_descent (gradiente EXACTO simbolico via sympy, no diferencias finitas). Presets validados contra optimos conocidos.", "inputSchema": {"type": "object", "properties": {"mode": {"type": "string"}, "preset": {"type": "string"}, "sense": {"type": "string"}, "c": {"type": "array"}, "A_ub": {"type": "array"}, "b_ub": {"type": "array"}, "expression": {"type": "string"}, "start": {"type": "array"}, "learning_rate": {"type": "number"}, "n_iterations": {"type": "integer"}}}},
+    {"name": "pde", "description": "Ecuaciones en derivadas parciales via diferencias finitas explicitas en Octave: heat_equation (u_t=alpha*u_xx), wave_equation (u_tt=c^2*u_xx). Validado contra solucion analitica del primer modo normal. Extension de stiff_ode_tool hacia EDPs -- relevante para propagacion termica LIG.", "inputSchema": {"type": "object", "properties": {"mode": {"type": "string"}, "preset": {"type": "string"}, "L": {"type": "number"}, "coefficient": {"type": "number"}, "n_points": {"type": "integer"}, "t_final": {"type": "number"}, "initial_profile": {"type": "array"}}}},
+    {"name": "braid_group", "description": "Grupos de trenzas y anyones de Fibonacci: verify_braid_relation (unitariedad + relacion de Yang-Baxter), apply_braid_sequence (aplica una secuencia de trenzas a un estado inicial, preserva la norma). Basado en Bonesteel et al 2005. Conexion con computacion cuantica topologica y con persistent_homology_tool / linear_algebra_tool.", "inputSchema": {"type": "object", "properties": {"mode": {"type": "string"}, "sequence": {"type": "string"}, "initial_state": {"type": "array"}}}},
+    {"name": "population_dynamics", "description": "Dinamica de poblaciones: lotka_volterra (depredador-presa), logistic_growth (capacidad de carga). Relevante para cultivo de kelp en infraestructura de longline existente.", "inputSchema": {"type": "object", "properties": {"mode": {"type": "string"}, "a": {"type": "number"}, "b": {"type": "number"}, "c": {"type": "number"}, "d": {"type": "number"}, "x0": {"type": "number"}, "y0": {"type": "number"}, "r": {"type": "number"}, "K": {"type": "number"}, "t_max": {"type": "number"}, "n_points": {"type": "integer"}}}},
+    {"name": "reaction_diffusion_real", "description": "Inestabilidad de Turing (reaccion-difusion linealizada): evalua las 4 condiciones analiticas clasicas y compara tasa de crecimiento numerica vs analitica en el numero de onda mas inestable. Mecanismo detras de patrones biologicos (rayas, manchas, morfogenesis).", "inputSchema": {"type": "object", "properties": {"mode": {"type": "string"}, "a11": {"type": "number"}, "a12": {"type": "number"}, "a21": {"type": "number"}, "a22": {"type": "number"}, "Du": {"type": "number"}, "Dv": {"type": "number"}}}},
+    {"name": "enzyme_kinetics", "description": "Cinetica enzimatica: full_kinetics (E+S<->ES->E+P completo), michaelis_menten (aproximacion QSSA), compare (valida cuando la aproximacion es correcta, E0<<S0).", "inputSchema": {"type": "object", "properties": {"mode": {"type": "string"}, "k1": {"type": "number"}, "km1": {"type": "number"}, "k2": {"type": "number"}, "E0": {"type": "number"}, "S0": {"type": "number"}, "t_max": {"type": "number"}, "n_points": {"type": "integer"}}}},
+    {"name": "tritbraid", "description": "DSL TritBraid: secuencias de trenzas de Fibonacci que colapsan a un trit ternario (-1,0,+1). Tokens del programa: 0=identidad, 1=sigma1 (diagonal, no mezcla canales), 2=sigma2 (mezcla via matriz F), M=medicion (colapso proyectivo, regla de Born). Modes: run_program (ejecuta el programa dado y devuelve traza completa), validate_physics (verifica unitariedad, invariancia bajo identidad/sigma1, y mez", "inputSchema": {"type": "object", "properties": {"mode": {"type": "string"}, "program": {"type": "string"}, "seed": {"type": "integer"}, "initial_state": {"type": "array"}}}},
+    {"name": "historian", "description": "Orquestador de analisis historico: parsea numeros de texto libre via regex (sin NLP complejo), arma arrays de numpy, y ajusta el motor correspondiente segun analysis_type -- inflation/demographics (regresion log-lineal: tasa anual %, R2), trade_network (centralidad de red: fuerza entrante + autovector, identifica el hub), units_entropy (entropia de Shannon sobre unidades historicas de medida -- in", "inputSchema": {"type": "object", "properties": {"mode": {"type": "string"}, "analysis_type": {"type": "string"}, "text_data": {"type": "string"}, "preset": {"type": "string"}}}},
+    {"name": "antibiotic_diffusion", "description": "Bioensayo de difusion en disco tipo Kirby-Bauer: difusion radial 2D exacta (Carslaw & Jaeger, disco de concentracion uniforme C0 en agar homogeneo) mas la aproximacion clasica de fuente puntual de Cooper. Liberacion instantanea, sin degradacion ni consumo bacteriano -- estimacion de ordenes de magnitud, no reemplaza ensayo real. Modes: zone_prediction (radio/diametro de halo a un C0 y tiempo de in", "inputSchema": {"type": "object", "properties": {"mode": {"type": "string"}, "C0": {"type": "number"}, "a": {"type": "number"}, "D": {"type": "number"}, "MIC": {"type": "number"}, "t": {"type": "number"}}}},
+    {"name": "plague_sir", "description": "SIR inverso para brotes historicos de peste: parsea defunciones semanales de texto libre via regex, ajusta beta (tasa de contagio) con curve_fit manteniendo gamma fijo (parametro de literatura, no medido), integra SIR con RK4, y reporta R0=beta/gamma. Proxy cuantitativo cuando no hay fuente epidemiologica directa -- no corrige subregistro, migracion, ni estacionalidad. Modes: fit_beta (requiere te", "inputSchema": {"type": "object", "properties": {"mode": {"type": "string"}, "text_data": {"type": "string"}, "preset": {"type": "string"}, "gamma": {"type": "number"}, "poblacion_estimada": {"type": "number"}}}},
+    {"name": "settlement_clusters", "description": "Proxy arqueologico de barrios/clusters sociales: clusteriza coordenadas de hallazgos por distancia (union-find a radio fijo) en cada periodo/estrato, y rastrea clusters entre periodos consecutivos por proximidad de centroides -- detecta nacimiento y muerte de asentamientos. No hace inferencia cronologica, el orden de periodos lo define quien llama. Modes: analyze (requiere puntos_por_periodo y per", "inputSchema": {"type": "object", "properties": {"mode": {"type": "string"}, "puntos_por_periodo": {"type": "array"}, "periodos": {"type": "array"}, "radio": {"type": "number"}, "radio_match": {"type": "number"}, "run_id": {"type": "string"}}}},
+    {"name": "historical_extractor", "description": "Extrae MULTIPLES series (anio, valor) de un mismo texto historico via regex por oracion (no NLP), una serie por objeto/concepto mencionado (ej: trigo, cebada, jornal). Corre tendencia por regresion log-lineal en cada serie (reusa el motor de historian), calcula salario real indexado si se indica objeto_salario, y correlacion de Pearson entre series de precios que se solapan en anios. NO interpreta", "inputSchema": {"type": "object", "properties": {"mode": {"type": "string"}, "text_data": {"type": "string"}, "objetos": {"type": "array"}, "objeto_salario": {"type": "string"}}}},
+    {"name": "workspace_save", "description": "Guarda arrays/resultados de un analisis bajo un run_id para reutilizarlos despues (ej: en plot_tool) sin recalcular. Si run_id se omite, se autogenera.", "inputSchema": {"type": "object", "properties": {"run_id": {"type": "string"}, "data": {"type": "object"}, "meta": {"type": "object"}}}},
+    {"name": "workspace_load", "description": "Carga un run guardado previamente por run_id. Si keys se omite, devuelve todos los arrays (cuidado con trayectorias muy largas: usar workspace_describe primero).", "inputSchema": {"type": "object", "properties": {"run_id": {"type": "string"}, "keys": {"type": "array"}}, "required": ["run_id"]}},
+    {"name": "workspace_list", "description": "Lista todos los runs guardados en el workspace, opcionalmente filtrados por tool de origen (ej: 'compute_lyapunov_exponent').", "inputSchema": {"type": "object", "properties": {"filter_tool": {"type": "string"}}}},
+    {"name": "workspace_describe", "description": "Muestra shapes/dtypes de un run sin cargar los arrays completos a memoria (util para trayectorias largas antes de graficar).", "inputSchema": {"type": "object", "properties": {"run_id": {"type": "string"}}, "required": ["run_id"]}},
+    {"name": "workspace_delete", "description": "Borra un run del workspace (libera espacio en disco).", "inputSchema": {"type": "object", "properties": {"run_id": {"type": "string"}}, "required": ["run_id"]}},
+    {"name": "plot_workspace_run", "description": "Genera una visualizacion (PNG en base64 + guardado en disco) a partir de un run guardado en el workspace (ej: la trayectoria de un atractor guardada por compute_lyapunov con run_id). No recalcula nada, solo lee y grafica. plot_type: auto (infiere segun el tool de origen), attractor_3d, attractor_2d, line, scatter, heatmap.", "inputSchema": {"type": "object", "properties": {"run_id": {"type": "string"}, "plot_type": {"type": "string"}, "title": {"type": "string"}, "array_name": {"type": "string"}}, "required": ["run_id"]}},
+    {"name": "numeral_systems_embedding", "description": "Vectoriza sistemas numericos antiguos (base, tipo posicional/aditivo/ fisico, presencia de cero, redundancia representacional, soporte fisico) y proyecta a 2D via UMAP o t-SNE, para explorar agrupamientos estructurales entre culturas. Dataset base: maya_long_count, suanpan, soroban, roman_hand_abacus, yupana_depasquale, quipu, ifa_binary. Extensible via extra_systems (lista de dicts con el mismo s", "inputSchema": {"type": "object", "properties": {"method": {"type": "string"}, "extra_systems": {"type": "array"}, "n_neighbors": {"type": "integer"}, "perplexity": {"type": "number"}, "random_state": {"type": "integer"}, "run_id": {"type": "string"}}}},
 ]
 
 
@@ -324,6 +407,306 @@ for line in sys.stdin:
                     "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
                 }
 
+            elif tool_name == "octave_run":
+                output = octave_run(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": output or "(sin salida)"}]},
+                }
+
+            elif tool_name == "octave_eval_expr":
+                output = octave_eval_expr(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": output or "(sin salida)"}]},
+                }
+
+            elif tool_name == "octave_run_script":
+                output = octave_run_script(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": output or "(sin salida)"}]},
+                }
+
+            elif tool_name == "octave_version":
+                output = octave_version(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": output or "(sin salida)"}]},
+                }
+
+            elif tool_name == "compute_lyapunov_v2":
+                result = compute_lyapunov_v2(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+
+            elif tool_name == "graph_algorithms":
+                result = compute_graph_algorithms(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+
+            elif tool_name == "qm_potential_well":
+                result = compute_qm_potential_well(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+
+            elif tool_name == "nuclear_decay_chain":
+                result = compute_nuclear_decay_chain(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+
+            elif tool_name == "fractal_dimension":
+                result = compute_fractal_dimension(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+
+            elif tool_name == "ethnomath":
+                result = compute_ethnomath(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+
+            elif tool_name == "ethnomath2":
+                result = compute_ethnomath2(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+
+            elif tool_name == "ancient_calculator":
+                result = compute_ancient_calculator(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+
+            elif tool_name == "ancestral_octave":
+                result = compute_ancestral_octave(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+
+            elif tool_name == "math_philosophy_history":
+                result = compute_math_philosophy_history(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+
+            elif tool_name == "levant":
+                result = compute_levant(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+
+            elif tool_name == "originarios":
+                result = compute_originarios(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+
+            elif tool_name == "cross_validation":
+                result = compute_cross_validation(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+
+            elif tool_name == "entropy_structure":
+                result = compute_entropy_structure(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+
+            elif tool_name == "music_math":
+                result = compute_music_math(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+
+            elif tool_name == "linear_algebra":
+                result = compute_linear_algebra(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+
+            elif tool_name == "persistent_homology":
+                result = compute_persistent_homology(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+
+            elif tool_name == "statistics":
+                result = compute_statistics(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+
+            elif tool_name == "number_theory":
+                result = compute_number_theory(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+
+            elif tool_name == "symbolic":
+                result = compute_symbolic(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+
+            elif tool_name == "optimization":
+                result = compute_optimization(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+
+            elif tool_name == "pde":
+                result = compute_pde(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+
+            elif tool_name == "braid_group":
+                result = compute_braid_group(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+
+            elif tool_name == "population_dynamics":
+                result = compute_population_dynamics(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+
+            elif tool_name == "reaction_diffusion_real":
+                result = reaction_diffusion_real(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+
+            elif tool_name == "enzyme_kinetics":
+                result = compute_enzyme_kinetics(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+
+            elif tool_name == "tritbraid":
+                result = compute_tritbraid(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+
+            elif tool_name == "historian":
+                result = compute_historian(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+
+            elif tool_name == "antibiotic_diffusion":
+                result = compute_antibiotic_diffusion(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+
+            elif tool_name == "plague_sir":
+                result = compute_plague_sir(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+
+            elif tool_name == "settlement_clusters":
+                result = compute_settlement_clusters(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+
+            elif tool_name == "historical_extractor":
+                result = compute_historical_extractor(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+
+            elif tool_name == "workspace_save":
+                result = save_run(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+
+            elif tool_name == "workspace_load":
+                result = load_run(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+
+            elif tool_name == "workspace_list":
+                result = list_runs(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+
+            elif tool_name == "workspace_describe":
+                result = describe_run(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+
+            elif tool_name == "workspace_delete":
+                result = delete_run(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+
+            elif tool_name == "plot_workspace_run":
+                result = plot_run(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+
+            elif tool_name == "numeral_systems_embedding":
+                result = compute_numeral_systems_embedding(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
             else:
                 resp = {
                     "jsonrpc": "2.0", "id": req_id,
