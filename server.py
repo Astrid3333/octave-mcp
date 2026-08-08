@@ -11,6 +11,7 @@ from math_error_analyzer_tool import compute_math_error_analysis, MATH_ERROR_ANA
 from math_benchmark_tool import compute_math_benchmark, MATH_BENCHMARK_TOOL_SCHEMA
 from math_interpolation_tool import compute_math_interpolation, MATH_INTERPOLATION_TOOL_SCHEMA
 from math_pipeline_builder_tool import run_math_pipeline, PIPELINE_BUILDER_TOOL_SCHEMA
+from math_interpreter_tool import interpret_math_query, MATH_INTERPRETER_TOOL_SCHEMA
 
 
 def run_octave(code):
@@ -41,6 +42,7 @@ TOOLS = [
     MATH_BENCHMARK_TOOL_SCHEMA,
     MATH_INTERPOLATION_TOOL_SCHEMA,
     PIPELINE_BUILDER_TOOL_SCHEMA,
+    MATH_INTERPRETER_TOOL_SCHEMA,
 ]
 
 
@@ -144,6 +146,13 @@ for line in sys.stdin:
 
             elif tool_name == "run_math_pipeline":
                 result = run_math_pipeline(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+
+            elif tool_name == "math_interpreter":
+                result = interpret_math_query(**args)
                 resp = {
                     "jsonrpc": "2.0", "id": req_id,
                     "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
