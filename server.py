@@ -18,6 +18,7 @@ from machine_learning_math_tool import compute_machine_learning_math, MACHINE_LE
 from financial_math_tool import compute_financial_math, FINANCIAL_MATH_TOOL_SCHEMA
 from game_theory_tool import compute_game_theory, GAME_THEORY_TOOL_SCHEMA
 from tensor_calculus_tool import compute_tensor_calculus, TENSOR_CALCULUS_TOOL_SCHEMA
+from network_science_tool import compute_network_science, NETWORK_SCIENCE_TOOL_SCHEMA
 
 
 def run_octave(code):
@@ -55,6 +56,7 @@ TOOLS = [
     FINANCIAL_MATH_TOOL_SCHEMA,
     GAME_THEORY_TOOL_SCHEMA,
     TENSOR_CALCULUS_TOOL_SCHEMA,
+    NETWORK_SCIENCE_TOOL_SCHEMA,
 ]
 
 
@@ -206,6 +208,26 @@ for line in sys.stdin:
 
             elif tool_name == "tensor_calculus":
                 result = compute_tensor_calculus(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+
+            else:
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "error": {"code": -32601, "message": f"Tool desconocido: {tool_name}"},
+                }
+
+        else:
+            resp = {"jsonrpc": "2.0", "id": req_id, "result": {}}
+
+        print(json.dumps(resp), flush=True)
+
+    except Exception as e:
+        print(json.dumps({"jsonrpc": "2.0", "id": None, "error": {"code": -32603, "message": str(e)}}), flush=True)
+            elif tool_name == "network_science":
+                result = compute_network_science(**args)
                 resp = {
                     "jsonrpc": "2.0", "id": req_id,
                     "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
