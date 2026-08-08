@@ -157,8 +157,18 @@ for line in sys.stdin:
 
             elif tool_name == "math_interpreter":
                 result = interpret_math_query(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+
             elif tool_name == "math_visualization":
                 result = compute_math_visualization(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+
             elif tool_name == "math_explainer":
                 result = interpret_and_explain(**args)
                 resp = {
