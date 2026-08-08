@@ -3,7 +3,8 @@
 financial_math_tool.py
 Matematica financiera: Black-Scholes, griegas de opciones, Value at Risk
 (parametrico/historico/Monte Carlo), valuacion de anualidades/perpetuidades,
-y bonos (precio/YTM/duracion/convexidad).
+bonos (precio/YTM/duracion/convexidad), y riesgo de catastrofe (VaR ajustado
+por riesgo climatico/ambiental via proceso de Poisson compuesto).
 """
 import math
 import numpy as np
@@ -181,6 +182,75 @@ def compute_bond_pricing(face_value=1000.0, coupon_rate=None, periods_per_year=2
     return result
 
 
+def compute_catastrophe_risk(confidence=0.95, portfolio_value=1.0, horizon_years=1,
+                              catastrophe_frequency=0.1, severity_mean=0.15, severity_std=0.10,
+                              climate_stress_factor=1.0, base_sigma=None, base_mu=0.0,
+                              n_simulations=100000, seed=None):
+    """
+    VaR ajustado por riesgo de catastrofe climatica/ambiental via proceso de
+    Poisson compuesto. Simula perdidas anuales combinando:
+      - perdidas catastroficas: N ~ Poisson(catastrophe_frequency * climate_stress_factor
+        * horizon_years) eventos, cada uno con severidad ~ Lognormal(severity_mean,
+        severity_std) como fraccion del portfolio.
+      - opcionalmente, perdida de mercado 'base' ~ Normal(base_mu, base_sigma) si se pasa
+        base_sigma (para combinar riesgo financiero tradicional + riesgo de catastrofe).
+    climate_stress_factor > 1 simula escenarios de intensificacion climatica futura
+    (mayor frecuencia de eventos extremos que la base historica).
+    Reporta VaR y TVaR (Expected Shortfall, promedio de perdidas mas alla del VaR) -
+    el TVaR es la metrica relevante para colas gordas de catastrofe, donde el VaR
+    parametrico normal subestima sistematicamente la magnitud de perdidas extremas.
+    """
+    rng = np.random.default_rng(seed)
+    lam = catastrophe_frequency * climate_stress_factor * horizon_years
+
+    sev_var = severity_std ** 2
+    sigma_ln = math.sqrt(math.log(1 + sev_var / severity_mean ** 2))
+    mu_ln = math.log(severity_mean) - 0.5 * sigma_ln ** 2
+
+    n_events = rng.poisson(lam, size=n_simulations)
+    total_cat_loss_pct = np.zeros(n_simulations)
+    max_events = int(n_events.max()) if n_simulations > 0 else 0
+    if max_events > 0:
+        severities = rng.lognormal(mu_ln, sigma_ln, size=(n_simulations, max_events))
+        mask = np.arange(max_events)[None, :] < n_events[:, None]
+        total_cat_loss_pct = (severities * mask).sum(axis=1)
+
+    if base_sigma is not None:
+        base_loss_pct = -rng.normal(base_mu * horizon_years, base_sigma * math.sqrt(horizon_years), size=n_simulations)
+    else:
+        base_loss_pct = np.zeros(n_simulations)
+
+    total_loss_pct = total_cat_loss_pct + base_loss_pct
+    total_loss_value = total_loss_pct * portfolio_value
+
+    var_pct = np.percentile(total_loss_pct, confidence * 100)
+    var_value = var_pct * portfolio_value
+
+    tail = total_loss_value[total_loss_value >= var_value]
+    tvar_value = float(tail.mean()) if tail.size > 0 else float(var_value)
+    tvar_pct = tvar_value / portfolio_value if portfolio_value else 0.0
+
+    expected_annual_loss_value = float(total_loss_value.mean())
+    prob_any_catastrophe = float((n_events > 0).mean())
+
+    return {
+        "mode": "catastrophe_risk",
+        "confidence": confidence,
+        "horizon_years": horizon_years,
+        "catastrophe_frequency_input": catastrophe_frequency,
+        "climate_stress_factor": climate_stress_factor,
+        "effective_annual_event_rate": catastrophe_frequency * climate_stress_factor,
+        "expected_annual_loss_pct": round(float(total_cat_loss_pct.mean()), 6),
+        "expected_annual_loss_value": round(expected_annual_loss_value, 2),
+        "var_pct": round(float(var_pct), 6),
+        "var_value": round(float(var_value), 2),
+        "tvar_pct": round(float(tvar_pct), 6),
+        "tvar_value": round(tvar_value, 2),
+        "probability_at_least_one_catastrophe": round(prob_any_catastrophe, 6),
+        "n_simulations": n_simulations,
+    }
+
+
 def compute_financial_math(mode, **kwargs):
     """Dispatcher unico para el tool MCP financial_math, segun 'mode'."""
     fns = {
@@ -189,6 +259,7 @@ def compute_financial_math(mode, **kwargs):
         "value_at_risk": compute_value_at_risk,
         "annuity_valuation": compute_annuity_valuation,
         "bond_pricing": compute_bond_pricing,
+        "catastrophe_risk": compute_catastrophe_risk,
     }
     if mode not in fns:
         raise ValueError(f"mode desconocido: {mode}")
@@ -197,11 +268,11 @@ def compute_financial_math(mode, **kwargs):
 
 FINANCIAL_MATH_TOOL_SCHEMA = {
     "name": "financial_math",
-    "description": "Matematica financiera: Black-Scholes, griegas de opciones, Value at Risk (parametrico/historico/Monte Carlo), anualidades/perpetuidades, y bonos (precio/YTM/duracion/convexidad).",
+    "description": "Matematica financiera: Black-Scholes, griegas de opciones, Value at Risk (parametrico/historico/Monte Carlo), anualidades/perpetuidades, bonos (precio/YTM/duracion/convexidad), y riesgo de catastrofe climatica/ambiental (VaR y TVaR via Poisson compuesto).",
     "inputSchema": {
         "type": "object",
         "properties": {
-            "mode": {"type": "string", "enum": ["black_scholes", "option_greeks", "value_at_risk", "annuity_valuation", "bond_pricing"]},
+            "mode": {"type": "string", "enum": ["black_scholes", "option_greeks", "value_at_risk", "annuity_valuation", "bond_pricing", "catastrophe_risk"]},
             "S": {"type": "number"}, "K": {"type": "number"}, "T": {"type": "number"},
             "r": {"type": "number"}, "sigma": {"type": "number"}, "q": {"type": "number"},
             "option_type": {"type": "string", "enum": ["call", "put"]},
@@ -214,6 +285,9 @@ FINANCIAL_MATH_TOOL_SCHEMA = {
             "growth_rate": {"type": "number"}, "due": {"type": "boolean"},
             "face_value": {"type": "number"}, "coupon_rate": {"type": "number"},
             "periods_per_year": {"type": "integer"}, "ytm": {"type": "number"}, "market_price": {"type": "number"},
+            "horizon_years": {"type": "number"}, "catastrophe_frequency": {"type": "number"},
+            "severity_mean": {"type": "number"}, "severity_std": {"type": "number"},
+            "climate_stress_factor": {"type": "number"}, "base_sigma": {"type": "number"}, "base_mu": {"type": "number"},
         },
         "required": ["mode"],
     },
@@ -226,3 +300,4 @@ if __name__ == "__main__":
     print(compute_financial_math(mode="value_at_risk", method="parametric", confidence=0.95, portfolio_value=1000000, mu=0.0005, sigma=0.02, horizon_days=1))
     print(compute_financial_math(mode="annuity_valuation", kind="present_value", payment=1000, rate=0.05, n_periods=10))
     print(compute_financial_math(mode="bond_pricing", face_value=1000, coupon_rate=0.06, periods_per_year=2, n_periods=20, market_price=980))
+    print(compute_financial_math(mode="catastrophe_risk", portfolio_value=1000000, confidence=0.95, catastrophe_frequency=0.2, severity_mean=0.15, severity_std=0.10, climate_stress_factor=1.5, base_sigma=0.15, seed=42))
