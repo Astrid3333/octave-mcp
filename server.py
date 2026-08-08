@@ -15,6 +15,7 @@ from math_interpreter_tool import interpret_math_query, MATH_INTERPRETER_TOOL_SC
 from math_visualization_tool import compute_math_visualization, MATH_VISUALIZATION_TOOL_SCHEMA
 from math_explainer_tool import interpret_and_explain, MATH_EXPLAINER_TOOL_SCHEMA
 from machine_learning_math_tool import compute_machine_learning_math, MACHINE_LEARNING_TOOL_SCHEMA
+from financial_math_tool import compute_financial_math, FINANCIAL_MATH_TOOL_SCHEMA
 
 
 def run_octave(code):
@@ -49,6 +50,7 @@ TOOLS = [
     MATH_VISUALIZATION_TOOL_SCHEMA,
     MATH_EXPLAINER_TOOL_SCHEMA,
     MACHINE_LEARNING_TOOL_SCHEMA,
+    FINANCIAL_MATH_TOOL_SCHEMA,
 ]
 
 
@@ -180,6 +182,12 @@ for line in sys.stdin:
 
             elif tool_name == "machine_learning_math":
                 result = compute_machine_learning_math(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+            elif tool_name == "financial_math":
+                result = compute_financial_math(**args)
                 resp = {
                     "jsonrpc": "2.0", "id": req_id,
                     "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
