@@ -7,6 +7,10 @@ from stiff_ode_tool import integrate_stiff_ode, STIFF_ODE_TOOL_SCHEMA
 from bifurcation_tool import compute_bifurcation_diagram, BIFURCATION_TOOL_SCHEMA
 from hilbert_tool import compute_hilbert_transform, HILBERT_TOOL_SCHEMA
 from auto_differentiation_tool import compute_gradient_hessian, compute_jacobian, GRADIENT_HESSIAN_TOOL_SCHEMA, JACOBIAN_TOOL_SCHEMA
+from math_error_analyzer_tool import compute_math_error_analysis, MATH_ERROR_ANALYZER_TOOL_SCHEMA
+from math_benchmark_tool import compute_math_benchmark, MATH_BENCHMARK_TOOL_SCHEMA
+from math_interpolation_tool import compute_math_interpolation, MATH_INTERPOLATION_TOOL_SCHEMA
+from math_pipeline_builder_tool import run_math_pipeline, PIPELINE_BUILDER_TOOL_SCHEMA
 
 
 def run_octave(code):
@@ -33,6 +37,10 @@ TOOLS = [
     HILBERT_TOOL_SCHEMA,
     GRADIENT_HESSIAN_TOOL_SCHEMA,
     JACOBIAN_TOOL_SCHEMA,
+    MATH_ERROR_ANALYZER_TOOL_SCHEMA,
+    MATH_BENCHMARK_TOOL_SCHEMA,
+    MATH_INTERPOLATION_TOOL_SCHEMA,
+    PIPELINE_BUILDER_TOOL_SCHEMA,
 ]
 
 
@@ -108,6 +116,34 @@ for line in sys.stdin:
 
             elif tool_name == "compute_jacobian":
                 result = compute_jacobian(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+
+            elif tool_name == "math_error_analyzer":
+                result = compute_math_error_analysis(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+
+            elif tool_name == "math_benchmark":
+                result = compute_math_benchmark(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+
+            elif tool_name == "math_interpolation":
+                result = compute_math_interpolation(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+
+            elif tool_name == "run_math_pipeline":
+                result = run_math_pipeline(**args)
                 resp = {
                     "jsonrpc": "2.0", "id": req_id,
                     "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
