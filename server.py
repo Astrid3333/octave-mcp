@@ -21,6 +21,7 @@ from tensor_calculus_tool import compute_tensor_calculus, TENSOR_CALCULUS_TOOL_S
 from network_science_tool import compute_network_science, NETWORK_SCIENCE_TOOL_SCHEMA
 from population_genetics_tool import compute_population_genetics, POPULATION_GENETICS_TOOL_SCHEMA
 from wavelet_tool import compute_wavelet, WAVELET_TOOL_SCHEMA
+from percolation_theory_tool import compute_percolation_theory, PERCOLATION_THEORY_TOOL_SCHEMA
 
 
 def run_octave(code):
@@ -61,6 +62,7 @@ TOOLS = [
     NETWORK_SCIENCE_TOOL_SCHEMA,
     POPULATION_GENETICS_TOOL_SCHEMA,
     WAVELET_TOOL_SCHEMA,
+    PERCOLATION_THEORY_TOOL_SCHEMA,
 ]
 
 
@@ -233,6 +235,13 @@ for line in sys.stdin:
 
             elif tool_name == "wavelet":
                 result = compute_wavelet(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+
+            elif tool_name == "percolation_theory":
+                result = compute_percolation_theory(**args)
                 resp = {
                     "jsonrpc": "2.0", "id": req_id,
                     "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
