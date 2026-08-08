@@ -1,357 +1,374 @@
 #!/usr/bin/env python3
 """
 tensor_calculus_tool.py
-Calculo tensorial simbolico (via sympy puro, sin diffgeom): simbolos de
-Christoffel, tensor de Riemann, tensor y escalar de Ricci, derivada covariante,
-algebra tensorial basica (contraccion, subir/bajar indices), y un chequeo
-pedagogico de notacion de Einstein.
+Calculo tensorial para geometria diferencial / relatividad general:
+simbolos de Christoffel, tensor de Riemann, tensor de Ricci, curvatura
+escalar y ecuaciones geodesicas, a partir de un tensor metrico g_{mu nu}.
 
-Pensado para geometria diferencial / relatividad general a nivel de curso
-universitario. Todo se calcula a mano con sympy.diff/sympy.Matrix, no se usa
-sympy.diffgeom (mas control, menos "caja negra").
+Dos backends:
+  - "symbolic": derivadas exactas via sympy, resultados como expresiones
+    simplificadas (validas para cualquier punto de la variedad).
+  - "numeric": derivadas por diferencias finitas centradas evaluadas en
+    un punto dado, sin simplificacion simbolica - util para chequear el
+    resultado simbolico o para metricas sin forma cerrada simple.
 
-Corre standalone: python3 tensor_calculus_tool.py
+Incluye metricas precargadas (sphere_2d, polar_plane, schwarzschild) para
+validar contra resultados conocidos de libro (ej: esfera 2D con R=2/a^2,
+plano en polares con curvatura nula, Schwarzschild con R_{mu nu}=0 en el
+vacio).
 """
-import json
 import sympy as sp
+import numpy as np
+
+PRESETS = {
+    "sphere_2d": {
+        "coords": ["theta", "phi"],
+        "params": ["a"],
+        "g": [["a**2", "0"],
+              ["0", "a**2*sin(theta)**2"]],
+    },
+    "polar_plane": {
+        "coords": ["r", "theta"],
+        "params": [],
+        "g": [["1", "0"],
+              ["0", "r**2"]],
+    },
+    "schwarzschild": {
+        "coords": ["t", "r", "theta", "phi"],
+        "params": ["rs"],
+        "g": [["-(1 - rs/r)", "0", "0", "0"],
+              ["0", "1/(1 - rs/r)", "0", "0"],
+              ["0", "0", "r**2", "0"],
+              ["0", "0", "0", "r**2*sin(theta)**2"]],
+    },
+}
+
+
+def _build_symbolic_metric(metric_preset=None, custom_metric=None, coords=None, params=None):
+    if metric_preset is not None:
+        if metric_preset not in PRESETS:
+            raise ValueError(f"metric_preset desconocido: {metric_preset}. Opciones: {list(PRESETS)}")
+        preset = PRESETS[metric_preset]
+        coord_names = preset["coords"]
+        param_names = preset["params"]
+        g_raw = preset["g"]
+    else:
+        if custom_metric is None or coords is None:
+            raise ValueError("para metrica custom hay que dar custom_metric y coords")
+        coord_names = coords
+        param_names = params or []
+        g_raw = custom_metric
+
+    coord_syms = list(sp.symbols(coord_names))
+    param_syms = list(sp.symbols(param_names)) if param_names else []
+
+    local_dict = {name: sym for name, sym in zip(coord_names, coord_syms)}
+    local_dict.update({name: sym for name, sym in zip(param_names, param_syms)})
+
+    n = len(coord_names)
+    g = sp.zeros(n, n)
+    for i in range(n):
+        for j in range(n):
+            g[i, j] = sp.sympify(g_raw[i][j], locals=local_dict)
+
+    return g, list(coord_syms), list(param_syms), coord_names, param_names
+
+
+def _christoffel_symbolic(g, coord_syms, simplify=True):
+    n = len(coord_syms)
+    ginv = g.inv()
+    Gamma = [[[sp.Integer(0)] * n for _ in range(n)] for _ in range(n)]
+    for lam in range(n):
+        for mu in range(n):
+            for nu in range(n):
+                s = sp.Integer(0)
+                for sigma in range(n):
+                    term = (sp.diff(g[sigma, nu], coord_syms[mu])
+                            + sp.diff(g[sigma, mu], coord_syms[nu])
+                            - sp.diff(g[mu, nu], coord_syms[sigma]))
+                    s += ginv[lam, sigma] * term
+                val = s / 2
+                if simplify:
+                    val = sp.simplify(val)
+                Gamma[lam][mu][nu] = val
+    return Gamma
+
+
+def _riemann_symbolic(g, coord_syms, Gamma, simplify=True):
+    n = len(coord_syms)
+    R = [[[[sp.Integer(0)] * n for _ in range(n)] for _ in range(n)] for _ in range(n)]
+    for rho in range(n):
+        for sigma in range(n):
+            for mu in range(n):
+                for nu in range(n):
+                    term = (sp.diff(Gamma[rho][nu][sigma], coord_syms[mu])
+                            - sp.diff(Gamma[rho][mu][sigma], coord_syms[nu]))
+                    for lam in range(n):
+                        term += (Gamma[rho][mu][lam] * Gamma[lam][nu][sigma]
+                                 - Gamma[rho][nu][lam] * Gamma[lam][mu][sigma])
+                    if simplify:
+                        term = sp.simplify(term)
+                    R[rho][sigma][mu][nu] = term
+    return R
+
+
+def _ricci_symbolic(Riemann, n):
+    Ric = sp.zeros(n, n)
+    for mu in range(n):
+        for nu in range(n):
+            s = sp.Integer(0)
+            for rho in range(n):
+                s += Riemann[rho][mu][rho][nu]
+            Ric[mu, nu] = sp.simplify(s)
+    return Ric
+
+
+def _scalar_curvature_symbolic(g, Ric):
+    ginv = g.inv()
+    n = g.shape[0]
+    s = sp.Integer(0)
+    for mu in range(n):
+        for nu in range(n):
+            s += ginv[mu, nu] * Ric[mu, nu]
+    return sp.simplify(s)
+
+
+def _matrix_to_nested_list(M, n, fmt=str):
+    return [[fmt(M[i, j]) for j in range(n)] for i in range(n)]
+
+
+def _nonzero_entries_3(Gamma, n, tol=None):
+    out = []
+    for lam in range(n):
+        for mu in range(n):
+            for nu in range(n):
+                val = Gamma[lam][mu][nu]
+                is_zero = (val == 0) if tol is None else (abs(val) < tol)
+                if not is_zero:
+                    out.append({"indices": f"Gamma^{lam}_{mu}{nu}", "value": str(val) if tol is None else round(float(val), 8)})
+    return out
+
+
+def compute_symbolic(mode, metric_preset=None, custom_metric=None, coords=None, params=None, simplify=True):
+    g, coord_syms, param_syms, coord_names, param_names = _build_symbolic_metric(
+        metric_preset, custom_metric, coords, params)
+    n = len(coord_syms)
+
+    out = {
+        "backend": "symbolic",
+        "mode": mode,
+        "coords": coord_names,
+        "params": param_names,
+        "metric": _matrix_to_nested_list(g, n),
+    }
+
+    if mode == "christoffel":
+        Gamma = _christoffel_symbolic(g, coord_syms, simplify=simplify)
+        out["nonzero_christoffel_symbols"] = _nonzero_entries_3(Gamma, n)
+        return out
+
+    Gamma = _christoffel_symbolic(g, coord_syms, simplify=simplify)
+    if mode == "riemann":
+        Riemann = _riemann_symbolic(g, coord_syms, Gamma, simplify=simplify)
+        nz = []
+        for rho in range(n):
+            for sigma in range(n):
+                for mu in range(n):
+                    for nu in range(n):
+                        val = Riemann[rho][sigma][mu][nu]
+                        if val != 0:
+                            nz.append({"indices": f"R^{rho}_{{{sigma}{mu}{nu}}}", "value": str(val)})
+        out["nonzero_riemann_components"] = nz
+        return out
+
+    Riemann = _riemann_symbolic(g, coord_syms, Gamma, simplify=simplify)
+    Ric = _ricci_symbolic(Riemann, n)
+    if mode == "ricci":
+        out["ricci_tensor"] = _matrix_to_nested_list(Ric, n)
+        out["ricci_all_zero"] = all(Ric[i, j] == 0 for i in range(n) for j in range(n))
+        return out
+
+    if mode == "scalar_curvature":
+        R = _scalar_curvature_symbolic(g, Ric)
+        out["ricci_tensor"] = _matrix_to_nested_list(Ric, n)
+        out["scalar_curvature"] = str(R)
+        return out
+
+    if mode == "geodesic_equations":
+        xdot = sp.symbols([f"xdot{i}" for i in range(n)])
+        eqs = []
+        for lam in range(n):
+            s = sp.Integer(0)
+            for mu in range(n):
+                for nu in range(n):
+                    if Gamma[lam][mu][nu] != 0:
+                        s += Gamma[lam][mu][nu] * xdot[mu] * xdot[nu]
+            eqs.append(f"d2({coord_names[lam]})/dtau2 = -({sp.simplify(s)})")
+        out["geodesic_equations"] = eqs
+        out["note"] = "xdot_i representa d(coord_i)/dtau; ecuacion: d2x^lambda/dtau2 + Gamma^lambda_mu_nu * xdot^mu * xdot^nu = 0"
+        return out
+
+    raise ValueError(f"modo desconocido: {mode}")
+
+
+# ---------- backend numerico (diferencias finitas) ----------
+
+def _lambdify_metric(metric_preset, custom_metric, coords, params, param_values):
+    g_sym, coord_syms, param_syms, coord_names, param_names = _build_symbolic_metric(
+        metric_preset, custom_metric, coords, params)
+    n = len(coord_syms)
+    if param_names:
+        if param_values is None or len(param_values) != len(param_names):
+            raise ValueError(f"faltan valores numericos para params {param_names}")
+        subs = {psym: val for psym, val in zip(param_syms, param_values)}
+        g_sym = g_sym.subs(subs)
+    g_func = sp.lambdify(coord_syms, g_sym, modules="numpy")
+    return g_func, n, coord_names
+
+
+def _g_at(g_func, point, n):
+    val = np.array(g_func(*point), dtype=float)
+    return val.reshape(n, n)
+
+
+def _christoffel_numeric(g_func, point, n, h=1e-5):
+    ginv = np.linalg.inv(_g_at(g_func, point, n))
+    dg = np.zeros((n, n, n))  # dg[k][i][j] = d g_ij / d x^k
+    for k in range(n):
+        p_plus = list(point); p_plus[k] += h
+        p_minus = list(point); p_minus[k] -= h
+        dg[k] = (_g_at(g_func, p_plus, n) - _g_at(g_func, p_minus, n)) / (2 * h)
+
+    Gamma = np.zeros((n, n, n))
+    for lam in range(n):
+        for mu in range(n):
+            for nu in range(n):
+                s = 0.0
+                for sigma in range(n):
+                    s += ginv[lam, sigma] * (dg[mu, sigma, nu] + dg[nu, sigma, mu] - dg[sigma, mu, nu])
+                Gamma[lam, mu, nu] = s / 2
+    return Gamma
+
+
+def _christoffel_at(g_func, point, n, h):
+    return _christoffel_numeric(g_func, point, n, h=h)
+
+
+def _riemann_numeric(g_func, point, n, h=1e-4):
+    dGamma = np.zeros((n, n, n, n))  # dGamma[k][rho][mu][nu] = d Gamma^rho_mu_nu / dx^k
+    for k in range(n):
+        p_plus = list(point); p_plus[k] += h
+        p_minus = list(point); p_minus[k] -= h
+        Gp = _christoffel_at(g_func, p_plus, n, h)
+        Gm = _christoffel_at(g_func, p_minus, n, h)
+        dGamma[k] = (Gp - Gm) / (2 * h)
+
+    Gamma0 = _christoffel_at(g_func, point, n, h)
+    Riemann = np.zeros((n, n, n, n))
+    for rho in range(n):
+        for sigma in range(n):
+            for mu in range(n):
+                for nu in range(n):
+                    val = dGamma[mu, rho, nu, sigma] - dGamma[nu, rho, mu, sigma]
+                    for lam in range(n):
+                        val += Gamma0[rho, mu, lam] * Gamma0[lam, nu, sigma]
+                        val -= Gamma0[rho, nu, lam] * Gamma0[lam, mu, sigma]
+                    Riemann[rho, sigma, mu, nu] = val
+    return Riemann, Gamma0
+
+
+def compute_numeric(mode, point, metric_preset=None, custom_metric=None, coords=None,
+                     params=None, param_values=None, h=1e-5, tol=1e-6):
+    g_func, n, coord_names = _lambdify_metric(metric_preset, custom_metric, coords, params, param_values)
+    if len(point) != n:
+        raise ValueError(f"point debe tener {n} componentes ({coord_names}), recibido {len(point)}")
+
+    out = {
+        "backend": "numeric",
+        "mode": mode,
+        "coords": coord_names,
+        "point": point,
+        "metric_at_point": _g_at(g_func, point, n).round(8).tolist(),
+        "finite_difference_h": h,
+    }
+
+    if mode == "christoffel":
+        Gamma = _christoffel_at(g_func, point, n, h)
+        out["nonzero_christoffel_symbols"] = _nonzero_entries_3(Gamma.tolist(), n, tol=tol)
+        return out
+
+    Riemann, Gamma0 = _riemann_numeric(g_func, point, n, h=max(h, 1e-4))
+    if mode == "riemann":
+        nz = []
+        for rho in range(n):
+            for sigma in range(n):
+                for mu in range(n):
+                    for nu in range(n):
+                        val = Riemann[rho, sigma, mu, nu]
+                        if abs(val) > tol:
+                            nz.append({"indices": f"R^{rho}_{{{sigma}{mu}{nu}}}", "value": round(float(val), 8)})
+        out["nonzero_riemann_components"] = nz
+        return out
+
+    Ric = np.zeros((n, n))
+    for mu in range(n):
+        for nu in range(n):
+            Ric[mu, nu] = sum(Riemann[rho, mu, rho, nu] for rho in range(n))
+    if mode == "ricci":
+        out["ricci_tensor"] = Ric.round(8).tolist()
+        out["ricci_all_zero"] = bool(np.max(np.abs(Ric)) < tol)
+        return out
+
+    if mode == "scalar_curvature":
+        ginv = np.linalg.inv(_g_at(g_func, point, n))
+        R = float(np.sum(ginv * Ric))
+        out["ricci_tensor"] = Ric.round(8).tolist()
+        out["scalar_curvature"] = round(R, 8)
+        return out
+
+    raise ValueError(f"modo desconocido para backend numeric: {mode} (geodesic_equations solo existe en backend symbolic)")
+
+
+def compute_tensor_calculus(mode, backend="symbolic", metric_preset=None, custom_metric=None,
+                             coords=None, params=None, param_values=None, point=None,
+                             simplify=True, h=1e-5, tol=1e-6):
+    if backend == "symbolic":
+        return compute_symbolic(mode, metric_preset=metric_preset, custom_metric=custom_metric,
+                                 coords=coords, params=params, simplify=simplify)
+    elif backend == "numeric":
+        if point is None:
+            raise ValueError("backend numeric requiere 'point' (lista de coordenadas donde evaluar)")
+        return compute_numeric(mode, point, metric_preset=metric_preset, custom_metric=custom_metric,
+                                coords=coords, params=params, param_values=param_values, h=h, tol=tol)
+    else:
+        raise ValueError("backend debe ser 'symbolic' o 'numeric'")
 
 
 TENSOR_CALCULUS_TOOL_SCHEMA = {
     "name": "tensor_calculus",
     "description": (
-        "Calculo tensorial simbolico: simbolos de Christoffel, tensor de Riemann, "
-        "tensor/escalar de Ricci, derivada covariante, algebra tensorial basica "
-        "(contraccion, subir/bajar indices) y chequeo de notacion de Einstein."
+        "Calculo tensorial para geometria diferencial: simbolos de "
+        "Christoffel, tensor de Riemann, tensor de Ricci, curvatura "
+        "escalar y ecuaciones geodesicas a partir de una metrica g_mu_nu. "
+        "Backend 'symbolic' (sympy, expresiones exactas) o 'numeric' "
+        "(diferencias finitas centradas evaluadas en un punto). Incluye "
+        "metricas precargadas: sphere_2d, polar_plane, schwarzschild."
     ),
     "inputSchema": {
         "type": "object",
         "properties": {
-            "mode": {
-                "type": "string",
-                "enum": [
-                    "christoffel_symbols",
-                    "riemann_tensor",
-                    "ricci_tensor",
-                    "covariant_derivative",
-                    "tensor_algebra",
-                    "index_notation_check",
-                ],
-            },
-            "metric": {
-                "type": "array",
-                "description": "Tensor metrico g_ij como matriz simbolica (lista de listas de strings). Requerido para christoffel_symbols, riemann_tensor, ricci_tensor, covariant_derivative, tensor_algebra (subir/bajar indices).",
-            },
-            "coordinates": {
-                "type": "string",
-                "description": "Coordenadas separadas por coma, ej. 'r,theta,phi'.",
-            },
-            "vector_field": {
-                "type": "array",
-                "description": "Componentes del campo vectorial V^i (strings), para covariant_derivative.",
-            },
-            "derivative_index": {
-                "type": "integer",
-                "description": "Indice de coordenada respecto al cual derivar covariantemente (0-based), para covariant_derivative.",
-            },
-            "operation": {
-                "type": "string",
-                "enum": ["contract", "raise_index", "lower_index"],
-                "description": "Solo mode=tensor_algebra.",
-            },
-            "tensor": {
-                "type": "array",
-                "description": "Tensor de entrada (lista o lista de listas de strings), para tensor_algebra.",
-            },
-            "expression": {
-                "type": "string",
-                "description": "Expresion en notacion de Einstein a validar (ej. 'g_ij * V^i * V^j'), para index_notation_check.",
-            },
+            "mode": {"type": "string", "enum": ["christoffel", "riemann", "ricci", "scalar_curvature", "geodesic_equations"]},
+            "backend": {"type": "string", "enum": ["symbolic", "numeric"], "default": "symbolic"},
+            "metric_preset": {"type": "string", "enum": list(PRESETS.keys()), "description": "atajo: usa una metrica precargada"},
+            "custom_metric": {"type": "array", "description": "matriz n x n de expresiones (strings) en funcion de coords/params, si no se usa metric_preset"},
+            "coords": {"type": "array", "description": "nombres de las coordenadas (requerido con custom_metric)"},
+            "params": {"type": "array", "description": "nombres de parametros libres en la metrica (ej. 'rs', 'a'), opcional"},
+            "param_values": {"type": "array", "description": "backend numeric: valores numericos para params, en el mismo orden"},
+            "point": {"type": "array", "description": "backend numeric: punto (lista de floats) donde evaluar, mismo orden que coords"},
+            "simplify": {"type": "boolean", "default": True, "description": "backend symbolic: simplificar cada componente (mas lento en Schwarzschild)"},
+            "h": {"type": "number", "default": 1e-5, "description": "backend numeric: paso de diferencias finitas"},
+            "tol": {"type": "number", "default": 1e-6, "description": "backend numeric: tolerancia para considerar una componente como cero (riemann/ricci acumulan mas ruido que christoffel por ser doble diferencia finita)"},
         },
         "required": ["mode"],
     },
 }
-
-
-def _parse_metric(metric, coords_syms):
-    n = len(coords_syms)
-    g = sp.Matrix(n, n, lambda i, j: sp.sympify(metric[i][j]))
-    return g
-
-
-def _christoffel(g, coords_syms):
-    n = len(coords_syms)
-    g_inv = g.inv()
-    christoffel = [[[sp.Integer(0)] * n for _ in range(n)] for _ in range(n)]
-    for k in range(n):
-        for i in range(n):
-            for j in range(n):
-                s = sp.Integer(0)
-                for l in range(n):
-                    term = sp.diff(g[l, j], coords_syms[i]) \
-                        + sp.diff(g[l, i], coords_syms[j]) \
-                        - sp.diff(g[i, j], coords_syms[l])
-                    s += g_inv[k, l] * term
-                christoffel[k][i][j] = sp.simplify(s / 2)
-    return christoffel
-
-
-def _christoffel_symbols(metric, coordinates):
-    coords_syms = sp.symbols(coordinates)
-    if not isinstance(coords_syms, (list, tuple)):
-        coords_syms = [coords_syms]
-    n = len(coords_syms)
-    g = _parse_metric(metric, coords_syms)
-    christoffel = _christoffel(g, coords_syms)
-
-    nonzero = []
-    for k in range(n):
-        for i in range(n):
-            for j in range(i, n):  # simetrico en i,j
-                val = christoffel[k][i][j]
-                if val != 0:
-                    nonzero.append({"k": k, "i": i, "j": j, "value": str(val)})
-
-    return {
-        "mode": "christoffel_symbols",
-        "coordinates": [str(c) for c in coords_syms],
-        "n_dim": n,
-        "metric_determinant": str(sp.simplify(g.det())),
-        "nonzero_symbols": nonzero,
-        "n_nonzero": len(nonzero),
-    }
-
-
-def _riemann_tensor(metric, coordinates):
-    coords_syms = sp.symbols(coordinates)
-    if not isinstance(coords_syms, (list, tuple)):
-        coords_syms = [coords_syms]
-    n = len(coords_syms)
-    g = _parse_metric(metric, coords_syms)
-    christoffel = _christoffel(g, coords_syms)
-
-    # R^l_{ijk} = d_j Gamma^l_ik - d_k Gamma^l_ij + Gamma^l_jm Gamma^m_ik - Gamma^l_km Gamma^m_ij
-    nonzero = []
-    for l in range(n):
-        for i in range(n):
-            for j in range(n):
-                for k in range(n):
-                    term1 = sp.diff(christoffel[l][i][k], coords_syms[j])
-                    term2 = sp.diff(christoffel[l][i][j], coords_syms[k])
-                    term3 = sum(christoffel[l][j][m] * christoffel[m][i][k] for m in range(n))
-                    term4 = sum(christoffel[l][k][m] * christoffel[m][i][j] for m in range(n))
-                    val = sp.simplify(term1 - term2 + term3 - term4)
-                    if val != 0:
-                        nonzero.append({"l": l, "i": i, "j": j, "k": k, "value": str(val)})
-
-    return {
-        "mode": "riemann_tensor",
-        "coordinates": [str(c) for c in coords_syms],
-        "n_dim": n,
-        "nonzero_components": nonzero,
-        "n_nonzero": len(nonzero),
-        "is_flat": len(nonzero) == 0,
-    }
-
-
-def _ricci_tensor(metric, coordinates):
-    coords_syms = sp.symbols(coordinates)
-    if not isinstance(coords_syms, (list, tuple)):
-        coords_syms = [coords_syms]
-    n = len(coords_syms)
-    g = _parse_metric(metric, coords_syms)
-    g_inv = g.inv()
-    christoffel = _christoffel(g, coords_syms)
-
-    def riemann_component(l, i, j, k):
-        term1 = sp.diff(christoffel[l][i][k], coords_syms[j])
-        term2 = sp.diff(christoffel[l][i][j], coords_syms[k])
-        term3 = sum(christoffel[l][j][m] * christoffel[m][i][k] for m in range(n))
-        term4 = sum(christoffel[l][k][m] * christoffel[m][i][j] for m in range(n))
-        return term1 - term2 + term3 - term4
-
-    ricci = sp.zeros(n, n)
-    for i in range(n):
-        for k in range(n):
-            s = sp.Integer(0)
-            for l in range(n):
-                s += riemann_component(l, i, l, k)
-            ricci[i, k] = sp.simplify(s)
-
-    ricci_scalar = sp.simplify(sum(g_inv[i, j] * ricci[i, j] for i in range(n) for j in range(n)))
-
-    return {
-        "mode": "ricci_tensor",
-        "coordinates": [str(c) for c in coords_syms],
-        "n_dim": n,
-        "ricci_tensor": [[str(ricci[i, j]) for j in range(n)] for i in range(n)],
-        "ricci_scalar": str(ricci_scalar),
-        "is_ricci_flat": all(ricci[i, j] == 0 for i in range(n) for j in range(n)),
-    }
-
-
-def _covariant_derivative(metric, coordinates, vector_field, derivative_index):
-    coords_syms = sp.symbols(coordinates)
-    if not isinstance(coords_syms, (list, tuple)):
-        coords_syms = [coords_syms]
-    n = len(coords_syms)
-    g = _parse_metric(metric, coords_syms)
-    christoffel = _christoffel(g, coords_syms)
-
-    V = [sp.sympify(v) for v in vector_field]
-    m = derivative_index
-
-    # (nabla_m V)^i = d_m V^i + Gamma^i_mk V^k
-    result = []
-    for i in range(n):
-        val = sp.diff(V[i], coords_syms[m])
-        for k in range(n):
-            val += christoffel[i][m][k] * V[k]
-        result.append(sp.simplify(val))
-
-    return {
-        "mode": "covariant_derivative",
-        "coordinates": [str(c) for c in coords_syms],
-        "derivative_index": m,
-        "vector_field": [str(v) for v in V],
-        "covariant_derivative_components": [str(r) for r in result],
-    }
-
-
-def _tensor_algebra(operation, tensor, metric=None, coordinates=None):
-    if operation == "contract":
-        # asume tensor 2D (matriz), contrae indices (traza)
-        n = len(tensor)
-        T = sp.Matrix(n, n, lambda i, j: sp.sympify(tensor[i][j]))
-        trace = sp.simplify(sum(T[i, i] for i in range(n)))
-        return {
-            "mode": "tensor_algebra",
-            "operation": "contract",
-            "input_shape": [n, n],
-            "contracted_value": str(trace),
-        }
-
-    elif operation in ("raise_index", "lower_index"):
-        if metric is None or coordinates is None:
-            raise ValueError("raise_index/lower_index requieren 'metric' y 'coordinates'.")
-        coords_syms = sp.symbols(coordinates)
-        if not isinstance(coords_syms, (list, tuple)):
-            coords_syms = [coords_syms]
-        n = len(coords_syms)
-        g = _parse_metric(metric, coords_syms)
-        g_use = g.inv() if operation == "raise_index" else g
-
-        V = sp.Matrix([sp.sympify(v) for v in tensor])
-        result = g_use * V
-        return {
-            "mode": "tensor_algebra",
-            "operation": operation,
-            "input_vector": [str(v) for v in tensor],
-            "output_vector": [str(sp.simplify(result[i])) for i in range(n)],
-        }
-    else:
-        raise ValueError(f"operation desconocida: {operation}")
-
-
-def _index_notation_check(expression):
-    """
-    Chequeo pedagogico simple: cuenta apariciones de cada indice (subindice/
-    superindice) en la expresion y marca cuales estan repetidos (candidatos a
-    suma de Einstein) vs sueltos (indices libres). No hace algebra real, es
-    un parser de patrones tipo 'g_ij', 'V^i', 'T^i_jk'.
-    """
-    import re
-
-    # extrae tokens tipo nombre_sub o nombre^sup, capturando las letras de indice
-    sub_pattern = re.findall(r'_([a-zA-Z]+)', expression)
-    sup_pattern = re.findall(r'\^([a-zA-Z]+)', expression)
-
-    all_indices = []
-    for grp in sub_pattern + sup_pattern:
-        all_indices.extend(list(grp))
-
-    from collections import Counter
-    counts = Counter(all_indices)
-
-    repeated = {idx: c for idx, c in counts.items() if c >= 2}
-    free = {idx: c for idx, c in counts.items() if c == 1}
-
-    warnings = []
-    for idx, c in counts.items():
-        if c > 2:
-            warnings.append(f"Indice '{idx}' aparece {c} veces: en notacion de Einstein estandar no deberia repetirse mas de 2 veces (una arriba, una abajo).")
-
-    return {
-        "mode": "index_notation_check",
-        "expression": expression,
-        "repeated_indices_sum_convention": list(repeated.keys()),
-        "free_indices": list(free.keys()),
-        "warnings": warnings,
-        "nota": "Chequeo pedagogico basado en patrones (conteo de indices repetidos), no valida balance covariante/contravariante real.",
-    }
-
-
-def compute_tensor_calculus(mode, **kwargs):
-    if mode == "christoffel_symbols":
-        return _christoffel_symbols(kwargs["metric"], kwargs["coordinates"])
-    elif mode == "riemann_tensor":
-        return _riemann_tensor(kwargs["metric"], kwargs["coordinates"])
-    elif mode == "ricci_tensor":
-        return _ricci_tensor(kwargs["metric"], kwargs["coordinates"])
-    elif mode == "covariant_derivative":
-        return _covariant_derivative(
-            kwargs["metric"], kwargs["coordinates"],
-            kwargs["vector_field"], kwargs["derivative_index"],
-        )
-    elif mode == "tensor_algebra":
-        return _tensor_algebra(
-            kwargs["operation"], kwargs["tensor"],
-            kwargs.get("metric"), kwargs.get("coordinates"),
-        )
-    elif mode == "index_notation_check":
-        return _index_notation_check(kwargs["expression"])
-    else:
-        raise ValueError(f"mode desconocido: {mode}")
-
-
-if __name__ == "__main__":
-    # Metrica de la esfera 2D (radio 1): ds^2 = dtheta^2 + sin^2(theta) dphi^2
-    sphere_metric = [["1", "0"], ["0", "sin(theta)**2"]]
-
-    print("=== christoffel_symbols (esfera 2D) ===")
-    r1 = compute_tensor_calculus("christoffel_symbols", metric=sphere_metric, coordinates="theta,phi")
-    print(json.dumps(r1, indent=2, ensure_ascii=False))
-
-    print("\n=== riemann_tensor (esfera 2D, deberia ser curva -> is_flat=False) ===")
-    r2 = compute_tensor_calculus("riemann_tensor", metric=sphere_metric, coordinates="theta,phi")
-    print("n_nonzero:", r2["n_nonzero"], "| is_flat:", r2["is_flat"])
-
-    print("\n=== ricci_tensor (esfera 2D, escalar de Ricci constante = 2) ===")
-    r3 = compute_tensor_calculus("ricci_tensor", metric=sphere_metric, coordinates="theta,phi")
-    print("ricci_scalar:", r3["ricci_scalar"])
-    print("ricci_tensor:", r3["ricci_tensor"])
-
-    print("\n=== covariant_derivative (campo V^i = (theta, 0) en la esfera) ===")
-    r4 = compute_tensor_calculus(
-        "covariant_derivative", metric=sphere_metric, coordinates="theta,phi",
-        vector_field=["theta", "0"], derivative_index=1,
-    )
-    print(r4["covariant_derivative_components"])
-
-    print("\n=== tensor_algebra: contract (traza de identidad 3x3) ===")
-    identity_3 = [["1", "0", "0"], ["0", "1", "0"], ["0", "0", "1"]]
-    r5 = compute_tensor_calculus("tensor_algebra", operation="contract", tensor=identity_3)
-    print("trace:", r5["contracted_value"])
-
-    print("\n=== tensor_algebra: lower_index (plano 2D, metrica identidad) ===")
-    flat_metric = [["1", "0"], ["0", "1"]]
-    r6 = compute_tensor_calculus(
-        "tensor_algebra", operation="lower_index", tensor=["x", "y"],
-        metric=flat_metric, coordinates="x,y",
-    )
-    print(r6["output_vector"])
-
-    print("\n=== index_notation_check ===")
-    r7 = compute_tensor_calculus("index_notation_check", expression="g_ij * V^i * V^j")
-    print(json.dumps(r7, indent=2, ensure_ascii=False))
-
-    print("\nOK - todos los modos corrieron sin excepciones.")
