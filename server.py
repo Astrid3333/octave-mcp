@@ -22,6 +22,7 @@ from network_science_tool import compute_network_science, NETWORK_SCIENCE_TOOL_S
 from population_genetics_tool import compute_population_genetics, POPULATION_GENETICS_TOOL_SCHEMA
 from wavelet_tool import compute_wavelet, WAVELET_TOOL_SCHEMA
 from percolation_theory_tool import compute_percolation_theory, PERCOLATION_THEORY_TOOL_SCHEMA
+from reaction_diffusion_tool import compute_reaction_diffusion, REACTION_DIFFUSION_TOOL_SCHEMA
 
 
 def run_octave(code):
@@ -63,6 +64,7 @@ TOOLS = [
     POPULATION_GENETICS_TOOL_SCHEMA,
     WAVELET_TOOL_SCHEMA,
     PERCOLATION_THEORY_TOOL_SCHEMA,
+    REACTION_DIFFUSION_TOOL_SCHEMA,
 ]
 
 
@@ -242,6 +244,13 @@ for line in sys.stdin:
 
             elif tool_name == "percolation_theory":
                 result = compute_percolation_theory(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+
+            elif tool_name == "reaction_diffusion":
+                result = compute_reaction_diffusion(**args)
                 resp = {
                     "jsonrpc": "2.0", "id": req_id,
                     "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
