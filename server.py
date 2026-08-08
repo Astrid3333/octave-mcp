@@ -31,7 +31,6 @@ from spatial_statistics_tool import compute_spatial_statistics, SPATIAL_STATISTI
 from text_analysis_math_tool import compute_text_analysis_math, TEXT_ANALYSIS_MATH_TOOL_SCHEMA
 from archaeoastronomy_tool import compute_archaeoastronomy, ARCHAEOASTRONOMY_TOOL_SCHEMA
 from quantum_information_tool import compute_quantum_information, QUANTUM_INFORMATION_TOOL_SCHEMA
-from tensor_calculus_tool import compute_tensor_calculus, TENSOR_CALCULUS_TOOL_SCHEMA
 
 
 def run_octave(code):
@@ -82,7 +81,6 @@ TOOLS = [
     TEXT_ANALYSIS_MATH_TOOL_SCHEMA,
     ARCHAEOASTRONOMY_TOOL_SCHEMA,
     QUANTUM_INFORMATION_TOOL_SCHEMA,
-    TENSOR_CALCULUS_TOOL_SCHEMA,
 ]
 
 
@@ -320,8 +318,7 @@ for line in sys.stdin:
                 result = compute_archaeoastronomy(**args)
             elif tool_name == "quantum_information":
                 result = compute_quantum_information(**args)
-            elif tool_name == "tensor_calculus":
-                result = compute_tensor_calculus(**args)
+
                 resp = {
                     "jsonrpc": "2.0", "id": req_id,
                     "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
