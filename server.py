@@ -399,9 +399,13 @@ for line in sys.stdin:
 
             elif tool_name == "archaeoastronomy":
                 result = compute_archaeoastronomy(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+
             elif tool_name == "quantum_information":
                 result = compute_quantum_information(**args)
-
                 resp = {
                     "jsonrpc": "2.0", "id": req_id,
                     "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
