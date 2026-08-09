@@ -64,6 +64,7 @@ from antibiotic_diffusion import compute_antibiotic_diffusion
 from plague_sir_tool import compute_plague_sir
 from settlement_clusters_tool import compute_settlement_clusters
 from historical_extractor_tool import compute_historical_extractor
+from paleography_tool import compute_paleography
 from workspace_tool import save_run
 from workspace_tool import load_run
 from workspace_tool import list_runs
@@ -157,6 +158,7 @@ TOOLS = [
     {"name": "plague_sir", "description": "SIR inverso para brotes historicos de peste: parsea defunciones semanales de texto libre via regex, ajusta beta (tasa de contagio) con curve_fit manteniendo gamma fijo (parametro de literatura, no medido), integra SIR con RK4, y reporta R0=beta/gamma. Proxy cuantitativo cuando no hay fuente epidemiologica directa -- no corrige subregistro, migracion, ni estacionalidad. Modes: fit_beta (requiere te", "inputSchema": {"type": "object", "properties": {"mode": {"type": "string"}, "text_data": {"type": "string"}, "preset": {"type": "string"}, "gamma": {"type": "number"}, "poblacion_estimada": {"type": "number"}}}},
     {"name": "settlement_clusters", "description": "Proxy arqueologico de barrios/clusters sociales: clusteriza coordenadas de hallazgos por distancia (union-find a radio fijo) en cada periodo/estrato, y rastrea clusters entre periodos consecutivos por proximidad de centroides -- detecta nacimiento y muerte de asentamientos. No hace inferencia cronologica, el orden de periodos lo define quien llama. Modes: analyze (requiere puntos_por_periodo y per", "inputSchema": {"type": "object", "properties": {"mode": {"type": "string"}, "puntos_por_periodo": {"type": "array"}, "periodos": {"type": "array"}, "radio": {"type": "number"}, "radio_match": {"type": "number"}, "run_id": {"type": "string"}}}},
     {"name": "historical_extractor", "description": "Extrae MULTIPLES series (anio, valor) de un mismo texto historico via regex por oracion (no NLP), una serie por objeto/concepto mencionado (ej: trigo, cebada, jornal). Corre tendencia por regresion log-lineal en cada serie (reusa el motor de historian), calcula salario real indexado si se indica objeto_salario, y correlacion de Pearson entre series de precios que se solapan en anios. NO interpreta", "inputSchema": {"type": "object", "properties": {"mode": {"type": "string"}, "text_data": {"type": "string"}, "objetos": {"type": "array"}, "objeto_salario": {"type": "string"}}}},
+    {"name": "paleography", "description": "Tres motores cuantitativos de paleografia/codicologia sobre rasgos YA EXTRAIDOS (no hace OCR ni lee imagenes): seriation (analisis de correspondencia via SVD sobre matriz documentos x rasgos, ordena por el eje 1 y valida contra anios_conocidos con Spearman si se dan), feature_dating_regression (ajusta anio ~ rasgo sobre documentos ancla de fecha conocida y estima fecha de documentos sin fecha, con error estandar residual), letterform_classification (nearest-centroid sobre rasgos normalizados, clasifica letterforms en clases conocidas y marca casos ambiguos por margen chico). Ninguno da fechas/atribuciones definitivas.", "inputSchema": {"type": "object", "properties": {"mode": {"type": "string"}, "matriz": {"type": "array"}, "doc_ids": {"type": "array"}, "anios_conocidos": {"type": "object"}, "anios_ancla": {"type": "array"}, "rasgo_ancla": {"type": "array"}, "rasgo_predecir": {"type": "array"}, "ids_predecir": {"type": "array"}, "grado_polinomio": {"type": "integer"}, "rasgos_entrenamiento": {"type": "array"}, "clases_entrenamiento": {"type": "array"}, "rasgos_nuevos": {"type": "array"}, "ids_nuevos": {"type": "array"}}}},
     {"name": "workspace_save", "description": "Guarda arrays/resultados de un analisis bajo un run_id para reutilizarlos despues (ej: en plot_tool) sin recalcular. Si run_id se omite, se autogenera.", "inputSchema": {"type": "object", "properties": {"run_id": {"type": "string"}, "data": {"type": "object"}, "meta": {"type": "object"}}}},
     {"name": "workspace_load", "description": "Carga un run guardado previamente por run_id. Si keys se omite, devuelve todos los arrays (cuidado con trayectorias muy largas: usar workspace_describe primero).", "inputSchema": {"type": "object", "properties": {"run_id": {"type": "string"}, "keys": {"type": "array"}}, "required": ["run_id"]}},
     {"name": "workspace_list", "description": "Lista todos los runs guardados en el workspace, opcionalmente filtrados por tool de origen (ej: 'compute_lyapunov_exponent').", "inputSchema": {"type": "object", "properties": {"filter_tool": {"type": "string"}}}},
@@ -658,6 +660,13 @@ for line in sys.stdin:
 
             elif tool_name == "historical_extractor":
                 result = compute_historical_extractor(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+
+            elif tool_name == "paleography":
+                result = compute_paleography(**args)
                 resp = {
                     "jsonrpc": "2.0", "id": req_id,
                     "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
