@@ -3,3 +3,7 @@
 __pycache__/
 *.pyc
 .DS_Store
+*.bak
+*.bak.*
+patch_server*.py
+wire_*.py

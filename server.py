@@ -16,6 +16,12 @@ from math_visualization_tool import compute_math_visualization, MATH_VISUALIZATI
 from math_explainer_tool import interpret_and_explain, MATH_EXPLAINER_TOOL_SCHEMA
 from machine_learning_math_tool import compute_machine_learning_math, MACHINE_LEARNING_TOOL_SCHEMA
 from financial_math_tool import compute_financial_math, FINANCIAL_MATH_TOOL_SCHEMA
+from quantity_takeoff_tool import compute_quantity_takeoff, QUANTITY_TAKEOFF_TOOL_SCHEMA
+from structural_analysis_tool import compute_structural_analysis, STRUCTURAL_ANALYSIS_TOOL_SCHEMA
+from earthworks_tool import compute_earthworks, EARTHWORKS_TOOL_SCHEMA
+from budgeting_tool import compute_budgeting, BUDGETING_TOOL_SCHEMA
+from construction_scheduling_tool import compute_construction_scheduling, CONSTRUCTION_SCHEDULING_TOOL_SCHEMA
+from math_humanizer_tool import compute_math_humanizer, MATH_HUMANIZER_TOOL_SCHEMA
 from game_theory_tool import compute_game_theory, GAME_THEORY_TOOL_SCHEMA
 from tensor_calculus_tool import compute_tensor_calculus, TENSOR_CALCULUS_TOOL_SCHEMA
 from network_science_tool import compute_network_science, NETWORK_SCIENCE_TOOL_SCHEMA
@@ -32,6 +38,9 @@ from control_theory_tool import compute_control_theory, CONTROL_THEORY_TOOL_SCHE
 from optimal_control_tool import compute_optimal_control, OPTIMAL_CONTROL_TOOL_SCHEMA
 from spatial_statistics_tool import compute_spatial_statistics, SPATIAL_STATISTICS_TOOL_SCHEMA
 from text_analysis_math_tool import compute_text_analysis_math, TEXT_ANALYSIS_MATH_TOOL_SCHEMA
+from multibody_dynamics_tool import compute_multibody_dynamics, MULTIBODY_DYNAMICS_TOOL_SCHEMA
+from particle_simulation_tool import compute_particle_simulation, PARTICLE_SIMULATION_TOOL_SCHEMA
+from finite_element_tool import compute_finite_element, FINITE_ELEMENT_TOOL_SCHEMA
 from archaeoastronomy_tool import compute_archaeoastronomy, ARCHAEOASTRONOMY_TOOL_SCHEMA
 from quantum_information_tool import compute_quantum_information, QUANTUM_INFORMATION_TOOL_SCHEMA
 from octave_infra_tool import octave_run, octave_eval_expr, octave_run_script, octave_version
@@ -111,6 +120,12 @@ TOOLS = [
     MATH_EXPLAINER_TOOL_SCHEMA,
     MACHINE_LEARNING_TOOL_SCHEMA,
     FINANCIAL_MATH_TOOL_SCHEMA,
+    QUANTITY_TAKEOFF_TOOL_SCHEMA,
+    STRUCTURAL_ANALYSIS_TOOL_SCHEMA,
+    EARTHWORKS_TOOL_SCHEMA,
+    BUDGETING_TOOL_SCHEMA,
+    CONSTRUCTION_SCHEDULING_TOOL_SCHEMA,
+    MATH_HUMANIZER_TOOL_SCHEMA,
     GAME_THEORY_TOOL_SCHEMA,
     TENSOR_CALCULUS_TOOL_SCHEMA,
     NETWORK_SCIENCE_TOOL_SCHEMA,
@@ -127,6 +142,9 @@ TOOLS = [
     OPTIMAL_CONTROL_TOOL_SCHEMA,
     SPATIAL_STATISTICS_TOOL_SCHEMA,
     TEXT_ANALYSIS_MATH_TOOL_SCHEMA,
+    MULTIBODY_DYNAMICS_TOOL_SCHEMA,
+    PARTICLE_SIMULATION_TOOL_SCHEMA,
+    FINITE_ELEMENT_TOOL_SCHEMA,
     ARCHAEOASTRONOMY_TOOL_SCHEMA,
     QUANTUM_INFORMATION_TOOL_SCHEMA,
     {"name": "octave_run", "description": "Ejecuta codigo Octave. timeout en segundos (default 60).", "inputSchema": {"type": "object", "properties": {"code": {"type": "string"}, "timeout": {"type": "integer"}}, "required": ["code"]}},
@@ -313,6 +331,42 @@ for line in sys.stdin:
                 }
             elif tool_name == "financial_math":
                 result = compute_financial_math(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+            elif tool_name == "quantity_takeoff":
+                result = compute_quantity_takeoff(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+            elif tool_name == "structural_analysis":
+                result = compute_structural_analysis(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+            elif tool_name == "earthworks":
+                result = compute_earthworks(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+            elif tool_name == "budgeting_tool":
+                result = compute_budgeting(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+            elif tool_name == "construction_scheduling_tool":
+                result = compute_construction_scheduling(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+            elif tool_name == "math_humanizer_tool":
+                result = compute_math_humanizer(**args)
                 resp = {
                     "jsonrpc": "2.0", "id": req_id,
                     "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
@@ -756,8 +810,20 @@ for line in sys.stdin:
                     "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
                 }
 
-            elif tool_name == "numeral_systems_embedding":
-                result = compute_numeral_systems_embedding(**args)
+            elif tool_name == "multibody_dynamics_tool":
+                result = compute_multibody_dynamics(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+            elif tool_name == "particle_simulation_tool":
+                result = compute_particle_simulation(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+            elif tool_name == "finite_element_tool":
+                result = compute_finite_element(**args)
                 resp = {
                     "jsonrpc": "2.0", "id": req_id,
                     "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
