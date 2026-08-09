@@ -25,7 +25,7 @@ from percolation_theory_tool import compute_percolation_theory, PERCOLATION_THEO
 from reaction_diffusion_tool import compute_reaction_diffusion, REACTION_DIFFUSION_TOOL_SCHEMA
 from chemometrics_tool import compute_chemometrics, CHEMOMETRICS_TOOL_SCHEMA
 from econometrics_tool import compute_econometrics, ECONOMETRICS_TOOL_SCHEMA
-from econometrics_tool import compute_econometrics, ECONOMETRICS_TOOL_SCHEMA
+from archaeological_simulation_tool import compute_archaeological_simulation, ARCHAEOLOGICAL_SIMULATION_TOOL_SCHEMA
 from stochastic_processes_tool import compute_stochastic_processes, STOCHASTIC_PROCESSES_TOOL_SCHEMA
 from information_theory_tool import compute_information_theory, INFORMATION_THEORY_TOOL_SCHEMA
 from control_theory_tool import compute_control_theory, CONTROL_THEORY_TOOL_SCHEMA
@@ -120,7 +120,7 @@ TOOLS = [
     REACTION_DIFFUSION_TOOL_SCHEMA,
     CHEMOMETRICS_TOOL_SCHEMA,
     ECONOMETRICS_TOOL_SCHEMA,
-    ECONOMETRICS_TOOL_SCHEMA,
+    ARCHAEOLOGICAL_SIMULATION_TOOL_SCHEMA,
     STOCHASTIC_PROCESSES_TOOL_SCHEMA,
     INFORMATION_THEORY_TOOL_SCHEMA,
     CONTROL_THEORY_TOOL_SCHEMA,
@@ -376,8 +376,8 @@ for line in sys.stdin:
                     "jsonrpc": "2.0", "id": req_id,
                     "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
                 }
-            elif tool_name == "econometrics_tool":
-                result = compute_econometrics(**args)
+            elif tool_name == "archaeological_simulation":
+                result = compute_archaeological_simulation(**args)
                 resp = {
                     "jsonrpc": "2.0", "id": req_id,
                     "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
