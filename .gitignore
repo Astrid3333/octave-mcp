@@ -1,6 +1,5 @@
+*.bak_*
 *.bak-*
 __pycache__/
 *.pyc
 .DS_Store
-*.bak-*
-__pycache__/

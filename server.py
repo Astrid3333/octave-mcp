@@ -181,6 +181,7 @@ for line in sys.stdin:
     line = line.strip()
     if not line:
         continue
+    req_id = None
     try:
         req = json.loads(line)
         req_id = req.get("id")
@@ -765,4 +766,4 @@ for line in sys.stdin:
         print(json.dumps(resp), flush=True)
 
     except Exception as e:
-        print(json.dumps({"jsonrpc": "2.0", "id": None, "error": {"code": -32603, "message": str(e)}}), flush=True)
+        print(json.dumps({"jsonrpc": "2.0", "id": req_id, "error": {"code": -32603, "message": str(e)}}), flush=True)
