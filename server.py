@@ -23,6 +23,9 @@ from population_genetics_tool import compute_population_genetics, POPULATION_GEN
 from wavelet_tool import compute_wavelet, WAVELET_TOOL_SCHEMA
 from percolation_theory_tool import compute_percolation_theory, PERCOLATION_THEORY_TOOL_SCHEMA
 from reaction_diffusion_tool import compute_reaction_diffusion, REACTION_DIFFUSION_TOOL_SCHEMA
+from chemometrics_tool import compute_chemometrics, CHEMOMETRICS_TOOL_SCHEMA
+from econometrics_tool import compute_econometrics, ECONOMETRICS_TOOL_SCHEMA
+from econometrics_tool import compute_econometrics, ECONOMETRICS_TOOL_SCHEMA
 from stochastic_processes_tool import compute_stochastic_processes, STOCHASTIC_PROCESSES_TOOL_SCHEMA
 from information_theory_tool import compute_information_theory, INFORMATION_THEORY_TOOL_SCHEMA
 from control_theory_tool import compute_control_theory, CONTROL_THEORY_TOOL_SCHEMA
@@ -115,6 +118,9 @@ TOOLS = [
     WAVELET_TOOL_SCHEMA,
     PERCOLATION_THEORY_TOOL_SCHEMA,
     REACTION_DIFFUSION_TOOL_SCHEMA,
+    CHEMOMETRICS_TOOL_SCHEMA,
+    ECONOMETRICS_TOOL_SCHEMA,
+    ECONOMETRICS_TOOL_SCHEMA,
     STOCHASTIC_PROCESSES_TOOL_SCHEMA,
     INFORMATION_THEORY_TOOL_SCHEMA,
     CONTROL_THEORY_TOOL_SCHEMA,
@@ -354,6 +360,24 @@ for line in sys.stdin:
 
             elif tool_name == "reaction_diffusion":
                 result = compute_reaction_diffusion(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+            elif tool_name == "chemometrics_tool":
+                result = compute_chemometrics(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+            elif tool_name == "econometrics_tool":
+                result = compute_econometrics(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+            elif tool_name == "econometrics_tool":
+                result = compute_econometrics(**args)
                 resp = {
                     "jsonrpc": "2.0", "id": req_id,
                     "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
