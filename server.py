@@ -23,6 +23,9 @@ from population_genetics_tool import compute_population_genetics, POPULATION_GEN
 from wavelet_tool import compute_wavelet, WAVELET_TOOL_SCHEMA
 from percolation_theory_tool import compute_percolation_theory, PERCOLATION_THEORY_TOOL_SCHEMA
 from reaction_diffusion_tool import compute_reaction_diffusion, REACTION_DIFFUSION_TOOL_SCHEMA
+from chemometrics_tool import compute_chemometrics, CHEMOMETRICS_TOOL_SCHEMA
+from econometrics_tool import compute_econometrics, ECONOMETRICS_TOOL_SCHEMA
+from archaeological_simulation_tool import compute_archaeological_simulation, ARCHAEOLOGICAL_SIMULATION_TOOL_SCHEMA
 from stochastic_processes_tool import compute_stochastic_processes, STOCHASTIC_PROCESSES_TOOL_SCHEMA
 from information_theory_tool import compute_information_theory, INFORMATION_THEORY_TOOL_SCHEMA
 from control_theory_tool import compute_control_theory, CONTROL_THEORY_TOOL_SCHEMA
@@ -64,6 +67,8 @@ from antibiotic_diffusion import compute_antibiotic_diffusion
 from plague_sir_tool import compute_plague_sir
 from settlement_clusters_tool import compute_settlement_clusters
 from historical_extractor_tool import compute_historical_extractor
+from paleography_tool import compute_paleography
+from abstract_algebra_tool import compute_abstract_algebra
 from workspace_tool import save_run
 from workspace_tool import load_run
 from workspace_tool import list_runs
@@ -113,6 +118,9 @@ TOOLS = [
     WAVELET_TOOL_SCHEMA,
     PERCOLATION_THEORY_TOOL_SCHEMA,
     REACTION_DIFFUSION_TOOL_SCHEMA,
+    CHEMOMETRICS_TOOL_SCHEMA,
+    ECONOMETRICS_TOOL_SCHEMA,
+    ARCHAEOLOGICAL_SIMULATION_TOOL_SCHEMA,
     STOCHASTIC_PROCESSES_TOOL_SCHEMA,
     INFORMATION_THEORY_TOOL_SCHEMA,
     CONTROL_THEORY_TOOL_SCHEMA,
@@ -157,6 +165,8 @@ TOOLS = [
     {"name": "plague_sir", "description": "SIR inverso para brotes historicos de peste: parsea defunciones semanales de texto libre via regex, ajusta beta (tasa de contagio) con curve_fit manteniendo gamma fijo (parametro de literatura, no medido), integra SIR con RK4, y reporta R0=beta/gamma. Proxy cuantitativo cuando no hay fuente epidemiologica directa -- no corrige subregistro, migracion, ni estacionalidad. Modes: fit_beta (requiere te", "inputSchema": {"type": "object", "properties": {"mode": {"type": "string"}, "text_data": {"type": "string"}, "preset": {"type": "string"}, "gamma": {"type": "number"}, "poblacion_estimada": {"type": "number"}}}},
     {"name": "settlement_clusters", "description": "Proxy arqueologico de barrios/clusters sociales: clusteriza coordenadas de hallazgos por distancia (union-find a radio fijo) en cada periodo/estrato, y rastrea clusters entre periodos consecutivos por proximidad de centroides -- detecta nacimiento y muerte de asentamientos. No hace inferencia cronologica, el orden de periodos lo define quien llama. Modes: analyze (requiere puntos_por_periodo y per", "inputSchema": {"type": "object", "properties": {"mode": {"type": "string"}, "puntos_por_periodo": {"type": "array"}, "periodos": {"type": "array"}, "radio": {"type": "number"}, "radio_match": {"type": "number"}, "run_id": {"type": "string"}}}},
     {"name": "historical_extractor", "description": "Extrae MULTIPLES series (anio, valor) de un mismo texto historico via regex por oracion (no NLP), una serie por objeto/concepto mencionado (ej: trigo, cebada, jornal). Corre tendencia por regresion log-lineal en cada serie (reusa el motor de historian), calcula salario real indexado si se indica objeto_salario, y correlacion de Pearson entre series de precios que se solapan en anios. NO interpreta", "inputSchema": {"type": "object", "properties": {"mode": {"type": "string"}, "text_data": {"type": "string"}, "objetos": {"type": "array"}, "objeto_salario": {"type": "string"}}}},
+    {"name": "paleography", "description": "Tres motores cuantitativos de paleografia/codicologia sobre rasgos YA EXTRAIDOS (no hace OCR ni lee imagenes): seriation (analisis de correspondencia via SVD sobre matriz documentos x rasgos, ordena por el eje 1 y valida contra anios_conocidos con Spearman si se dan), feature_dating_regression (ajusta anio ~ rasgo sobre documentos ancla de fecha conocida y estima fecha de documentos sin fecha, con error estandar residual), letterform_classification (nearest-centroid sobre rasgos normalizados, clasifica letterforms en clases conocidas y marca casos ambiguos por margen chico). Ninguno da fechas/atribuciones definitivas.", "inputSchema": {"type": "object", "properties": {"mode": {"type": "string"}, "matriz": {"type": "array"}, "doc_ids": {"type": "array"}, "anios_conocidos": {"type": "object"}, "anios_ancla": {"type": "array"}, "rasgo_ancla": {"type": "array"}, "rasgo_predecir": {"type": "array"}, "ids_predecir": {"type": "array"}, "grado_polinomio": {"type": "integer"}, "rasgos_entrenamiento": {"type": "array"}, "clases_entrenamiento": {"type": "array"}, "rasgos_nuevos": {"type": "array"}, "ids_nuevos": {"type": "array"}}}},
+    {"name": "abstract_algebra", "description": "Algebra abstracta sobre estructuras finitas chicas (orden <=8 para isomorfismo): cayley_table (genera tabla preset Zn_add, Zn_mult, Sn simetrico, Dn diedral), verify_group_axioms (cerradura/asociatividad/identidad/inverso, reporta si es abeliano), verify_ring_field_axioms (axiomas de anillo via grupo abeliano + distributividad, confirma cuerpo si hay inverso multiplicativo para todo no-cero), check_isomorphism (fuerza bruta sobre permutaciones -- respuesta negativa es definitiva para el orden dado, no una sospecha).", "inputSchema": {"type": "object", "properties": {"mode": {"type": "string"}, "preset": {"type": "string"}, "n": {"type": "integer"}, "elementos": {"type": "array"}, "tabla": {"type": "array"}, "tabla_suma": {"type": "array"}, "tabla_mult": {"type": "array"}, "elementos_a": {"type": "array"}, "tabla_a": {"type": "array"}, "elementos_b": {"type": "array"}, "tabla_b": {"type": "array"}}}},
     {"name": "ocas_symbolic", "description": "Algebra simbolica y teoria de numeros via oCAS (motor Rust, mas rapido que sympy pero mas nuevo/menos probado, v0.26.0). mode='symbolic': simplify/differentiate/integrate/substitute sobre 'expression' (string, potencia con '^' NO '**', ej 'x^2 + 2*x + 1'). mode='number_theory': operation=isprime|factorint|nextprime|totient|divisor_sigma|mobius|liouville_lambda|jacobi_symbol|discrete_log|crt sobre enteros. mode='diophantine': resuelve a*x+b*y=c. Presets con resultado conocido validado, o preset='custom' con los parametros propios.", "inputSchema": {"type": "object", "properties": {"mode": {"type": "string"}, "preset": {"type": "string"}, "sub_mode": {"type": "string"}, "expression": {"type": "string"}, "variable": {"type": "string"}, "sub_value": {"type": "string"}, "operation": {"type": "string"}, "n": {"type": "integer"}, "a": {"type": "integer"}, "b": {"type": "integer"}, "c": {"type": "integer"}, "moduli": {"type": "array"}, "residues": {"type": "array"}}}},
     {"name": "workspace_save", "description": "Guarda arrays/resultados de un analisis bajo un run_id para reutilizarlos despues (ej: en plot_tool) sin recalcular. Si run_id se omite, se autogenera.", "inputSchema": {"type": "object", "properties": {"run_id": {"type": "string"}, "data": {"type": "object"}, "meta": {"type": "object"}}}},
     {"name": "workspace_load", "description": "Carga un run guardado previamente por run_id. Si keys se omite, devuelve todos los arrays (cuidado con trayectorias muy largas: usar workspace_describe primero).", "inputSchema": {"type": "object", "properties": {"run_id": {"type": "string"}, "keys": {"type": "array"}}, "required": ["run_id"]}},
@@ -172,6 +182,7 @@ for line in sys.stdin:
     line = line.strip()
     if not line:
         continue
+    req_id = None
     try:
         req = json.loads(line)
         req_id = req.get("id")
@@ -355,6 +366,24 @@ for line in sys.stdin:
                     "jsonrpc": "2.0", "id": req_id,
                     "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
                 }
+            elif tool_name == "chemometrics_tool":
+                result = compute_chemometrics(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+            elif tool_name == "econometrics_tool":
+                result = compute_econometrics(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+            elif tool_name == "archaeological_simulation":
+                result = compute_archaeological_simulation(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
 
             elif tool_name == "stochastic_processes":
                 result = compute_stochastic_processes(**args)
@@ -400,9 +429,13 @@ for line in sys.stdin:
 
             elif tool_name == "archaeoastronomy":
                 result = compute_archaeoastronomy(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+
             elif tool_name == "quantum_information":
                 result = compute_quantum_information(**args)
-
                 resp = {
                     "jsonrpc": "2.0", "id": req_id,
                     "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
@@ -660,6 +693,20 @@ for line in sys.stdin:
                     "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
                 }
 
+            elif tool_name == "paleography":
+                result = compute_paleography(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+
+            elif tool_name == "abstract_algebra":
+                result = compute_abstract_algebra(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+
             elif tool_name == "ocas_symbolic":
                 result = compute_ocas_symbolic(**args)
                 resp = {
@@ -727,4 +774,4 @@ for line in sys.stdin:
         print(json.dumps(resp), flush=True)
 
     except Exception as e:
-        print(json.dumps({"jsonrpc": "2.0", "id": None, "error": {"code": -32603, "message": str(e)}}), flush=True)
+        print(json.dumps({"jsonrpc": "2.0", "id": req_id, "error": {"code": -32603, "message": str(e)}}), flush=True)
