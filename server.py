@@ -32,6 +32,12 @@ from reaction_diffusion_tool import compute_reaction_diffusion, REACTION_DIFFUSI
 from chemometrics_tool import compute_chemometrics, CHEMOMETRICS_TOOL_SCHEMA
 from econometrics_tool import compute_econometrics, ECONOMETRICS_TOOL_SCHEMA
 from archaeological_simulation_tool import compute_archaeological_simulation, ARCHAEOLOGICAL_SIMULATION_TOOL_SCHEMA
+from statistical_physics_tool import compute_statistical_physics, STATISTICAL_PHYSICS_TOOL_SCHEMA
+from cfd_tool import compute_cfd, CFD_TOOL_SCHEMA
+from glm_tool import compute_glm, GLM_TOOL_SCHEMA
+from clustering_tool import compute_clustering, CLUSTERING_TOOL_SCHEMA
+from mcdm_tool import compute_mcdm, MCDM_TOOL_SCHEMA
+from octave_syntax_tool import compute_octave_syntax, OCTAVE_SYNTAX_TOOL_SCHEMA
 from stochastic_processes_tool import compute_stochastic_processes, STOCHASTIC_PROCESSES_TOOL_SCHEMA
 from information_theory_tool import compute_information_theory, INFORMATION_THEORY_TOOL_SCHEMA
 from control_theory_tool import compute_control_theory, CONTROL_THEORY_TOOL_SCHEMA
@@ -95,6 +101,16 @@ def run_octave(code):
     return result.stdout + result.stderr
 
 
+from genome_signal_analysis_tool import compute_genome_signal_analysis, GENOME_SIGNAL_ANALYSIS_SCHEMA
+from polarization_mapping_tool import compute_polarization_mapping, POLARIZATION_MAPPING_SCHEMA
+from distmesh_tool import compute_distmesh, DISTMESH_TOOL_SCHEMA
+from geometric_algebra_protein_tool import compute_geometric_algebra_protein, GEOMETRIC_ALGEBRA_PROTEIN_SCHEMA
+from optical_sequence_id_tool import compute_optical_sequence_id, OPTICAL_SEQUENCE_ID_SCHEMA
+from infrasound_tool import compute_infrasound_tool, INFRASOUND_TOOL_SCHEMA
+from bacterial_growth_tool import compute_bacterial_growth_tool, BACTERIAL_GROWTH_TOOL_SCHEMA
+from viral_lattice_tool import compute_viral_lattice_tool, VIRAL_LATTICE_TOOL_SCHEMA
+from enzyme_stochastic_tool import compute_enzyme_stochastic, ENZYME_STOCHASTIC_SCHEMA
+from evo_lgca_tool import compute_evo_lgca_tool, EVO_LGCA_TOOL_SCHEMA
 TOOLS = [
     {
         "name": "run_octave",
@@ -136,6 +152,12 @@ TOOLS = [
     CHEMOMETRICS_TOOL_SCHEMA,
     ECONOMETRICS_TOOL_SCHEMA,
     ARCHAEOLOGICAL_SIMULATION_TOOL_SCHEMA,
+    STATISTICAL_PHYSICS_TOOL_SCHEMA,
+    CFD_TOOL_SCHEMA,
+    GLM_TOOL_SCHEMA,
+    CLUSTERING_TOOL_SCHEMA,
+    MCDM_TOOL_SCHEMA,
+    OCTAVE_SYNTAX_TOOL_SCHEMA,
     STOCHASTIC_PROCESSES_TOOL_SCHEMA,
     INFORMATION_THEORY_TOOL_SCHEMA,
     CONTROL_THEORY_TOOL_SCHEMA,
@@ -193,6 +215,16 @@ TOOLS = [
     {"name": "workspace_delete", "description": "Borra un run del workspace (libera espacio en disco).", "inputSchema": {"type": "object", "properties": {"run_id": {"type": "string"}}, "required": ["run_id"]}},
     {"name": "plot_workspace_run", "description": "Genera una visualizacion (PNG en base64 + guardado en disco) a partir de un run guardado en el workspace (ej: la trayectoria de un atractor guardada por compute_lyapunov con run_id). No recalcula nada, solo lee y grafica. plot_type: auto (infiere segun el tool de origen), attractor_3d, attractor_2d, line, scatter, heatmap.", "inputSchema": {"type": "object", "properties": {"run_id": {"type": "string"}, "plot_type": {"type": "string"}, "title": {"type": "string"}, "array_name": {"type": "string"}}, "required": ["run_id"]}},
     {"name": "numeral_systems_embedding", "description": "Vectoriza sistemas numericos antiguos (base, tipo posicional/aditivo/ fisico, presencia de cero, redundancia representacional, soporte fisico) y proyecta a 2D via UMAP o t-SNE, para explorar agrupamientos estructurales entre culturas. Dataset base: maya_long_count, suanpan, soroban, roman_hand_abacus, yupana_depasquale, quipu, ifa_binary. Extensible via extra_systems (lista de dicts con el mismo s", "inputSchema": {"type": "object", "properties": {"method": {"type": "string"}, "extra_systems": {"type": "array"}, "n_neighbors": {"type": "integer"}, "perplexity": {"type": "number"}, "random_state": {"type": "integer"}, "run_id": {"type": "string"}}}},
+    GENOME_SIGNAL_ANALYSIS_SCHEMA,
+    POLARIZATION_MAPPING_SCHEMA,
+    DISTMESH_TOOL_SCHEMA,
+    GEOMETRIC_ALGEBRA_PROTEIN_SCHEMA,
+    OPTICAL_SEQUENCE_ID_SCHEMA,
+    INFRASOUND_TOOL_SCHEMA,
+    BACTERIAL_GROWTH_TOOL_SCHEMA,
+    VIRAL_LATTICE_TOOL_SCHEMA,
+    ENZYME_STOCHASTIC_SCHEMA,
+    EVO_LGCA_TOOL_SCHEMA,
 ]
 
 
@@ -434,6 +466,46 @@ for line in sys.stdin:
                 }
             elif tool_name == "archaeological_simulation":
                 result = compute_archaeological_simulation(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+            elif tool_name == "statistical_physics_tool":
+                # bug conocido: schema declara "params" anidado pero la funcion
+                # usa **params flat -> desempaquetamos aca en vez de tocar el schema
+                _params = args.get("params") or {}
+                result = compute_statistical_physics(mode=args["mode"], **_params)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+            elif tool_name == "cfd_tool":
+                result = compute_cfd(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+            elif tool_name == "glm_tool":
+                result = compute_glm(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+            elif tool_name == "clustering_tool":
+                _params = args.get("params") or {}
+                result = compute_clustering(mode=args["mode"], **_params)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+            elif tool_name == "mcdm":
+                result = compute_mcdm(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+            elif tool_name == "octave_syntax":
+                result = compute_octave_syntax(**args)
                 resp = {
                     "jsonrpc": "2.0", "id": req_id,
                     "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
@@ -824,6 +896,62 @@ for line in sys.stdin:
                 }
             elif tool_name == "finite_element_tool":
                 result = compute_finite_element(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+            elif tool_name == "genome_signal_analysis":
+                result = compute_genome_signal_analysis(**args)
+            elif tool_name == "distmesh_tool":
+                result = compute_distmesh(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+            elif tool_name == "polarization_mapping":
+                result = compute_polarization_mapping(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+            elif tool_name == "geometric_algebra_protein":
+                result = compute_geometric_algebra_protein(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+            elif tool_name == "optical_sequence_id":
+                result = compute_optical_sequence_id(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+            elif tool_name == "infrasound_tool":
+                result = compute_infrasound_tool(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+            elif tool_name == "bacterial_growth_tool":
+                result = compute_bacterial_growth_tool(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+            elif tool_name == "viral_lattice_tool":
+                result = compute_viral_lattice_tool(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+            elif tool_name == "enzyme_stochastic":
+                result = compute_enzyme_stochastic(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+            elif tool_name == "evo_LGCA_tool":
+                result = compute_evo_lgca_tool(**args)
                 resp = {
                     "jsonrpc": "2.0", "id": req_id,
                     "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
