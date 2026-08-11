@@ -1,6 +1,6 @@
 # octave-mcp
 
-Servidor MCP (JSON-RPC manual, sin FastMCP) que expone ~79 herramientas matemáticas y de simulación científica sobre Octave/Python, pensadas para usarse desde Claude Desktop u otros clientes MCP.
+Servidor MCP (JSON-RPC manual, sin FastMCP) que expone 119 herramientas matemáticas y de simulación científica sobre Octave/Python, pensadas para usarse desde Claude Desktop u otros clientes MCP.
 
 > **Nota de unificación:** este repositorio es el único proyecto activo. El antiguo `mcp-octave-real` (FastMCP, 39 tools) fue absorbido por completo — todas sus herramientas, incluidas las de historia cuantitativa (`plague_sir`, `settlement_clusters`, `historical_extractor`, `braid_group`, Benford en `historian`), viven ahora acá. `mcp-octave-real` queda deprecado y no debe usarse ni documentarse como proyecto en paralelo.
 
@@ -43,12 +43,21 @@ Servidor MCP (JSON-RPC manual, sin FastMCP) que expone ~79 herramientas matemát
 
 `quantity_takeoff` (volumen de hormigón, encofrado, peso de acero, excavación prismática, conteo de albañilería, resumen BOQ), `structural_analysis` (reacciones/corte/momento/deflexión de vigas, fuerzas axiales en cerchas 2D vía método de nudos con autoverificación de equilibrio, propiedades de sección, chequeo de esfuerzo), `earthworks` (volumen por área media entre secciones transversales, método de grilla para corte/relleno en terreno irregular, esponjamiento/contracción, diagrama de masas y puntos de balance), `budgeting_tool` (costo directo, análisis de precio unitario/APU, gastos generales/utilidad/contingencia/IVA, escalamiento por inflación, presupuesto agregado por capítulos), `construction_scheduling_tool` (ruta crítica vía CPM, carga diaria de recursos, compresión de cronograma/crashing por menor pendiente de costo)
 
+### Topografía y geomática
+`survey_angles_tool` (conversión de azimuts/rumbos, notación N/S-E/W), `survey_distance_tool` (distancia horizontal/vertical por estadia, corrección de pendiente), `survey_curvature_tool` (corrección por curvatura y refracción terrestre), `traverse_adjustment_tool` (ajuste de poligonales, cierre de coordenadas), `survey_curves_tool` (curvas circulares horizontales: tangente, longitud de curva, externa), `survey_area_volume_tool` (área por coordenadas, volumen entre secciones)
+
+### Geometría, mallas y cosmología
+`distmesh_tool` (generación de malla 2D, algoritmo de Persson & Strang), `sdf_tool` (funciones de distancia con signo), `lscm_tool` (parametrización conforme de superficies por mínimos cuadrados), `mesh_pde_tool` (EDPs sobre malla no estructurada), `mesh_spectral_tool` (análisis espectral de malla), `geometric_algebra_protein` (álgebra geométrica aplicada a estructura de proteínas), `quantum_astro_tool`, `semiclassical_cosmology_tool`, `cosmological_mcmc_tool`, `quantum_cosmology_tool`, `polarization_mapping`
+
+### Biología computacional
+`genome_signal_analysis`, `bacterial_growth_tool`, `viral_lattice_tool`, `enzyme_stochastic`, `evo_LGCA_tool`, `optical_sequence_id`, `infrasound_tool`
+
 ### Divulgación matemática
 `math_humanizer_tool` (conceptos matemáticos traducidos a analogías cotidianas + conexión filosófica + nota técnica — contenido de referencia curado, mismo espíritu que `math_philosophy_history` o `ethnomath`)
 
 ---
 
-*Total: ~85 herramientas registradas en el dispatcher. Este número puede variar levemente según el estado exacto del `TOOLS` list; correr `tools/list` contra el servidor es la fuente de verdad.*
+*Total: 119 herramientas registradas en el dispatcher (contadas directo desde `TOOLS` en `server.py`). Este número puede variar levemente con el tiempo; correr `tools/list` contra el servidor es la fuente de verdad.*
 ## Fisica / simulacion (bloque final del roadmap)
 
 | Tool | Acciones | Validacion analitica | Error numerico |
@@ -57,5 +66,5 @@ Servidor MCP (JSON-RPC manual, sin FastMCP) que expone ~79 herramientas matemát
 | `particle_simulation_tool` | `kepler_orbit`, `elastic_collision_nbody`, `random_walk_diffusion` | 3ª ley de Kepler T=2π√(a³/GM); formula de colision elastica de libro de texto; MSD=2Dt | 5e-13% / drift ~1e-15 / 0.34% |
 | `finite_element_tool` | `bar_1d`, `beam_bending`, `truss_2d` | u=PL/AE (barra); δ=PL³/3EI (viga voladizo Euler-Bernoulli); equilibrio de nodos (cercha) | 0% / ~1.7e-12% / residual 0 |
 
-octave-mcp: 85 -> 88 tools. Bloque de fisica/simulacion del roadmap completo.
+octave-mcp: 88 -> 119 tools. Agregados: bloque de topografia/geomatica (6), geometria/mallas/cosmologia, biologia computacional.
 Pendiente: conectores externos (FreeCAD, BIM/IFC) — oCAS ya integrado.
