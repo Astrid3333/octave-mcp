@@ -103,6 +103,7 @@ def run_octave(code):
 
 from genome_signal_analysis_tool import compute_genome_signal_analysis, GENOME_SIGNAL_ANALYSIS_SCHEMA
 from polarization_mapping_tool import compute_polarization_mapping, POLARIZATION_MAPPING_SCHEMA
+from acoustics_tool import compute_acoustics_tool, ACOUSTICS_TOOL_SCHEMA
 from distmesh_tool import compute_distmesh, DISTMESH_TOOL_SCHEMA
 from sdf_tool import compute_sdf_tool, SDF_TOOL_SCHEMA
 from lscm_tool import compute_lscm_tool, LSCM_TOOL_SCHEMA
@@ -233,6 +234,7 @@ TOOLS = [
     {"name": "numeral_systems_embedding", "description": "Vectoriza sistemas numericos antiguos (base, tipo posicional/aditivo/ fisico, presencia de cero, redundancia representacional, soporte fisico) y proyecta a 2D via UMAP o t-SNE, para explorar agrupamientos estructurales entre culturas. Dataset base: maya_long_count, suanpan, soroban, roman_hand_abacus, yupana_depasquale, quipu, ifa_binary. Extensible via extra_systems (lista de dicts con el mismo s", "inputSchema": {"type": "object", "properties": {"method": {"type": "string"}, "extra_systems": {"type": "array"}, "n_neighbors": {"type": "integer"}, "perplexity": {"type": "number"}, "random_state": {"type": "integer"}, "run_id": {"type": "string"}}}},
     GENOME_SIGNAL_ANALYSIS_SCHEMA,
     POLARIZATION_MAPPING_SCHEMA,
+    ACOUSTICS_TOOL_SCHEMA,
     DISTMESH_TOOL_SCHEMA,
     MESH_PDE_TOOL_SCHEMA,
     QUANTUM_ASTRO_TOOL_SCHEMA,
@@ -980,6 +982,12 @@ for line in sys.stdin:
                 }
             elif tool_name == "distmesh_tool":
                 result = compute_distmesh(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+            elif tool_name == "acoustics_tool":
+                result = compute_acoustics_tool(args.get("mode", "validate"), args.get("params"))
                 resp = {
                     "jsonrpc": "2.0", "id": req_id,
                     "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
