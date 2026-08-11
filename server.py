@@ -111,6 +111,7 @@ from bacterial_growth_tool import compute_bacterial_growth_tool, BACTERIAL_GROWT
 from viral_lattice_tool import compute_viral_lattice_tool, VIRAL_LATTICE_TOOL_SCHEMA
 from enzyme_stochastic_tool import compute_enzyme_stochastic, ENZYME_STOCHASTIC_SCHEMA
 from evo_lgca_tool import compute_evo_lgca_tool, EVO_LGCA_TOOL_SCHEMA
+from mesh_spectral_tool import compute_mesh_spectral_tool, MESH_SPECTRAL_TOOL_SCHEMA
 TOOLS = [
     {
         "name": "run_octave",
@@ -225,6 +226,7 @@ TOOLS = [
     VIRAL_LATTICE_TOOL_SCHEMA,
     ENZYME_STOCHASTIC_SCHEMA,
     EVO_LGCA_TOOL_SCHEMA,
+    MESH_SPECTRAL_TOOL_SCHEMA,
 ]
 
 
@@ -952,6 +954,13 @@ for line in sys.stdin:
                 }
             elif tool_name == "evo_LGCA_tool":
                 result = compute_evo_lgca_tool(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+
+            elif tool_name == "mesh_spectral_tool":
+                result = compute_mesh_spectral_tool(**args)
                 resp = {
                     "jsonrpc": "2.0", "id": req_id,
                     "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
