@@ -104,6 +104,7 @@ def run_octave(code):
 from genome_signal_analysis_tool import compute_genome_signal_analysis, GENOME_SIGNAL_ANALYSIS_SCHEMA
 from polarization_mapping_tool import compute_polarization_mapping, POLARIZATION_MAPPING_SCHEMA
 from distmesh_tool import compute_distmesh, DISTMESH_TOOL_SCHEMA
+from sdf_tool import compute_sdf_tool, SDF_TOOL_SCHEMA
 from geometric_algebra_protein_tool import compute_geometric_algebra_protein, GEOMETRIC_ALGEBRA_PROTEIN_SCHEMA
 from optical_sequence_id_tool import compute_optical_sequence_id, OPTICAL_SEQUENCE_ID_SCHEMA
 from infrasound_tool import compute_infrasound_tool, INFRASOUND_TOOL_SCHEMA
@@ -219,6 +220,7 @@ TOOLS = [
     GENOME_SIGNAL_ANALYSIS_SCHEMA,
     POLARIZATION_MAPPING_SCHEMA,
     DISTMESH_TOOL_SCHEMA,
+    SDF_TOOL_SCHEMA,
     GEOMETRIC_ALGEBRA_PROTEIN_SCHEMA,
     OPTICAL_SEQUENCE_ID_SCHEMA,
     INFRASOUND_TOOL_SCHEMA,
@@ -904,6 +906,12 @@ for line in sys.stdin:
                 }
             elif tool_name == "genome_signal_analysis":
                 result = compute_genome_signal_analysis(**args)
+            elif tool_name == "sdf_tool":
+                result = compute_sdf_tool(args.get("mode"), args.get("params"))
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
             elif tool_name == "distmesh_tool":
                 result = compute_distmesh(**args)
                 resp = {
