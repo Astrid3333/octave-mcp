@@ -11,6 +11,8 @@ Integrar en server.py:
 import math
 
 R = 8.314462618  # J/(mol*K)
+K_B = 1.380649e-23  # J/K
+N_A = 6.02214076e23  # 1/mol
 
 # ---------------------------------------------------------------------------
 # Modo: ideal
@@ -275,6 +277,35 @@ def _mode_kinetic(p):
         # Ley de Graham: tasa de efusion relativa
         out["graham_rate_ratio"] = math.sqrt(p["M2"] / M)
 
+    # Propiedades de transporte (teoria cinetica elemental, no Chapman-Enskog exacto)
+    # Requiere: P (presion, Pa) y d (diametro molecular efectivo, m)
+    P_t, d = p.get("P"), p.get("d")
+    if P_t is not None and d is not None:
+        lam = K_B * T / (math.sqrt(2) * math.pi * d ** 2 * P_t)  # recorrido libre medio
+        rho = P_t * M / (R * T)  # densidad de masa
+        n_density = P_t / (K_B * T)  # densidad numerica (moleculas/m3)
+
+        eta = (1 / 3) * rho * v_prom * lam  # viscosidad dinamica
+
+        # Cv molar: se puede pasar directo, o inferir de grados de libertad (dof)
+        # dof=3 monoatomico (Cv=3/2 R), dof=5 diatomico rigido (Cv=5/2 R), dof=6 poliatomico no lineal (Cv=3R)
+        dof = p.get("dof", 3)
+        Cv_molar = p.get("Cv_molar", dof / 2 * R)
+        Cv_per_molecule = Cv_molar / N_A
+        kappa_thermal = (1 / 3) * n_density * v_prom * lam * Cv_per_molecule  # conductividad termica
+
+        D_self = (1 / 3) * v_prom * lam  # autodifusion
+
+        out["transporte"] = {
+            "recorrido_libre_medio_m": lam,
+            "viscosidad_dinamica_Pa_s": eta,
+            "conductividad_termica_W_m_K": kappa_thermal,
+            "difusion_autodifusion_m2_s": D_self,
+            "Cv_molar_usado_J_mol_K": Cv_molar,
+            "nota": "Teoria cinetica elemental (prefactor 1/3); Chapman-Enskog exacto usa "
+                    "prefactores distintos (~5pi/32 para viscosidad) y da resultados ~20-30% mayores.",
+        }
+
     return out
 
 
@@ -357,6 +388,70 @@ def _mode_compressible(p):
 
 
 # ---------------------------------------------------------------------------
+# Modo: humidity (humedad en mezclas gas-vapor, tipicamente aire-agua)
+# ---------------------------------------------------------------------------
+def _saturation_vapor_pressure_Pa(T_K):
+    """Formula de Buck (1981) para presion de vapor de saturacion del agua.
+    Valida entre 0-50 C aprox, error < 0.2%."""
+    T_C = T_K - 273.15
+    if T_C >= 0:
+        return 611.21 * math.exp((18.678 - T_C / 234.5) * (T_C / (257.14 + T_C)))
+    else:
+        return 611.15 * math.exp((23.036 - T_C / 333.7) * (T_C / (279.82 + T_C)))
+
+
+def _mode_humidity(p):
+    """
+    Humedad de una mezcla gas-vapor (default: aire humedo).
+    Inputs: T (K), P_total (Pa, presion atmosferica total).
+    Uno de: RH (0-100, humedad relativa) o P_vapor (Pa, presion parcial de vapor directa).
+    M_dry, M_vapor: masas molares (default aire seco 0.028964 kg/mol, agua 0.018015 kg/mol).
+    """
+    T, P_total = p["T"], p["P_total"]
+    M_dry = p.get("M_dry", 0.028964)
+    M_vapor = p.get("M_vapor", 0.018015)
+
+    P_sat = _saturation_vapor_pressure_Pa(T)
+
+    if "P_vapor" in p:
+        P_vapor = p["P_vapor"]
+        RH = 100 * P_vapor / P_sat
+    elif "RH" in p:
+        RH = p["RH"]
+        P_vapor = (RH / 100) * P_sat
+    else:
+        raise ValueError("Se requiere RH (0-100) o P_vapor (Pa)")
+
+    if P_vapor >= P_total:
+        raise ValueError("P_vapor no puede ser >= P_total (mezcla saturada/inconsistente)")
+
+    P_dry = P_total - P_vapor
+    # razon de mezcla (humidity ratio): masa de vapor / masa de aire seco
+    w = (M_vapor / M_dry) * P_vapor / P_dry
+
+    # densidad de la mezcla humeda (suma de densidades parciales, gas ideal)
+    rho_dry = P_dry * M_dry / (R * T)
+    rho_vapor = P_vapor * M_vapor / (R * T)
+    rho_humid = rho_dry + rho_vapor
+
+    # densidad equivalente si todo fuera aire seco a la misma P_total, T (referencia)
+    rho_dry_equiv = P_total * M_dry / (R * T)
+
+    return {
+        "T_K": T, "P_total_Pa": P_total,
+        "P_saturacion_Pa": P_sat,
+        "P_vapor_Pa": P_vapor,
+        "P_dry_Pa": P_dry,
+        "humedad_relativa_pct": RH,
+        "razon_mezcla_kg_vapor_por_kg_seco": w,
+        "densidad_humeda_kg_m3": rho_humid,
+        "densidad_seca_equivalente_kg_m3": rho_dry_equiv,
+        "nota": "El aire humedo es MENOS denso que el aire seco a igual P,T (el vapor de agua "
+                "tiene menor masa molar que el aire seco) — chequeo: densidad_humeda < densidad_seca_equivalente.",
+    }
+
+
+# ---------------------------------------------------------------------------
 # Dispatcher principal
 # ---------------------------------------------------------------------------
 def compute_gas(mode, params=None):
@@ -371,9 +466,11 @@ def compute_gas(mode, params=None):
         return _mode_kinetic(params)
     elif mode == "compressible":
         return _mode_compressible(params)
+    elif mode == "humidity":
+        return _mode_humidity(params)
     else:
         raise ValueError(
-            f"Modo desconocido: {mode}. Usar: ideal | real | mixture | kinetic | compressible"
+            f"Modo desconocido: {mode}. Usar: ideal | real | mixture | kinetic | compressible | humidity"
         )
 
 
@@ -382,17 +479,21 @@ GAS_TOOL_SCHEMA = {
     "description": (
         "Matematica de gases: gas ideal (PV=nRT), gases reales "
         "(Van der Waals, Dieterici, Berthelot, Redlich-Kwong), mezclas "
-        "(Dalton, entropia de mezcla, potencial quimico), teoria cinetica "
+        "(Dalton, Amagat, entropia y Gibbs de mezcla), teoria cinetica "
         "molecular (velocidades caracteristicas, distribucion de "
-        "Maxwell-Boltzmann, ley de Graham), y dinamica de flujo compresible "
-        "(numero de Mach, proceso adiabatico, relacion de presion critica)."
+        "Maxwell-Boltzmann, ley de Graham, propiedades de transporte: "
+        "viscosidad, conductividad termica, autodifusion), dinamica de "
+        "flujo compresible (numero de Mach, proceso adiabatico, ondas de "
+        "choque normal, relacion area-Mach en toberas), fugacidad, y "
+        "humedad de mezclas gas-vapor (presion de saturacion, razon de "
+        "mezcla, densidad de aire humedo)."
     ),
     "inputSchema": {
         "type": "object",
         "properties": {
             "mode": {
                 "type": "string",
-                "enum": ["ideal", "real", "van_der_waals", "mixture", "kinetic", "compressible"],
+                "enum": ["ideal", "real", "van_der_waals", "mixture", "kinetic", "compressible", "humidity"],
             },
             "params": {"type": "object"},
         },
