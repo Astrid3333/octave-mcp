@@ -544,6 +544,169 @@ def _mode_pyrolysis_yield(p):
 
 
 # ---------------------------------------------------------------------------
+# Pesos moleculares para el bloque HDO (g/mol)
+# ---------------------------------------------------------------------------
+_PM_H2 = 2.016
+_PM_H2O = 18.015
+_PM_O = 16.00
+_PM_C = 12.011
+_PM_H = 1.008
+_PM_CO = 28.01
+_PM_CO2 = 44.01
+
+
+# ---------------------------------------------------------------------------
+# Modo: hdo_stoichiometry (consumo de H2 y coproductos en hidrodesoxigenacion)
+# ---------------------------------------------------------------------------
+def _mode_hdo_stoichiometry(p):
+    """
+    Estequiometria simplificada de remocion de oxigeno en hidrotratamiento (HDT),
+    repartida entre tres rutas de reaccion tipicas (Furimsky, 2000; revisiones de HDO
+    de bio-oil):
+      HDO (hidrodesoxigenacion): R-OH + H2 -> R-H + H2O
+        -> por cada mol de O removido: consume 1 mol H2, produce 1 mol H2O, sin
+           perdida de carbono.
+      DCO (descarbonilacion): R-CHO -> R-H + CO
+        -> por cada mol de O removido (como CO, que lleva 1 O): no consume H2,
+           pierde 1 mol de C como CO.
+      DCO2 (descarboxilacion): R-COOH -> R-H + CO2
+        -> cada mol de CO2 remueve 2 moles de O; no consume H2, pierde 1 mol de C
+           como CO2.
+
+    La ruta HDO es la que consume H2 (costo de proceso); DCO/DCO2 lo evitan pero
+    sacrifican carbono (y por tanto rendimiento masico/energetico del combustible).
+    El reparto real depende del catalizador/condiciones -- si no se conoce, asumir
+    100% HDO da el caso de maximo consumo de H2 (conservador para dimensionar
+    planta de H2).
+
+    Entrada de oxigeno removido, dar UNA de:
+      a) moles_O_removido_mol directo, o
+      b) m_feed_kg + O_inicial_pct + O_final_pct (ambos %masa sobre la base de
+         m_feed_kg original -- aproximacion de primer orden, no corrige por el
+         cambio de masa total durante la reaccion).
+    ruta_reparto (opcional): {"HDO":f1,"DCO":f2,"DCO2":f3} fracciones del O total
+      removido que va por cada ruta, deben sumar 1.0. Default: 100% HDO.
+    """
+    moles_O_total = p.get("moles_O_removido_mol")
+    if moles_O_total is None:
+        m_feed = p["m_feed_kg"]
+        O_ini = p["O_inicial_pct"]
+        O_fin = p["O_final_pct"]
+        if O_fin > O_ini:
+            raise ValueError("O_final_pct no puede ser mayor que O_inicial_pct (el O debe disminuir).")
+        masa_O_removida_kg = m_feed * (O_ini - O_fin) / 100.0
+        moles_O_total = masa_O_removida_kg * 1000.0 / _PM_O
+    else:
+        masa_O_removida_kg = moles_O_total * _PM_O / 1000.0
+
+    ruta = p.get("ruta_reparto", {"HDO": 1.0})
+    suma_rutas = sum(ruta.values())
+    if abs(suma_rutas - 1.0) > 1e-6:
+        raise ValueError(f"ruta_reparto debe sumar 1.0 (suma actual: {suma_rutas}).")
+
+    f_hdo = ruta.get("HDO", 0.0)
+    f_dco = ruta.get("DCO", 0.0)
+    f_dco2 = ruta.get("DCO2", 0.0)
+
+    moles_O_hdo = moles_O_total * f_hdo
+    moles_H2_consumido = moles_O_hdo
+    moles_H2O_producida = moles_O_hdo
+
+    moles_O_dco = moles_O_total * f_dco
+    moles_CO_producido = moles_O_dco
+    moles_C_perdido_dco = moles_CO_producido
+
+    moles_O_dco2 = moles_O_total * f_dco2
+    moles_CO2_producido = moles_O_dco2 / 2.0
+    moles_C_perdido_dco2 = moles_CO2_producido
+
+    kg_H2_consumido = moles_H2_consumido * _PM_H2 / 1000.0
+    kg_H2O_producida = moles_H2O_producida * _PM_H2O / 1000.0
+    kg_CO_producido = moles_CO_producido * _PM_CO / 1000.0
+    kg_CO2_producido = moles_CO2_producido * _PM_CO2 / 1000.0
+    kg_C_perdido_total = (moles_C_perdido_dco + moles_C_perdido_dco2) * _PM_C / 1000.0
+
+    resultado = {
+        "moles_O_removido_mol": moles_O_total,
+        "masa_O_removida_kg": masa_O_removida_kg,
+        "ruta_reparto": {"HDO": f_hdo, "DCO": f_dco, "DCO2": f_dco2},
+        "H2_consumido": {"mol": moles_H2_consumido, "kg": kg_H2_consumido},
+        "H2O_producida": {"mol": moles_H2O_producida, "kg": kg_H2O_producida},
+        "CO_producido": {"mol": moles_CO_producido, "kg": kg_CO_producido},
+        "CO2_producido": {"mol": moles_CO2_producido, "kg": kg_CO2_producido},
+        "C_perdido_como_COx_kg": kg_C_perdido_total,
+        "kg_H2_por_kg_O_removido": kg_H2_consumido / masa_O_removida_kg if masa_O_removida_kg else None,
+    }
+    return resultado
+
+
+# ---------------------------------------------------------------------------
+# Modo: hdo_degree (grado de desoxigenacion y razones molares O/C, H/C)
+# ---------------------------------------------------------------------------
+def _mode_hdo_degree(p):
+    """
+    Grado de desoxigenacion (DOD) y razones molares O/C y H/C (parametros del
+    diagrama de Van Krevelen) de la carga vs el producto de hidrotratamiento, a
+    partir de composicion elemental %masa (base seca, tipicamente libre de cenizas).
+
+    feed / producto: {"C":.., "H":.., "O":..} en %masa.
+
+    DOD_masa_pct    = (O_feed_wt% - O_prod_wt%) / O_feed_wt% * 100
+    DOD_molar_pct   = (O/C_feed_molar - O/C_prod_molar) / O/C_feed_molar * 100
+      (basado en razon molar O/C, mas robusto que el %masa porque no se distorsiona
+      si la masa total de la molecula cambia por la remocion de O/ganancia de H)
+
+    El aumento de H/C molar del producto respecto a la carga indica mayor grado de
+    saturacion/hidrogenacion (acercamiento a combustibles tipo diesel, H/C~1.5-2.2).
+    """
+    feed = p["feed"]
+    producto = p["producto"]
+
+    def _razones(comp):
+        n_C = comp["C"] / _PM_C
+        n_H = comp["H"] / _PM_H
+        n_O = comp["O"] / _PM_O
+        return {
+            "O_wt_pct": comp["O"],
+            "O_sobre_C_molar": n_O / n_C if n_C else None,
+            "H_sobre_C_molar": n_H / n_C if n_C else None,
+        }
+
+    r_feed = _razones(feed)
+    r_prod = _razones(producto)
+
+    DOD_masa_pct = (
+        100 * (r_feed["O_wt_pct"] - r_prod["O_wt_pct"]) / r_feed["O_wt_pct"]
+        if r_feed["O_wt_pct"] else None
+    )
+    DOD_molar_pct = (
+        100 * (r_feed["O_sobre_C_molar"] - r_prod["O_sobre_C_molar"]) / r_feed["O_sobre_C_molar"]
+        if r_feed["O_sobre_C_molar"] else None
+    )
+
+    delta_HC = (
+        r_prod["H_sobre_C_molar"] - r_feed["H_sobre_C_molar"]
+        if (r_prod["H_sobre_C_molar"] is not None and r_feed["H_sobre_C_molar"] is not None)
+        else None
+    )
+
+    return {
+        "feed": r_feed, "producto": r_prod,
+        "DOD_masa_pct": DOD_masa_pct,
+        "DOD_molar_pct": DOD_molar_pct,
+        "delta_H_sobre_C_molar": delta_HC,
+        "interpretacion": (
+            "H/C aumento respecto a la carga: producto mas saturado/hidrogenado."
+            if (delta_HC is not None and delta_HC > 0) else
+            "H/C no aumento respecto a la carga: poca o nula hidrogenacion neta "
+            "(la desoxigenacion pudo ir mas por deshidratacion/descarboxilacion "
+            "que por saturacion con H2)."
+            if delta_HC is not None else None
+        ),
+    }
+
+
+# ---------------------------------------------------------------------------
 # Dispatcher principal
 # ---------------------------------------------------------------------------
 def compute_biorefinery(mode, params=None):
@@ -564,11 +727,15 @@ def compute_biorefinery(mode, params=None):
         return _mode_batch_conversion(params)
     elif mode == "pyrolysis_yield":
         return _mode_pyrolysis_yield(params)
+    elif mode == "hdo_stoichiometry":
+        return _mode_hdo_stoichiometry(params)
+    elif mode == "hdo_degree":
+        return _mode_hdo_degree(params)
     else:
         raise ValueError(
             f"Modo desconocido: {mode}. Usar: mass_balance | energy_balance | "
             "hhv_correlation | yield_efficiency | arrhenius | rate_law | "
-            "batch_conversion | pyrolysis_yield"
+            "batch_conversion | pyrolysis_yield | hdo_stoichiometry | hdo_degree"
         )
 
 
@@ -594,7 +761,11 @@ BIOREFINERY_TOOL_SCHEMA = {
         "mode='pyrolysis_yield': distribucion tipica de productos (liquido/char/gas) "
         "por regimen de pirolisis (lenta/intermedia/rapida/gasificacion), explicito o "
         "clasificado desde velocidad de calentamiento/residencia/T_pico, via valores "
-        "de referencia de Bridgwater (2012)."
+        "de referencia de Bridgwater (2012). mode='hdo_stoichiometry': consumo de H2 "
+        "y coproductos (H2O/CO/CO2) en hidrodesoxigenacion, repartido entre rutas "
+        "HDO/DCO/DCO2 segun el O removido. mode='hdo_degree': grado de desoxigenacion "
+        "(%DOD, masa y molar O/C) y razon H/C molar (Van Krevelen) entre carga y "
+        "producto de hidrotratamiento."
     ),
     "inputSchema": {
         "type": "object",
@@ -604,6 +775,7 @@ BIOREFINERY_TOOL_SCHEMA = {
                 "enum": [
                     "mass_balance", "energy_balance", "hhv_correlation", "yield_efficiency",
                     "arrhenius", "rate_law", "batch_conversion", "pyrolysis_yield",
+                    "hdo_stoichiometry", "hdo_degree",
                 ],
             },
             "params": {"type": "object"},
@@ -643,3 +815,13 @@ if __name__ == "__main__":
     print(compute_biorefinery("pyrolysis_yield", {"heating_rate_C_min": 5}))
     print(compute_biorefinery("pyrolysis_yield", {"T_pico_C": 850}))
     print(compute_biorefinery("pyrolysis_yield", {"regimen": "rapida", "m_feed": 100.0, "HHV_feed": 18.0}))
+    # --- hdo ---
+    print(compute_biorefinery("hdo_stoichiometry", {"m_feed_kg": 100.0, "O_inicial_pct": 40.0, "O_final_pct": 2.0}))
+    print(compute_biorefinery("hdo_stoichiometry", {
+        "m_feed_kg": 100.0, "O_inicial_pct": 40.0, "O_final_pct": 2.0,
+        "ruta_reparto": {"HDO": 0.6, "DCO": 0.25, "DCO2": 0.15},
+    }))
+    print(compute_biorefinery("hdo_degree", {
+        "feed": {"C": 49.5, "H": 6.0, "O": 43.0},
+        "producto": {"C": 85.0, "H": 13.5, "O": 1.0},
+    }))

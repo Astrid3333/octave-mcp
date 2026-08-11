@@ -109,11 +109,17 @@ Pendiente: conectores externos (FreeCAD, BIM/IFC) — oCAS ya integrado.
   (lenta/intermedia/rapida/gasificacion) -- explicito via `regimen`, o clasificado
   automaticamente desde velocidad de calentamiento, tiempo de residencia de vapor y/o
   T_pico -- via valores de referencia de Bridgwater (2012); opcionalmente convierte a
-  fracciones de masa/energia si se da `m_feed`/`HHV_feed`. Validado: verificacion
+  fracciones de masa/energia si se da `m_feed`/`HHV_feed`. Bloque de hidrotratamiento
+  (HDO): `mode=hdo_stoichiometry` calcula consumo de H2 y coproductos (H2O/CO/CO2)
+  para una masa de O removida, repartida entre rutas HDO/DCO/DCO2 (`ruta_reparto`,
+  default 100% HDO); `mode=hdo_degree` calcula grado de desoxigenacion (%DOD, base
+  masa y base molar O/C) y razon H/C molar (diagrama de Van Krevelen) entre carga y
+  producto, para caracterizar severidad de saturacion. Validado: verificacion
   cruzada del segundo punto en `dos_puntos` (error ~1e-13%), round-trip X->t->X en
-  `batch_conversion` orden 2 (recupera X=0.8 exacto), y clasificacion correcta de los
-  4 regimenes de `pyrolysis_yield` (incluida prioridad de gasificacion cuando T_pico>=700C
-  independiente del heating rate).
+  `batch_conversion` orden 2 (recupera X=0.8 exacto), clasificacion correcta de los
+  4 regimenes de `pyrolysis_yield` (incluida prioridad de gasificacion cuando
+  T_pico>=700C independiente del heating rate), y `hdo_stoichiometry` con ruta 100%
+  HDO reproduce exacto el minimo estequiometrico PM_H2/PM_O=0.126 kg H2/kg O removido.
 
 ## Acustica y Electromagnetismo
 
