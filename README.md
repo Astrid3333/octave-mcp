@@ -1,6 +1,6 @@
 # octave-mcp
 
-Servidor MCP (JSON-RPC manual, sin FastMCP) que expone 121 herramientas matemáticas y de simulación científica sobre Octave/Python, pensadas para usarse desde Claude Desktop u otros clientes MCP.
+Servidor MCP (JSON-RPC manual, sin FastMCP) que expone 125 herramientas matemáticas y de simulación científica sobre Octave/Python, pensadas para usarse desde Claude Desktop u otros clientes MCP.
 
 > **Nota de unificación:** este repositorio es el único proyecto activo. El antiguo `mcp-octave-real` (FastMCP, 39 tools) fue absorbido por completo — todas sus herramientas, incluidas las de historia cuantitativa (`plague_sir`, `settlement_clusters`, `historical_extractor`, `braid_group`, Benford en `historian`), viven ahora acá. `mcp-octave-real` queda deprecado y no debe usarse ni documentarse como proyecto en paralelo.
 
@@ -57,7 +57,7 @@ Servidor MCP (JSON-RPC manual, sin FastMCP) que expone 121 herramientas matemát
 
 ---
 
-*Total: 121 herramientas registradas en el dispatcher (contadas directo desde `TOOLS` en `server.py`). Este número puede variar levemente con el tiempo; correr `tools/list` contra el servidor es la fuente de verdad.*
+*Total: 125 herramientas registradas en el dispatcher (contadas directo desde `TOOLS` en `server.py`). Este número puede variar levemente con el tiempo; correr `tools/list` contra el servidor es la fuente de verdad.*
 ## Fisica / simulacion (bloque final del roadmap)
 
 | Tool | Acciones | Validacion analitica | Error numerico |
@@ -66,8 +66,26 @@ Servidor MCP (JSON-RPC manual, sin FastMCP) que expone 121 herramientas matemát
 | `particle_simulation_tool` | `kepler_orbit`, `elastic_collision_nbody`, `random_walk_diffusion` | 3ª ley de Kepler T=2π√(a³/GM); formula de colision elastica de libro de texto; MSD=2Dt | 5e-13% / drift ~1e-15 / 0.34% |
 | `finite_element_tool` | `bar_1d`, `beam_bending`, `truss_2d` | u=PL/AE (barra); δ=PL³/3EI (viga voladizo Euler-Bernoulli); equilibrio de nodos (cercha) | 0% / ~1.7e-12% / residual 0 |
 
-octave-mcp: 88 -> 121 tools. Agregados: bloque de topografia/geomatica (6), geometria/mallas/cosmologia, biologia computacional.
+octave-mcp: 88 -> 125 tools. Agregados: bloque de topografia/geomatica (6), geometria/mallas/cosmologia, biologia computacional.
 Pendiente: conectores externos (FreeCAD, BIM/IFC) — oCAS ya integrado.
+
+## Gases y Exploracion del Catalogo
+
+- **gas_tool**: gas ideal (`PV=nRT`); gases reales via Van der Waals (cubica exacta,
+  Cardano), Dieterici, Berthelot y Redlich-Kwong (Newton-Raphson para V dado P);
+  mezclas (Dalton, Amagat, entropia y Gibbs de mezcla); teoria cinetica molecular
+  (velocidades caracteristicas, distribucion de Maxwell-Boltzmann, ley de Graham);
+  flujo compresible (numero de Mach, proceso adiabatico, ondas de choque normal
+  via Rankine-Hugoniot, relacion area-Mach en toberas); fugacidad via integracion
+  numerica de (Z-1)dP/P. Validado contra STP (V_m=22.414 L), tablas NACA 1135
+  (M1=2 -> M2=0.5774, P2/P1=4.5) y round-trip P->V->P en las 4 ecuaciones de estado.
+- **knowledge_graph_tool**: guia de exploracion sobre el propio catalogo de tools.
+  `mode=search`: busca tools relevantes para una consulta en lenguaje natural
+  (scoring lexico sobre nombre+descripcion). `mode=related`: dado el nombre de una
+  tool, encuentra otras que comparten vocabulario. `mode=stats`: panorama del
+  catalogo completo. Se deriva en vivo de `TOOLS` (recibido por parametro desde el
+  dispatcher) — no mantiene un grafo aparte, se actualiza solo cuando se agregan
+  tools nuevas.
 
 ## Acustica y Electromagnetismo
 
