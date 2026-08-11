@@ -76,6 +76,39 @@ def _cubic_roots_real(coeffs):
     return sorted(roots)
 
 
+def _newton_solve_V(P_target, T, n, a, b, eos, V0=None, tol=1e-10, max_iter=100):
+    """Newton-Raphson para resolver V dado P en EOS implicitas en V
+    (Dieterici, Berthelot, Redlich-Kwong). Devuelve V que hace P_eos(V) = P_target."""
+    Vm = (V0 / n) if V0 else (R * T / P_target)  # arranque desde gas ideal
+    if Vm <= b:
+        Vm = b * 1.5
+
+    def P_of_Vm(Vm):
+        if eos == "dieterici":
+            return (R * T / (Vm - b)) * math.exp(-a / (R * T * Vm))
+        elif eos == "berthelot":
+            return R * T / (Vm - b) - a / (T * Vm ** 2)
+        elif eos == "redlich_kwong":
+            return R * T / (Vm - b) - a / (Vm * (Vm + b) * math.sqrt(T))
+        raise ValueError(f"Newton solver no soporta eos={eos}")
+
+    for _ in range(max_iter):
+        f = P_of_Vm(Vm) - P_target
+        h = max(Vm * 1e-6, 1e-12)
+        df = (P_of_Vm(Vm + h) - P_of_Vm(Vm - h)) / (2 * h)
+        if df == 0:
+            break
+        step = f / df
+        Vm_new = Vm - step
+        if Vm_new <= b:
+            Vm_new = (Vm + b) / 2  # backtrack, evitar cruzar la asintota en V=b
+        if abs(Vm_new - Vm) < tol:
+            Vm = Vm_new
+            break
+        Vm = Vm_new
+    return Vm * n
+
+
 def _mode_real(p):
     """
     Ecuaciones de estado para gases reales.
@@ -99,27 +132,17 @@ def _mode_real(p):
         Z = P * V / (n * R * T)
         return {"eos": eos, "P": P, "V": V, "n": n, "T": T, "Z": Z, "a": a, "b": b}
 
-    elif eos == "dieterici":
+    elif eos in ("dieterici", "berthelot", "redlich_kwong"):
         if V is None:
-            raise ValueError("Dieterici: proveer V para resolver P directamente (forma explicita en P)")
-        Vm = V / n
-        P = (R * T / (Vm - b)) * math.exp(-a / (R * T * Vm))
-        Z = P * V / (n * R * T)
-        return {"eos": eos, "P": P, "V": V, "n": n, "T": T, "Z": Z, "a": a, "b": b}
-
-    elif eos == "berthelot":
-        if V is None:
-            raise ValueError("Berthelot: proveer V")
-        Vm = V / n
-        P = R * T / (Vm - b) - a / (T * Vm ** 2)
-        Z = P * V / (n * R * T)
-        return {"eos": eos, "P": P, "V": V, "n": n, "T": T, "Z": Z, "a": a, "b": b}
-
-    elif eos == "redlich_kwong":
-        if V is None:
-            raise ValueError("Redlich-Kwong: proveer V (o extender con solver cubico dedicado)")
-        Vm = V / n
-        P = R * T / (Vm - b) - a / (Vm * (Vm + b) * math.sqrt(T))
+            V = _newton_solve_V(P, T, n, a, b, eos)
+        elif P is None:
+            Vm = V / n
+            if eos == "dieterici":
+                P = (R * T / (Vm - b)) * math.exp(-a / (R * T * Vm))
+            elif eos == "berthelot":
+                P = R * T / (Vm - b) - a / (T * Vm ** 2)
+            elif eos == "redlich_kwong":
+                P = R * T / (Vm - b) - a / (Vm * (Vm + b) * math.sqrt(T))
         Z = P * V / (n * R * T)
         return {"eos": eos, "P": P, "V": V, "n": n, "T": T, "Z": Z, "a": a, "b": b}
 
@@ -229,6 +252,28 @@ def _mode_compressible(p):
 
     # relacion de presion critica en toberas (flujo isentropico, garganta sonica)
     out["relacion_presion_critica"] = (2 / (gamma + 1)) ** (gamma / (gamma - 1))
+
+    # Onda de choque normal (Rankine-Hugoniot), dado Mach upstream M1 > 1
+    M1 = p.get("shock_mach")
+    if M1 is not None:
+        if M1 <= 1:
+            raise ValueError("shock_mach debe ser > 1 (onda de choque solo existe en flujo supersonico)")
+        g = gamma
+        M2_sq = (1 + (g - 1) / 2 * M1 ** 2) / (g * M1 ** 2 - (g - 1) / 2)
+        M2 = math.sqrt(M2_sq)
+        P2_P1 = 1 + 2 * g / (g + 1) * (M1 ** 2 - 1)
+        rho2_rho1 = ((g + 1) * M1 ** 2) / ((g - 1) * M1 ** 2 + 2)
+        T2_T1 = P2_P1 / rho2_rho1  # via ley de gas ideal, ambos lados mismo R
+        # perdida de presion de estancamiento (medida de irreversibilidad)
+        P02_P01 = (
+            ((g + 1) * M1 ** 2 / ((g - 1) * M1 ** 2 + 2)) ** (g / (g - 1))
+            * ((g + 1) / (2 * g * M1 ** 2 - (g - 1))) ** (1 / (g - 1))
+        )
+        out["onda_choque_normal"] = {
+            "M1": M1, "M2": M2,
+            "P2_P1": P2_P1, "rho2_rho1": rho2_rho1, "T2_T1": T2_T1,
+            "P02_P01": P02_P01,
+        }
 
     return out
 
