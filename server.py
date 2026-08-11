@@ -119,6 +119,14 @@ from viral_lattice_tool import compute_viral_lattice_tool, VIRAL_LATTICE_TOOL_SC
 from enzyme_stochastic_tool import compute_enzyme_stochastic, ENZYME_STOCHASTIC_SCHEMA
 from evo_lgca_tool import compute_evo_lgca_tool, EVO_LGCA_TOOL_SCHEMA
 from mesh_spectral_tool import compute_mesh_spectral_tool, MESH_SPECTRAL_TOOL_SCHEMA
+from survey_tools import (
+    compute_survey_angles, SURVEY_ANGLES_TOOL_SCHEMA,
+    compute_survey_distance, SURVEY_DISTANCE_TOOL_SCHEMA,
+    compute_survey_curvature, SURVEY_CURVATURE_TOOL_SCHEMA,
+    compute_traverse_adjustment, TRAVERSE_ADJUSTMENT_TOOL_SCHEMA,
+    compute_survey_curves, SURVEY_CURVES_TOOL_SCHEMA,
+    compute_survey_area_volume, SURVEY_AREA_VOLUME_TOOL_SCHEMA,
+)
 TOOLS = [
     {
         "name": "run_octave",
@@ -241,6 +249,12 @@ TOOLS = [
     ENZYME_STOCHASTIC_SCHEMA,
     EVO_LGCA_TOOL_SCHEMA,
     MESH_SPECTRAL_TOOL_SCHEMA,
+    SURVEY_ANGLES_TOOL_SCHEMA,
+    SURVEY_DISTANCE_TOOL_SCHEMA,
+    SURVEY_CURVATURE_TOOL_SCHEMA,
+    TRAVERSE_ADJUSTMENT_TOOL_SCHEMA,
+    SURVEY_CURVES_TOOL_SCHEMA,
+    SURVEY_AREA_VOLUME_TOOL_SCHEMA,
 ]
 
 
@@ -1017,6 +1031,42 @@ for line in sys.stdin:
 
             elif tool_name == "mesh_spectral_tool":
                 result = compute_mesh_spectral_tool(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+            elif tool_name == "survey_angles_tool":
+                result = compute_survey_angles(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+            elif tool_name == "survey_distance_tool":
+                result = compute_survey_distance(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+            elif tool_name == "survey_curvature_tool":
+                result = compute_survey_curvature(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+            elif tool_name == "traverse_adjustment_tool":
+                result = compute_traverse_adjustment(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+            elif tool_name == "survey_curves_tool":
+                result = compute_survey_curves(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+            elif tool_name == "survey_area_volume_tool":
+                result = compute_survey_area_volume(**args)
                 resp = {
                     "jsonrpc": "2.0", "id": req_id,
                     "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
