@@ -109,6 +109,47 @@ def _newton_solve_V(P_target, T, n, a, b, eos, V0=None, tol=1e-10, max_iter=100)
     return Vm * n
 
 
+def _solve_V_at_P(P, T, n, a, b, eos, V_guess=None):
+    """Resuelve V para una P dada, cualquier EOS soportada. Usa cubica exacta para
+    van_der_waals y Newton (con warm-start V_guess) para las demas."""
+    if eos == "van_der_waals":
+        coeffs = [P, -(P * n * b + n * R * T), a * n ** 2, -a * n ** 3 * b]
+        roots = _cubic_roots_real(coeffs)
+        real_roots = [r for r in roots if r > n * b]
+        return max(real_roots) if real_roots else max(roots)
+    else:
+        return _newton_solve_V(P, T, n, a, b, eos, V0=V_guess)
+
+
+def _fugacity_coefficient(P, T, n, a, b, eos, n_points=200):
+    """ln(phi) = integral_0^P (Z-1) dP/P, integrado en espacio log(P) por estabilidad
+    (el integrando (Z-1)/P es bien comportado en ln P porque Z-1 -> const finita cuando P->0)."""
+    P_min = P * 1e-6
+    ln_P_vals = [
+        math.log(P_min) + i * (math.log(P) - math.log(P_min)) / (n_points - 1)
+        for i in range(n_points)
+    ]
+    P_vals = [math.exp(lp) for lp in ln_P_vals]
+
+    integrand = []
+    V_guess = None
+    for P_i in P_vals:
+        V_i = _solve_V_at_P(P_i, T, n, a, b, eos, V_guess=V_guess)
+        V_guess = V_i
+        Z_i = P_i * V_i / (n * R * T)
+        integrand.append(Z_i - 1)
+
+    # trapecio en ln(P): integral f dlnP
+    integral = 0.0
+    for i in range(1, n_points):
+        d_lnP = ln_P_vals[i] - ln_P_vals[i - 1]
+        integral += 0.5 * (integrand[i] + integrand[i - 1]) * d_lnP
+
+    ln_phi = integral
+    phi = math.exp(ln_phi)
+    return phi
+
+
 def _mode_real(p):
     """
     Ecuaciones de estado para gases reales.
@@ -130,7 +171,7 @@ def _mode_real(p):
         elif P is None:
             P = n * R * T / (V - n * b) - a * (n ** 2) / (V ** 2)
         Z = P * V / (n * R * T)
-        return {"eos": eos, "P": P, "V": V, "n": n, "T": T, "Z": Z, "a": a, "b": b}
+        result = {"eos": eos, "P": P, "V": V, "n": n, "T": T, "Z": Z, "a": a, "b": b}
 
     elif eos in ("dieterici", "berthelot", "redlich_kwong"):
         if V is None:
@@ -144,10 +185,17 @@ def _mode_real(p):
             elif eos == "redlich_kwong":
                 P = R * T / (Vm - b) - a / (Vm * (Vm + b) * math.sqrt(T))
         Z = P * V / (n * R * T)
-        return {"eos": eos, "P": P, "V": V, "n": n, "T": T, "Z": Z, "a": a, "b": b}
+        result = {"eos": eos, "P": P, "V": V, "n": n, "T": T, "Z": Z, "a": a, "b": b}
 
     else:
         raise ValueError(f"EOS desconocida: {eos}")
+
+    if p.get("compute_fugacity"):
+        phi = _fugacity_coefficient(result["P"], T, n, a, b, eos)
+        result["fugacity_coefficient"] = phi
+        result["fugacity"] = phi * result["P"]
+
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -167,21 +215,24 @@ def _mode_mixture(p):
     for c in componentes:
         x_i = c["n"] / n_total
         P_i = x_i * n_total * R * T / V  # presion parcial (Dalton, gas ideal)
+        V_i = x_i * V  # volumen parcial (Amagat, mezcla ideal: V_i = x_i * V_total)
         mu_i = None
         if p.get("mu0") and c.get("P0"):
             mu_i = p["mu0"] + R * T * math.log(P_i / c["P0"])
         S_mix += -R * c["n"] * math.log(x_i) if x_i > 0 else 0
         resultados.append({
             "nombre": c.get("nombre"),
-            "n": c["n"], "x": x_i, "P_parcial": P_i, "mu": mu_i
+            "n": c["n"], "x": x_i, "P_parcial": P_i, "V_parcial_amagat": V_i, "mu": mu_i
         })
 
     P_total = n_total * R * T / V
+    G_mix = -T * S_mix  # mezcla ideal: H_mix = 0 -> DeltaG_mix = -T*DeltaS_mix
     return {
         "P_total": P_total,
         "n_total": n_total,
         "componentes": resultados,
         "entropia_mezcla_J_K": S_mix,
+        "gibbs_mezcla_J": G_mix,
     }
 
 
@@ -274,6 +325,33 @@ def _mode_compressible(p):
             "P2_P1": P2_P1, "rho2_rho1": rho2_rho1, "T2_T1": T2_T1,
             "P02_P01": P02_P01,
         }
+
+    # Relacion area-Mach en tobera (flujo isentropico cuasi-1D): A/A* = f(M, gamma)
+    def _area_ratio(M, g):
+        return (1 / M) * ((2 / (g + 1)) * (1 + (g - 1) / 2 * M ** 2)) ** ((g + 1) / (2 * (g - 1)))
+
+    M_in = p.get("nozzle_mach")
+    if M_in is not None:
+        out["nozzle_area_ratio"] = _area_ratio(M_in, gamma)
+
+    A_ratio = p.get("nozzle_area_ratio")
+    regimen = p.get("nozzle_regime", "subsonic")  # "subsonic" | "supersonic"
+    if A_ratio is not None:
+        M_guess = 0.3 if regimen == "subsonic" else 2.0
+        for _ in range(100):
+            f = _area_ratio(M_guess, gamma) - A_ratio
+            h = 1e-6
+            df = (_area_ratio(M_guess + h, gamma) - _area_ratio(M_guess - h, gamma)) / (2 * h)
+            if df == 0:
+                break
+            M_new = M_guess - f / df
+            if M_new <= 0:
+                M_new = M_guess / 2
+            if abs(M_new - M_guess) < 1e-10:
+                M_guess = M_new
+                break
+            M_guess = M_new
+        out["nozzle_mach_solved"] = {"regime": regimen, "M": M_guess, "area_ratio_target": A_ratio}
 
     return out
 

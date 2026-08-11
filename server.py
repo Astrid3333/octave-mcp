@@ -127,6 +127,7 @@ from enzyme_stochastic_tool import compute_enzyme_stochastic, ENZYME_STOCHASTIC_
 from evo_lgca_tool import compute_evo_lgca_tool, EVO_LGCA_TOOL_SCHEMA
 from mesh_spectral_tool import compute_mesh_spectral_tool, MESH_SPECTRAL_TOOL_SCHEMA
 from gas_tool import compute_gas, GAS_TOOL_SCHEMA
+from knowledge_graph_tool import compute_knowledge_graph, KNOWLEDGE_GRAPH_TOOL_SCHEMA
 from survey_tools import (
     compute_survey_angles, SURVEY_ANGLES_TOOL_SCHEMA,
     compute_survey_distance, SURVEY_DISTANCE_TOOL_SCHEMA,
@@ -268,6 +269,7 @@ TOOLS = [
     SURVEY_CURVES_TOOL_SCHEMA,
     SURVEY_AREA_VOLUME_TOOL_SCHEMA,
     GAS_TOOL_SCHEMA,
+    KNOWLEDGE_GRAPH_TOOL_SCHEMA,
 ]
 
 
@@ -1114,6 +1116,12 @@ for line in sys.stdin:
                 }
             elif tool_name == "gas_tool":
                 result = compute_gas(args.get("mode"), args.get("params"))
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+            elif tool_name == "knowledge_graph_tool":
+                result = compute_knowledge_graph(args.get("mode"), args.get("params"), tools=TOOLS)
                 resp = {
                     "jsonrpc": "2.0", "id": req_id,
                     "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
