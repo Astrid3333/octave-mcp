@@ -932,6 +932,10 @@ for line in sys.stdin:
                 }
             elif tool_name == "genome_signal_analysis":
                 result = compute_genome_signal_analysis(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
             elif tool_name == "sdf_tool":
                 result = compute_sdf_tool(args.get("mode"), args.get("params"))
                 resp = {
