@@ -126,6 +126,7 @@ from viral_lattice_tool import compute_viral_lattice_tool, VIRAL_LATTICE_TOOL_SC
 from enzyme_stochastic_tool import compute_enzyme_stochastic, ENZYME_STOCHASTIC_SCHEMA
 from evo_lgca_tool import compute_evo_lgca_tool, EVO_LGCA_TOOL_SCHEMA
 from mesh_spectral_tool import compute_mesh_spectral_tool, MESH_SPECTRAL_TOOL_SCHEMA
+from gas_tool import compute_gas, GAS_TOOL_SCHEMA
 from survey_tools import (
     compute_survey_angles, SURVEY_ANGLES_TOOL_SCHEMA,
     compute_survey_distance, SURVEY_DISTANCE_TOOL_SCHEMA,
@@ -266,6 +267,7 @@ TOOLS = [
     TRAVERSE_ADJUSTMENT_TOOL_SCHEMA,
     SURVEY_CURVES_TOOL_SCHEMA,
     SURVEY_AREA_VOLUME_TOOL_SCHEMA,
+    GAS_TOOL_SCHEMA,
 ]
 
 
@@ -1106,6 +1108,12 @@ for line in sys.stdin:
                 }
             elif tool_name == "survey_area_volume_tool":
                 result = compute_survey_area_volume(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+            elif tool_name == "gas_tool":
+                result = compute_gas(args.get("mode"), args.get("params"))
                 resp = {
                     "jsonrpc": "2.0", "id": req_id,
                     "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
