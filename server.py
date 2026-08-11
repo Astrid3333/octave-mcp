@@ -105,6 +105,7 @@ from genome_signal_analysis_tool import compute_genome_signal_analysis, GENOME_S
 from polarization_mapping_tool import compute_polarization_mapping, POLARIZATION_MAPPING_SCHEMA
 from acoustics_tool import compute_acoustics_tool, ACOUSTICS_TOOL_SCHEMA
 from circuit_tool import compute_circuit_tool, CIRCUIT_TOOL_SCHEMA
+from topology_optimization_tool import compute_topology_optimization_tool, TOPOLOGY_OPTIMIZATION_TOOL_SCHEMA
 from electromagnetic_tool import (
     ELECTROMAGNETIC_TOOL_SCHEMA,
     handle_electromagnetic_tool,
@@ -243,6 +244,7 @@ TOOLS = [
     ACOUSTICS_TOOL_SCHEMA,
     DISTMESH_TOOL_SCHEMA,
     CIRCUIT_TOOL_SCHEMA,
+    TOPOLOGY_OPTIMIZATION_TOOL_SCHEMA,
     MESH_PDE_TOOL_SCHEMA,
     QUANTUM_ASTRO_TOOL_SCHEMA,
     SEMICLASSICAL_COSMOLOGY_TOOL_SCHEMA,
@@ -1013,6 +1015,12 @@ for line in sys.stdin:
                 }
             elif tool_name == "circuit_tool":
                 result = compute_circuit_tool(args.get("mode", "validate"), args.get("params"))
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+            elif tool_name == "topology_optimization_tool":
+                result = compute_topology_optimization_tool(args.get("mode", "validate"), args.get("params"))
                 resp = {
                     "jsonrpc": "2.0", "id": req_id,
                     "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
