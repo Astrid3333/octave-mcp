@@ -104,9 +104,16 @@ Pendiente: conectores externos (FreeCAD, BIM/IFC) — oCAS ya integrado.
   consistencia Arrhenius en el rango de T). `mode=rate_law`: velocidad de reaccion de
   orden general multi-reactivo, -r=k*prod(C_i^orden_i). `mode=batch_conversion`: formas
   integradas orden 0/1/2 para reactor batch de un reactivo limitante, resuelve tiempo o
-  conversion (X) dado el otro, mas concentracion y vida media. Validado: verificacion
-  cruzada del segundo punto en `dos_puntos` (error ~1e-13%) y round-trip X->t->X en
-  `batch_conversion` orden 2 (recupera X=0.8 exacto).
+  conversion (X) dado el otro, mas concentracion y vida media. `mode=pyrolysis_yield`:
+  distribucion tipica de productos (liquido/char/gas) por regimen de pirolisis
+  (lenta/intermedia/rapida/gasificacion) -- explicito via `regimen`, o clasificado
+  automaticamente desde velocidad de calentamiento, tiempo de residencia de vapor y/o
+  T_pico -- via valores de referencia de Bridgwater (2012); opcionalmente convierte a
+  fracciones de masa/energia si se da `m_feed`/`HHV_feed`. Validado: verificacion
+  cruzada del segundo punto en `dos_puntos` (error ~1e-13%), round-trip X->t->X en
+  `batch_conversion` orden 2 (recupera X=0.8 exacto), y clasificacion correcta de los
+  4 regimenes de `pyrolysis_yield` (incluida prioridad de gasificacion cuando T_pico>=700C
+  independiente del heating rate).
 
 ## Acustica y Electromagnetismo
 

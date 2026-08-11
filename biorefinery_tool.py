@@ -433,6 +433,117 @@ def _vida_media(orden, C0, k):
 
 
 # ---------------------------------------------------------------------------
+# Modo: pyrolysis_yield (clasificacion de regimen + distribucion tipica de productos)
+# ---------------------------------------------------------------------------
+_BRIDGWATER_REGIMENES = {
+    "lenta": {
+        "liquido_pct": 30.0, "char_pct": 35.0, "gas_pct": 35.0,
+        "descripcion": "Pirolisis lenta / carbonizacion: calentamiento bajo, residencia larga "
+                       "(horas-dias), T_pico ~400C. Maximiza char.",
+        "condiciones_tipicas": "calentamiento <10 C/min, residencia de vapor: horas a dias",
+    },
+    "intermedia": {
+        "liquido_pct": 50.0, "char_pct": 25.0, "gas_pct": 25.0,
+        "descripcion": "Pirolisis intermedia: calentamiento moderado, residencia ~2-30s, "
+                       "T_pico ~500C. Reparto mas parejo entre las tres fracciones.",
+        "condiciones_tipicas": "calentamiento 10-300 C/min, residencia de vapor: 2-30s",
+    },
+    "rapida": {
+        "liquido_pct": 75.0, "char_pct": 12.0, "gas_pct": 13.0,
+        "descripcion": "Pirolisis rapida (fast pyrolysis): calentamiento alto, residencia de "
+                       "vapor muy corta (<~2s), T_pico ~500C. Maximiza bio-oil/liquido "
+                       "(de ese liquido, tipicamente ~25% es agua).",
+        "condiciones_tipicas": "calentamiento >300 C/min, residencia de vapor: <2s",
+    },
+    "gasificacion": {
+        "liquido_pct": 5.0, "char_pct": 10.0, "gas_pct": 85.0,
+        "descripcion": "Gasificacion: T_pico alta (>700-800C), residencia larga. Maximiza gas "
+                       "de sintesis; el liquido/char remanente es marginal.",
+        "condiciones_tipicas": "T_pico >700-800C, residencia de vapor: larga",
+    },
+}
+
+
+def _mode_pyrolysis_yield(p):
+    """
+    Distribucion tipica de productos de pirolisis (liquido/bio-oil, char, gas) segun
+    el regimen operacional, con valores de referencia de Bridgwater (2012, "Review of
+    fast pyrolysis of biomass and product upgrading", Biomass and Bioenergy 38).
+
+    IMPORTANTE: estos son rangos tipicos de literatura por categoria de proceso, no una
+    correlacion continua ajustada a biomasa/reactor especifico -- sirven como estimacion
+    preliminar de orden de magnitud, no como sustituto de datos experimentales propios
+    (que es lo que alimenta a mass_balance/yield_efficiency una vez que hay planta o
+    reactor de banco operando).
+
+    Uso:
+      a) p["regimen"] explicito: uno de "lenta"|"intermedia"|"rapida"|"gasificacion"
+         -> devuelve directamente esos rendimientos de referencia.
+      b) Clasificacion automatica desde condiciones de proceso:
+         p["heating_rate_C_min"], p["tiempo_residencia_vapor_s"] (opcional),
+         p["T_pico_C"] (opcional).
+         Regla: T_pico_C >= 700 -> gasificacion (prioridad sobre heating rate).
+                heating_rate > 300 C/min (o residencia < 2s si se da) -> rapida.
+                heating_rate < 10 C/min -> lenta.
+                resto -> intermedia.
+
+    Si m_feed y HHV_feed se dan (opcional), tambien devuelve la masa/energia estimada
+    de cada fraccion (mismo espiritu que yield_efficiency, pero a priori en vez de
+    a partir de datos medidos).
+    """
+    regimen = p.get("regimen")
+
+    if regimen is None:
+        T_pico = p.get("T_pico_C")
+        heating_rate = p.get("heating_rate_C_min")
+        residencia = p.get("tiempo_residencia_vapor_s")
+
+        if T_pico is not None and T_pico >= 700:
+            regimen = "gasificacion"
+        elif heating_rate is None:
+            raise ValueError(
+                "Dar 'regimen' explicito, o al menos 'heating_rate_C_min' "
+                "(opcionalmente 'tiempo_residencia_vapor_s' y 'T_pico_C') para clasificar."
+            )
+        elif heating_rate > 300 or (residencia is not None and residencia < 2):
+            regimen = "rapida"
+        elif heating_rate < 10:
+            regimen = "lenta"
+        else:
+            regimen = "intermedia"
+
+    if regimen not in _BRIDGWATER_REGIMENES:
+        raise ValueError(
+            f"regimen desconocido: {regimen}. Usar: "
+            + " | ".join(_BRIDGWATER_REGIMENES.keys())
+        )
+
+    ref = _BRIDGWATER_REGIMENES[regimen]
+    resultado = {
+        "regimen_clasificado": regimen,
+        "liquido_pct": ref["liquido_pct"],
+        "char_pct": ref["char_pct"],
+        "gas_pct": ref["gas_pct"],
+        "descripcion": ref["descripcion"],
+        "condiciones_tipicas": ref["condiciones_tipicas"],
+        "fuente": "Bridgwater (2012), Biomass and Bioenergy 38 -- valores tipicos, no correlacion continua",
+    }
+
+    m_feed = p.get("m_feed")
+    if m_feed is not None:
+        HHV_feed = p.get("HHV_feed")
+        resultado["fracciones_masa"] = {
+            "liquido": m_feed * ref["liquido_pct"] / 100.0,
+            "char": m_feed * ref["char_pct"] / 100.0,
+            "gas": m_feed * ref["gas_pct"] / 100.0,
+        }
+        if HHV_feed is not None:
+            resultado["energia_feed_MJ"] = m_feed * HHV_feed
+
+    return resultado
+
+
+# ---------------------------------------------------------------------------
 # Dispatcher principal
 # ---------------------------------------------------------------------------
 def compute_biorefinery(mode, params=None):
@@ -451,10 +562,13 @@ def compute_biorefinery(mode, params=None):
         return _mode_rate_law(params)
     elif mode == "batch_conversion":
         return _mode_batch_conversion(params)
+    elif mode == "pyrolysis_yield":
+        return _mode_pyrolysis_yield(params)
     else:
         raise ValueError(
             f"Modo desconocido: {mode}. Usar: mass_balance | energy_balance | "
-            "hhv_correlation | yield_efficiency | arrhenius | rate_law | batch_conversion"
+            "hhv_correlation | yield_efficiency | arrhenius | rate_law | "
+            "batch_conversion | pyrolysis_yield"
         )
 
 
@@ -476,7 +590,11 @@ BIOREFINERY_TOOL_SCHEMA = {
         "puntos (con R^2 del ajuste). mode='rate_law': velocidad de reaccion de "
         "orden general multi-reactivo, -r=k*prod(C_i^orden_i). "
         "mode='batch_conversion': formas integradas orden 0/1/2 para reactor batch, "
-        "resuelve t o X (conversion) dado el otro, mas concentracion y vida media."
+        "resuelve t o X (conversion) dado el otro, mas concentracion y vida media. "
+        "mode='pyrolysis_yield': distribucion tipica de productos (liquido/char/gas) "
+        "por regimen de pirolisis (lenta/intermedia/rapida/gasificacion), explicito o "
+        "clasificado desde velocidad de calentamiento/residencia/T_pico, via valores "
+        "de referencia de Bridgwater (2012)."
     ),
     "inputSchema": {
         "type": "object",
@@ -485,7 +603,7 @@ BIOREFINERY_TOOL_SCHEMA = {
                 "type": "string",
                 "enum": [
                     "mass_balance", "energy_balance", "hhv_correlation", "yield_efficiency",
-                    "arrhenius", "rate_law", "batch_conversion",
+                    "arrhenius", "rate_law", "batch_conversion", "pyrolysis_yield",
                 ],
             },
             "params": {"type": "object"},
@@ -519,3 +637,9 @@ if __name__ == "__main__":
     }))
     print(compute_biorefinery("batch_conversion", {"orden": 1, "C0": 5.0, "k": 0.02, "t": 60.0}))
     print(compute_biorefinery("batch_conversion", {"orden": 2, "C0": 5.0, "k": 0.02, "X": 0.8}))
+    # --- pyrolysis_yield ---
+    print(compute_biorefinery("pyrolysis_yield", {"regimen": "rapida"}))
+    print(compute_biorefinery("pyrolysis_yield", {"heating_rate_C_min": 500, "tiempo_residencia_vapor_s": 1.0}))
+    print(compute_biorefinery("pyrolysis_yield", {"heating_rate_C_min": 5}))
+    print(compute_biorefinery("pyrolysis_yield", {"T_pico_C": 850}))
+    print(compute_biorefinery("pyrolysis_yield", {"regimen": "rapida", "m_feed": 100.0, "HHV_feed": 18.0}))
