@@ -1,6 +1,6 @@
 # octave-mcp
 
-Servidor MCP (JSON-RPC manual, sin FastMCP) que expone 120 herramientas matemáticas y de simulación científica sobre Octave/Python, pensadas para usarse desde Claude Desktop u otros clientes MCP.
+Servidor MCP (JSON-RPC manual, sin FastMCP) que expone 121 herramientas matemáticas y de simulación científica sobre Octave/Python, pensadas para usarse desde Claude Desktop u otros clientes MCP.
 
 > **Nota de unificación:** este repositorio es el único proyecto activo. El antiguo `mcp-octave-real` (FastMCP, 39 tools) fue absorbido por completo — todas sus herramientas, incluidas las de historia cuantitativa (`plague_sir`, `settlement_clusters`, `historical_extractor`, `braid_group`, Benford en `historian`), viven ahora acá. `mcp-octave-real` queda deprecado y no debe usarse ni documentarse como proyecto en paralelo.
 
@@ -57,7 +57,7 @@ Servidor MCP (JSON-RPC manual, sin FastMCP) que expone 120 herramientas matemát
 
 ---
 
-*Total: 120 herramientas registradas en el dispatcher (contadas directo desde `TOOLS` en `server.py`). Este número puede variar levemente con el tiempo; correr `tools/list` contra el servidor es la fuente de verdad.*
+*Total: 121 herramientas registradas en el dispatcher (contadas directo desde `TOOLS` en `server.py`). Este número puede variar levemente con el tiempo; correr `tools/list` contra el servidor es la fuente de verdad.*
 ## Fisica / simulacion (bloque final del roadmap)
 
 | Tool | Acciones | Validacion analitica | Error numerico |
@@ -66,7 +66,7 @@ Servidor MCP (JSON-RPC manual, sin FastMCP) que expone 120 herramientas matemát
 | `particle_simulation_tool` | `kepler_orbit`, `elastic_collision_nbody`, `random_walk_diffusion` | 3ª ley de Kepler T=2π√(a³/GM); formula de colision elastica de libro de texto; MSD=2Dt | 5e-13% / drift ~1e-15 / 0.34% |
 | `finite_element_tool` | `bar_1d`, `beam_bending`, `truss_2d` | u=PL/AE (barra); δ=PL³/3EI (viga voladizo Euler-Bernoulli); equilibrio de nodos (cercha) | 0% / ~1.7e-12% / residual 0 |
 
-octave-mcp: 88 -> 120 tools. Agregados: bloque de topografia/geomatica (6), geometria/mallas/cosmologia, biologia computacional.
+octave-mcp: 88 -> 121 tools. Agregados: bloque de topografia/geomatica (6), geometria/mallas/cosmologia, biologia computacional.
 Pendiente: conectores externos (FreeCAD, BIM/IFC) — oCAS ya integrado.
 
 ## Acustica y Electromagnetismo
@@ -75,3 +75,7 @@ Pendiente: conectores externos (FreeCAD, BIM/IFC) — oCAS ya integrado.
   (`room_modes`), tiempo de reverberacion via formula de Sabine (`reverberation_sabine`).
   Validado contra solucion analitica y contra la relacion esperada RT60(reflectante) >
   RT60(absorbente).
+- **electromagnetic_tool**: propagacion de campo E en 1D via FDTD leapfrog con bordes PEC
+  (`wave_1d`); cristal fotonico 1D por matriz de transferencia, condicion de Bloch y deteccion
+  de band gaps (`photonic_bandgap`). Validado end-to-end, incluyendo un apilado de cuarto de
+  onda con el gap centrado exactamente en la frecuencia de diseno f0.
