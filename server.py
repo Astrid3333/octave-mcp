@@ -108,6 +108,8 @@ from sdf_tool import compute_sdf_tool, SDF_TOOL_SCHEMA
 from lscm_tool import compute_lscm_tool, LSCM_TOOL_SCHEMA
 from mesh_pde_tool import compute_mesh_pde_tool, MESH_PDE_TOOL_SCHEMA
 from quantum_astro_tool import compute_quantum_astro_tool, QUANTUM_ASTRO_TOOL_SCHEMA
+from semiclassical_cosmology_tool import compute_semiclassical_cosmology_tool, SEMICLASSICAL_COSMOLOGY_TOOL_SCHEMA
+from cosmological_mcmc_tool import compute_cosmological_mcmc_tool, COSMOLOGICAL_MCMC_TOOL_SCHEMA
 from geometric_algebra_protein_tool import compute_geometric_algebra_protein, GEOMETRIC_ALGEBRA_PROTEIN_SCHEMA
 from optical_sequence_id_tool import compute_optical_sequence_id, OPTICAL_SEQUENCE_ID_SCHEMA
 from infrasound_tool import compute_infrasound_tool, INFRASOUND_TOOL_SCHEMA
@@ -225,6 +227,8 @@ TOOLS = [
     DISTMESH_TOOL_SCHEMA,
     MESH_PDE_TOOL_SCHEMA,
     QUANTUM_ASTRO_TOOL_SCHEMA,
+    SEMICLASSICAL_COSMOLOGY_TOOL_SCHEMA,
+    COSMOLOGICAL_MCMC_TOOL_SCHEMA,
     LSCM_TOOL_SCHEMA,
     SDF_TOOL_SCHEMA,
     GEOMETRIC_ALGEBRA_PROTEIN_SCHEMA,
@@ -932,6 +936,18 @@ for line in sys.stdin:
                 }
             elif tool_name == "quantum_astro_tool":
                 result = compute_quantum_astro_tool(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+            elif tool_name == "semiclassical_cosmology_tool":
+                result = compute_semiclassical_cosmology_tool(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+            elif tool_name == "cosmological_mcmc_tool":
+                result = compute_cosmological_mcmc_tool(**args)
                 resp = {
                     "jsonrpc": "2.0", "id": req_id,
                     "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
