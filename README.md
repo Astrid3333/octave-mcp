@@ -87,6 +87,27 @@ Pendiente: conectores externos (FreeCAD, BIM/IFC) — oCAS ya integrado.
   dispatcher) — no mantiene un grafo aparte, se actualiza solo cuando se agregan
   tools nuevas.
 
+## Biorrefineria
+
+- **biorefinery_tool**: balances de masa/energia y cinetica quimica para procesos
+  biomasa -> biocombustible (pirolisis, hidrotratamiento, fermentacion). `mode=mass_balance`:
+  balance de masa global en estado estacionario, resuelve una incognita entre streams
+  de entrada/salida o reporta error de cierre. `mode=energy_balance`: balance de
+  energia (calor sensible + latente via entalpias especificas), resuelve Q o reporta
+  cierre. `mode=hhv_correlation`: poder calorifico superior/inferior (HHV/LHV) desde
+  composicion elemental C/H/O/N/S/Ash via correlacion de Channiwala-Parikh (2002,
+  error tipico ~1.45%). `mode=yield_efficiency`: rendimientos masicos/energeticos de
+  producto(s) respecto a la materia prima y eficiencia energetica global. Bloque de
+  cinetica: `mode=arrhenius` (`submodo=directo` calcula k desde A/Ea/T; `submodo=dos_puntos`
+  resuelve Ea/A por sistema exacto desde dos pares (T,k); `submodo=regresion` ajusta
+  ln(k) vs 1/T por minimos cuadrados sobre 3+ puntos, reportando R^2 como indicador de
+  consistencia Arrhenius en el rango de T). `mode=rate_law`: velocidad de reaccion de
+  orden general multi-reactivo, -r=k*prod(C_i^orden_i). `mode=batch_conversion`: formas
+  integradas orden 0/1/2 para reactor batch de un reactivo limitante, resuelve tiempo o
+  conversion (X) dado el otro, mas concentracion y vida media. Validado: verificacion
+  cruzada del segundo punto en `dos_puntos` (error ~1e-13%) y round-trip X->t->X en
+  `batch_conversion` orden 2 (recupera X=0.8 exacto).
+
 ## Acustica y Electromagnetismo
 
 - **acoustics_tool**: ondas de presion 1D (`pressure_wave_1d`), modos propios de sala

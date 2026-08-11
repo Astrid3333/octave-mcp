@@ -3,6 +3,9 @@ biorefinery_tool.py
 Balances de masa y energia para procesos de biorrefineria (biomasa -> biocombustible).
 Primera tanda del roadmap de "matematica de biopetroleo": mass_balance, energy_balance,
 hhv_correlation (poder calorifico via composicion elemental), yield_efficiency.
+Segunda tanda: cinetica quimica (Arrhenius, ley de velocidad, conversion integrada en
+batch) para pirolisis/hidrotratamiento -- el "que tan rapido" que complementa a los
+balances de masa/energia ("cuanto entra y sale").
 Sigue el patron: compute_biorefinery(mode, params) + BIOREFINERY_TOOL_SCHEMA
 
 Integrar en server.py:
@@ -15,6 +18,7 @@ Integrar en server.py:
 import math
 
 T_REF_DEFAULT = 298.15  # K
+R_GAS = 8.314462618  # J/(mol*K)
 
 
 # ---------------------------------------------------------------------------
@@ -228,6 +232,207 @@ def _mode_yield_efficiency(p):
 
 
 # ---------------------------------------------------------------------------
+# Modo: arrhenius (directo / dos_puntos / regresion)
+# ---------------------------------------------------------------------------
+def _mode_arrhenius(p):
+    """
+    Ecuacion de Arrhenius: k = A * exp(-Ea / (R*T))  [T en K, Ea en J/mol, R=8.314462618]
+
+    submodo="directo": dados A, Ea (J/mol o kJ/mol via unidades_Ea), T -> calcula k.
+    submodo="dos_puntos": dados (T1,k1) y (T2,k2) -> resuelve Ea y A por sistema exacto
+        Ea = -R * ln(k2/k1) / (1/T2 - 1/T1)
+        A  = k1 / exp(-Ea/(R*T1))
+    submodo="regresion": dada una lista de pares (T,k) [minimo 2, tipicamente 3+] ->
+        regresion lineal de ln(k) vs 1/T (grafico de Arrhenius linealizado):
+        ln(k) = ln(A) - (Ea/R)*(1/T)
+        pendiente = -Ea/R  ->  Ea = -R*pendiente
+        intercepto = ln(A)  ->  A = exp(intercepto)
+        Se reporta tambien R^2 del ajuste como medida de que tan bien se comporta
+        Arrhenius en el rango de T dado (util para detectar cambio de mecanismo/regimen
+        difusion-limitado en pirolisis/hidrotratamiento).
+    """
+    submodo = p.get("submodo", "directo")
+
+    if submodo == "directo":
+        A = p["A"]
+        Ea = p["Ea"]
+        if p.get("unidades_Ea", "J/mol") == "kJ/mol":
+            Ea = Ea * 1000.0
+        T = p["T"]
+        k = A * math.exp(-Ea / (R_GAS * T))
+        return {
+            "submodo": submodo, "A": A, "Ea_J_mol": Ea, "T_K": T, "k": k,
+            "formula": "k = A * exp(-Ea/(R*T))",
+        }
+
+    elif submodo == "dos_puntos":
+        T1, k1 = p["T1"], p["k1"]
+        T2, k2 = p["T2"], p["k2"]
+        if T1 == T2:
+            raise ValueError("T1 y T2 deben ser distintas para resolver Ea por dos puntos.")
+        Ea = -R_GAS * math.log(k2 / k1) / (1.0 / T2 - 1.0 / T1)
+        A = k1 / math.exp(-Ea / (R_GAS * T1))
+        # verificacion cruzada con el segundo punto
+        k2_check = A * math.exp(-Ea / (R_GAS * T2))
+        return {
+            "submodo": submodo,
+            "puntos": {"T1_K": T1, "k1": k1, "T2_K": T2, "k2": k2},
+            "Ea_J_mol": Ea, "Ea_kJ_mol": Ea / 1000.0, "A": A,
+            "verificacion_k2": k2_check,
+            "error_relativo_verificacion_pct": 100 * abs(k2_check - k2) / k2 if k2 else None,
+        }
+
+    elif submodo == "regresion":
+        datos = p["datos"]  # lista de {"T":.., "k":..}
+        n = len(datos)
+        if n < 2:
+            raise ValueError("Se necesitan al menos 2 pares (T,k) para la regresion; 3+ recomendado.")
+
+        x = [1.0 / d["T"] for d in datos]      # 1/T
+        y = [math.log(d["k"]) for d in datos]  # ln(k)
+
+        x_mean = sum(x) / n
+        y_mean = sum(y) / n
+        Sxx = sum((xi - x_mean) ** 2 for xi in x)
+        Sxy = sum((xi - x_mean) * (yi - y_mean) for xi, yi in zip(x, y))
+        if Sxx == 0:
+            raise ValueError("Todas las T son iguales; no se puede ajustar una recta.")
+
+        pendiente = Sxy / Sxx
+        intercepto = y_mean - pendiente * x_mean
+
+        Ea = -R_GAS * pendiente
+        A = math.exp(intercepto)
+
+        y_pred = [intercepto + pendiente * xi for xi in x]
+        ss_res = sum((yi - ypi) ** 2 for yi, ypi in zip(y, y_pred))
+        ss_tot = sum((yi - y_mean) ** 2 for yi in y)
+        r_cuadrado = 1 - ss_res / ss_tot if ss_tot else None
+
+        return {
+            "submodo": submodo, "n_puntos": n,
+            "pendiente_lnk_vs_invT": pendiente, "intercepto_lnk": intercepto,
+            "Ea_J_mol": Ea, "Ea_kJ_mol": Ea / 1000.0, "A": A,
+            "r_cuadrado": r_cuadrado,
+            "interpretacion_r2": (
+                "Ajuste lineal fuerte: cinetica Arrhenius consistente en el rango de T dado."
+                if (r_cuadrado is not None and r_cuadrado > 0.98) else
+                "Ajuste lineal debil: posible cambio de mecanismo o regimen "
+                "difusion-limitado dentro del rango de T -- revisar datos por tramos."
+            ),
+        }
+
+    else:
+        raise ValueError(f"submodo desconocido: {submodo}. Usar: directo | dos_puntos | regresion")
+
+
+# ---------------------------------------------------------------------------
+# Modo: rate_law (ley de velocidad de orden general, multi-reactivo)
+# ---------------------------------------------------------------------------
+def _mode_rate_law(p):
+    """
+    Ley de velocidad general: -r = k * prod(C_i ^ orden_i)
+    reactivos: lista de {"nombre","C"(concentracion),"orden"(exponente en la ley)}.
+    Reporta la velocidad de reaccion y el orden global (suma de ordenes parciales).
+    """
+    k = p["k"]
+    reactivos = p["reactivos"]
+
+    rate = k
+    detalle = []
+    orden_global = 0.0
+    for r in reactivos:
+        C = r["C"]
+        orden = r["orden"]
+        contrib = C ** orden
+        rate *= contrib
+        orden_global += orden
+        detalle.append({
+            "nombre": r.get("nombre"), "C": C, "orden": orden, "C_elevado_orden": contrib,
+        })
+
+    return {
+        "k": k, "reactivos": detalle, "orden_global": orden_global,
+        "velocidad_reaccion": rate,
+        "formula": "-r = k * prod(C_i ^ orden_i)",
+    }
+
+
+# ---------------------------------------------------------------------------
+# Modo: batch_conversion (formas integradas, reactor batch, orden 0/1/2)
+# ---------------------------------------------------------------------------
+def _mode_batch_conversion(p):
+    """
+    Formas integradas de la ley de velocidad para un reactor batch de un solo
+    reactivo limitante A -> productos, ordenes 0, 1 y 2. Dados C0, k y orden, mas
+    exactamente uno de {t, X} (el otro None o ausente), resuelve el que falta y
+    devuelve tambien la concentracion C = C0*(1-X).
+
+    Orden 0: C = C0 - k*t            ; X = k*t/C0            ; t = X*C0/k
+    Orden 1: C = C0*exp(-k*t)        ; X = 1 - exp(-k*t)      ; t = -ln(1-X)/k
+    Orden 2: C = C0/(1 + k*C0*t)     ; X = k*C0*t/(1+k*C0*t)  ; t = X/(k*C0*(1-X))
+    (orden 2 asume -r = k*C^2 para un unico reactivo, caso mas comun en cinetica
+    de pirolisis/craqueo termico simplificada)
+    """
+    orden = p["orden"]
+    C0 = p["C0"]
+    k = p["k"]
+    t = p.get("t")
+    X = p.get("X")
+
+    if (t is None) == (X is None):
+        raise ValueError("Dar exactamente uno de {t, X} (el otro None o ausente) para resolver el faltante.")
+
+    if orden == 0:
+        if t is None:
+            if not (0 <= X < 1):
+                raise ValueError("X debe estar en [0,1) para orden 0.")
+            t = X * C0 / k
+        else:
+            X = min(1.0, k * t / C0)
+        C = C0 * (1 - X)
+
+    elif orden == 1:
+        if t is None:
+            if not (0 <= X < 1):
+                raise ValueError("X debe estar en [0,1) para orden 1.")
+            t = -math.log(1 - X) / k
+        else:
+            X = 1 - math.exp(-k * t)
+        C = C0 * (1 - X)
+
+    elif orden == 2:
+        if t is None:
+            if not (0 <= X < 1):
+                raise ValueError("X debe estar en [0,1) para orden 2.")
+            t = X / (k * C0 * (1 - X))
+        else:
+            kC0t = k * C0 * t
+            X = kC0t / (1 + kC0t)
+        C = C0 * (1 - X)
+
+    else:
+        raise ValueError(f"orden desconocido: {orden}. Usar: 0 | 1 | 2")
+
+    return {
+        "orden": orden, "C0": C0, "k": k,
+        "t": t, "X": X, "C": C,
+        "vida_media": _vida_media(orden, C0, k),
+    }
+
+
+def _vida_media(orden, C0, k):
+    """Tiempo de vida media (X=0.5) segun el orden; None si no aplica/diverge."""
+    if orden == 0:
+        return 0.5 * C0 / k
+    elif orden == 1:
+        return math.log(2) / k
+    elif orden == 2:
+        return 1.0 / (k * C0)
+    return None
+
+
+# ---------------------------------------------------------------------------
 # Dispatcher principal
 # ---------------------------------------------------------------------------
 def compute_biorefinery(mode, params=None):
@@ -240,18 +445,24 @@ def compute_biorefinery(mode, params=None):
         return _mode_hhv_correlation(params)
     elif mode == "yield_efficiency":
         return _mode_yield_efficiency(params)
+    elif mode == "arrhenius":
+        return _mode_arrhenius(params)
+    elif mode == "rate_law":
+        return _mode_rate_law(params)
+    elif mode == "batch_conversion":
+        return _mode_batch_conversion(params)
     else:
         raise ValueError(
             f"Modo desconocido: {mode}. Usar: mass_balance | energy_balance | "
-            "hhv_correlation | yield_efficiency"
+            "hhv_correlation | yield_efficiency | arrhenius | rate_law | batch_conversion"
         )
 
 
 BIOREFINERY_TOOL_SCHEMA = {
     "name": "biorefinery_tool",
     "description": (
-        "Balances de masa y energia para procesos de conversion de biomasa a "
-        "biocombustible (pirolisis, hidrotratamiento, fermentacion, etc). "
+        "Balances de masa/energia y cinetica quimica para procesos de conversion de "
+        "biomasa a biocombustible (pirolisis, hidrotratamiento, fermentacion, etc). "
         "mode='mass_balance': balance de masa global en estado estacionario, "
         "resuelve una incognita o reporta error de cierre. mode='energy_balance': "
         "balance de energia (calor sensible+latente) via entalpias especificas, "
@@ -260,14 +471,22 @@ BIOREFINERY_TOOL_SCHEMA = {
         "elemental C/H/O/N/S/Ash via correlacion de Channiwala-Parikh (2002). "
         "mode='yield_efficiency': rendimientos masicos y energeticos de "
         "producto(s) respecto a la materia prima, y eficiencia energetica "
-        "global del proceso."
+        "global del proceso. mode='arrhenius': k=A*exp(-Ea/RT) directo, o resuelve "
+        "Ea/A por dos puntos (T,k) o por regresion lineal ln(k) vs 1/T sobre 3+ "
+        "puntos (con R^2 del ajuste). mode='rate_law': velocidad de reaccion de "
+        "orden general multi-reactivo, -r=k*prod(C_i^orden_i). "
+        "mode='batch_conversion': formas integradas orden 0/1/2 para reactor batch, "
+        "resuelve t o X (conversion) dado el otro, mas concentracion y vida media."
     ),
     "inputSchema": {
         "type": "object",
         "properties": {
             "mode": {
                 "type": "string",
-                "enum": ["mass_balance", "energy_balance", "hhv_correlation", "yield_efficiency"],
+                "enum": [
+                    "mass_balance", "energy_balance", "hhv_correlation", "yield_efficiency",
+                    "arrhenius", "rate_law", "batch_conversion",
+                ],
             },
             "params": {"type": "object"},
         },
@@ -288,3 +507,15 @@ if __name__ == "__main__":
         "productos": [{"nombre": "bio-oil", "m": 35.0, "HHV": 22.0}],
         "Q_utilities": 200.0,
     }))
+    # --- cinetica ---
+    print(compute_biorefinery("arrhenius", {"submodo": "directo", "A": 1.0e13, "Ea": 150.0, "unidades_Ea": "kJ/mol", "T": 773.15}))
+    print(compute_biorefinery("arrhenius", {"submodo": "dos_puntos", "T1": 673.15, "k1": 0.002, "T2": 773.15, "k2": 0.05}))
+    print(compute_biorefinery("arrhenius", {"submodo": "regresion", "datos": [
+        {"T": 623.15, "k": 0.0008}, {"T": 673.15, "k": 0.002},
+        {"T": 723.15, "k": 0.012}, {"T": 773.15, "k": 0.05},
+    ]}))
+    print(compute_biorefinery("rate_law", {
+        "k": 0.02, "reactivos": [{"nombre": "biomasa", "C": 5.0, "orden": 1.0}],
+    }))
+    print(compute_biorefinery("batch_conversion", {"orden": 1, "C0": 5.0, "k": 0.02, "t": 60.0}))
+    print(compute_biorefinery("batch_conversion", {"orden": 2, "C0": 5.0, "k": 0.02, "X": 0.8}))
