@@ -107,6 +107,7 @@ from distmesh_tool import compute_distmesh, DISTMESH_TOOL_SCHEMA
 from sdf_tool import compute_sdf_tool, SDF_TOOL_SCHEMA
 from lscm_tool import compute_lscm_tool, LSCM_TOOL_SCHEMA
 from mesh_pde_tool import compute_mesh_pde_tool, MESH_PDE_TOOL_SCHEMA
+from quantum_astro_tool import compute_quantum_astro_tool, QUANTUM_ASTRO_TOOL_SCHEMA
 from geometric_algebra_protein_tool import compute_geometric_algebra_protein, GEOMETRIC_ALGEBRA_PROTEIN_SCHEMA
 from optical_sequence_id_tool import compute_optical_sequence_id, OPTICAL_SEQUENCE_ID_SCHEMA
 from infrasound_tool import compute_infrasound_tool, INFRASOUND_TOOL_SCHEMA
@@ -223,6 +224,7 @@ TOOLS = [
     POLARIZATION_MAPPING_SCHEMA,
     DISTMESH_TOOL_SCHEMA,
     MESH_PDE_TOOL_SCHEMA,
+    QUANTUM_ASTRO_TOOL_SCHEMA,
     LSCM_TOOL_SCHEMA,
     SDF_TOOL_SCHEMA,
     GEOMETRIC_ALGEBRA_PROTEIN_SCHEMA,
@@ -924,6 +926,12 @@ for line in sys.stdin:
                 }
             elif tool_name == "mesh_pde_tool":
                 result = compute_mesh_pde_tool(args.get("mode"), args.get("params"))
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+            elif tool_name == "quantum_astro_tool":
+                result = compute_quantum_astro_tool(**args)
                 resp = {
                     "jsonrpc": "2.0", "id": req_id,
                     "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
