@@ -333,15 +333,58 @@ def _friedmann_corrections(params):
 # ----------------------------------------------------------------------
 # Entry point de la herramienta (firma compatible con octave-mcp)
 # ----------------------------------------------------------------------
-def quantum_cosmology_tool(mode="self_test", params=None):
+def compute_quantum_cosmology_tool(mode, params=None):
     params = params or {}
     if mode == "self_test":
         return _self_test()
-    if mode == "friedmann_corrections":
+    elif mode == "friedmann_corrections":
         return _friedmann_corrections(params)
-    raise ValueError(f"mode desconocido: {mode!r} (usar 'self_test' o 'friedmann_corrections')")
+    else:
+        return {"error": f"Modo desconocido: {mode}. Modos validos: self_test, friedmann_corrections."}
+
+
+QUANTUM_COSMOLOGY_TOOL_SCHEMA = {
+    "name": "quantum_cosmology_tool",
+    "description": (
+        "Cosmologia cuantica en minisuperspace via la ecuacion de Wheeler-DeWitt, "
+        "resuelta como una ecuacion tipo Schrodinger para el factor de escala a "
+        "(Crank-Nicolson unitario, frontera Dirichlet excluida del sistema lineal). "
+        "Potenciales de juguete: free, linear (analogo curvatura cerrada), harmonic "
+        "(analogo Lambda) -- no son coeficientes exactos de GR, es el modelo estandar "
+        "y verificable de cosmologia cuantica en minisuperspace. mode=self_test: corre "
+        "2 regression tests contra soluciones analiticas exactas (ensanchamiento "
+        "gaussiano libre, periodo del oscilador armonico via FFT) + chequeo de "
+        "conservacion de norma. mode=friedmann_corrections: evolucion cuantica <a>(t), "
+        "trayectoria de De Broglie-Bohm, trayectoria clasica del mismo Hamiltoniano, y "
+        "diagnostico de bounce (evitacion cuantica de la singularidad clasica)."
+    ),
+    "inputSchema": {
+        "type": "object",
+        "properties": {
+            "mode": {"type": "string", "enum": ["self_test", "friedmann_corrections"]},
+            "params": {
+                "type": "object",
+                "properties": {
+                    "potential": {"type": "string", "enum": ["free", "linear", "harmonic"], "description": "Potencial de juguete (default 'linear')"},
+                    "M": {"type": "number", "description": "Masa efectiva en la ecuacion tipo Schrodinger (default 1.0)"},
+                    "hbar": {"type": "number", "description": "hbar en unidades del modelo (default 1.0)"},
+                    "k": {"type": "number", "description": "Constante de acoplamiento del potencial linear/harmonic (default 1.0)"},
+                    "a0": {"type": "number", "description": "Posicion inicial del paquete de onda / condicion inicial clasica (default 5.0)"},
+                    "sigma0": {"type": "number", "description": "Ancho inicial del paquete gaussiano (default 0.8)"},
+                    "p0": {"type": "number", "description": "Momento inicial del paquete de onda (default 0.0)"},
+                    "a_min": {"type": "number", "description": "Borde inferior de la grilla en a (default -20.0)"},
+                    "a_max": {"type": "number", "description": "Borde superior de la grilla en a (default 20.0)"},
+                    "n_a": {"type": "integer", "description": "Numero de puntos de grilla en a (default 500)"},
+                    "t_max": {"type": "number", "description": "Tiempo total de evolucion (default 20.0)"},
+                    "n_t": {"type": "integer", "description": "Numero de pasos temporales (default 800)"},
+                },
+            },
+        },
+        "required": ["mode"],
+    },
+}
 
 
 if __name__ == "__main__":
     import json
-    print(json.dumps(quantum_cosmology_tool("self_test"), indent=2))
+    print(json.dumps(compute_quantum_cosmology_tool("self_test"), indent=2))
