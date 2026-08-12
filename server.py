@@ -48,6 +48,7 @@ from multibody_dynamics_tool import compute_multibody_dynamics, MULTIBODY_DYNAMI
 from particle_simulation_tool import compute_particle_simulation, PARTICLE_SIMULATION_TOOL_SCHEMA
 from finite_element_tool import compute_finite_element, FINITE_ELEMENT_TOOL_SCHEMA
 from fem_advanced_tool import compute_fem_advanced, FEM_ADVANCED_TOOL_SCHEMA
+from plane_stress_tool import compute_plane_stress, PLANE_STRESS_TOOL_SCHEMA
 from archaeoastronomy_tool import compute_archaeoastronomy, ARCHAEOASTRONOMY_TOOL_SCHEMA
 from quantum_information_tool import compute_quantum_information, QUANTUM_INFORMATION_TOOL_SCHEMA
 from octave_infra_tool import octave_run, octave_eval_expr, octave_run_script, octave_version
@@ -196,6 +197,7 @@ TOOLS = [
     PARTICLE_SIMULATION_TOOL_SCHEMA,
     FINITE_ELEMENT_TOOL_SCHEMA,
     FEM_ADVANCED_TOOL_SCHEMA,
+    PLANE_STRESS_TOOL_SCHEMA,
     ARCHAEOASTRONOMY_TOOL_SCHEMA,
     QUANTUM_INFORMATION_TOOL_SCHEMA,
     {"name": "octave_run", "description": "Ejecuta codigo Octave. timeout en segundos (default 60).", "inputSchema": {"type": "object", "properties": {"code": {"type": "string"}, "timeout": {"type": "integer"}}, "required": ["code"]}},
@@ -1006,6 +1008,12 @@ for line in sys.stdin:
                 }
             elif tool_name == "fem_advanced_tool":
                 result = compute_fem_advanced(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+            elif tool_name == "plane_stress_tool":
+                result = compute_plane_stress(args.get("mode"), args.get("params"))
                 resp = {
                     "jsonrpc": "2.0", "id": req_id,
                     "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
