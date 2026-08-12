@@ -138,7 +138,6 @@ from survey_tools import (
     compute_survey_area_volume, SURVEY_AREA_VOLUME_TOOL_SCHEMA,
 )
 from climate_tool import compute_climate
-from electromagnetic_tool import compute_electromagnetic
 TOOLS = [
     {
         "name": "run_octave",
@@ -1192,12 +1191,6 @@ for line in sys.stdin:
                 }
             elif tool_name == "climate_tool":
                 result = compute_climate(args.get("mode"), args.get("params"))
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-            elif tool_name == "electromagnetic_tool":
-                result = compute_electromagnetic(args.get("mode"), args.get("params"))
                 resp = {
                     "jsonrpc": "2.0", "id": req_id,
                     "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
