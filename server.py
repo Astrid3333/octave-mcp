@@ -130,7 +130,6 @@ from gas_tool import compute_gas, GAS_TOOL_SCHEMA
 from knowledge_graph_tool import compute_knowledge_graph, KNOWLEDGE_GRAPH_TOOL_SCHEMA
 from biorefinery_tool import compute_biorefinery, BIOREFINERY_TOOL_SCHEMA
 from survey_tools import (
-from climate_tool import compute_climate
     compute_survey_angles, SURVEY_ANGLES_TOOL_SCHEMA,
     compute_survey_distance, SURVEY_DISTANCE_TOOL_SCHEMA,
     compute_survey_curvature, SURVEY_CURVATURE_TOOL_SCHEMA,
@@ -138,6 +137,7 @@ from climate_tool import compute_climate
     compute_survey_curves, SURVEY_CURVES_TOOL_SCHEMA,
     compute_survey_area_volume, SURVEY_AREA_VOLUME_TOOL_SCHEMA,
 )
+from climate_tool import compute_climate
 TOOLS = [
     {
         "name": "run_octave",
@@ -1165,14 +1165,18 @@ for line in sys.stdin:
                     "jsonrpc": "2.0", "id": req_id,
                     "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
                 }
+            elif tool_name == "climate_tool":
+                result = compute_climate(args.get("mode"), args.get("params"))
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
             else:
                 resp = {
                     "jsonrpc": "2.0", "id": req_id,
                     "error": {"code": -32601, "message": f"Tool desconocido: {tool_name}"},
                 }
 
-        elif tool_name == "climate_tool":
-            resp = compute_climate(**args)
         else:
             resp = {"jsonrpc": "2.0", "id": req_id, "result": {}}
 
