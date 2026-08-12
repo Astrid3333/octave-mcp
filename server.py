@@ -49,6 +49,10 @@ from particle_simulation_tool import compute_particle_simulation, PARTICLE_SIMUL
 from finite_element_tool import compute_finite_element, FINITE_ELEMENT_TOOL_SCHEMA
 from fem_advanced_tool import compute_fem_advanced, FEM_ADVANCED_TOOL_SCHEMA
 from plane_stress_tool import compute_plane_stress, PLANE_STRESS_TOOL_SCHEMA
+from thermal_structural_tool import compute_thermal_structural, THERMAL_STRUCTURAL_TOOL_SCHEMA
+from nonlinear_buckling_tool import compute_nonlinear_buckling, NONLINEAR_BUCKLING_TOOL_SCHEMA
+from forced_vibration_tool import compute_forced_vibration, FORCED_VIBRATION_TOOL_SCHEMA
+from spectral_analysis_tool import compute_spectral_analysis, SPECTRAL_ANALYSIS_TOOL_SCHEMA
 from archaeoastronomy_tool import compute_archaeoastronomy, ARCHAEOASTRONOMY_TOOL_SCHEMA
 from quantum_information_tool import compute_quantum_information, QUANTUM_INFORMATION_TOOL_SCHEMA
 from octave_infra_tool import octave_run, octave_eval_expr, octave_run_script, octave_version
@@ -198,6 +202,10 @@ TOOLS = [
     FINITE_ELEMENT_TOOL_SCHEMA,
     FEM_ADVANCED_TOOL_SCHEMA,
     PLANE_STRESS_TOOL_SCHEMA,
+    THERMAL_STRUCTURAL_TOOL_SCHEMA,
+    NONLINEAR_BUCKLING_TOOL_SCHEMA,
+    FORCED_VIBRATION_TOOL_SCHEMA,
+    SPECTRAL_ANALYSIS_TOOL_SCHEMA,
     ARCHAEOASTRONOMY_TOOL_SCHEMA,
     QUANTUM_INFORMATION_TOOL_SCHEMA,
     {"name": "octave_run", "description": "Ejecuta codigo Octave. timeout en segundos (default 60).", "inputSchema": {"type": "object", "properties": {"code": {"type": "string"}, "timeout": {"type": "integer"}}, "required": ["code"]}},
@@ -1014,6 +1022,30 @@ for line in sys.stdin:
                 }
             elif tool_name == "plane_stress_tool":
                 result = compute_plane_stress(args.get("mode"), args.get("params"))
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+            elif tool_name == "thermal_structural_tool":
+                result = compute_thermal_structural(args.get("mode"), args.get("params"))
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+            elif tool_name == "nonlinear_buckling_tool":
+                result = compute_nonlinear_buckling(args.get("mode"), args.get("params"))
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+            elif tool_name == "forced_vibration_tool":
+                result = compute_forced_vibration(args.get("mode"), args.get("params"))
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+            elif tool_name == "spectral_analysis_tool":
+                result = compute_spectral_analysis(args.get("mode"), args.get("params"))
                 resp = {
                     "jsonrpc": "2.0", "id": req_id,
                     "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
