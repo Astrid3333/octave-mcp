@@ -130,6 +130,7 @@ from gas_tool import compute_gas, GAS_TOOL_SCHEMA
 from knowledge_graph_tool import compute_knowledge_graph, KNOWLEDGE_GRAPH_TOOL_SCHEMA
 from biorefinery_tool import compute_biorefinery, BIOREFINERY_TOOL_SCHEMA
 from survey_tools import (
+from climate_tool import compute_climate
     compute_survey_angles, SURVEY_ANGLES_TOOL_SCHEMA,
     compute_survey_distance, SURVEY_DISTANCE_TOOL_SCHEMA,
     compute_survey_curvature, SURVEY_CURVATURE_TOOL_SCHEMA,
@@ -272,6 +273,36 @@ TOOLS = [
     GAS_TOOL_SCHEMA,
     KNOWLEDGE_GRAPH_TOOL_SCHEMA,
     BIOREFINERY_TOOL_SCHEMA,
+    {
+        "name": "climate_tool",
+        "description": (
+            "Fisica climatica especifica con validacion analitica. Modos: "
+            "energy_balance_ebm (balance de energia 0-D, punto de equilibrio T_eq), "
+            "newton_cooling_trend (relajacion exponencial dT/dt=-k(T-Ta), proyeccion de series cortas), "
+            "carbon_cycle_box (modelo de cajas atmosfera-oceano-tierra, conservacion de masa), "
+            "bifurcation_snowball (histeresis albedo-temperatura tipo Budyko-Sellers, Snowball Earth)."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "mode": {
+                    "type": "string",
+                    "enum": [
+                        "energy_balance_ebm",
+                        "newton_cooling_trend",
+                        "carbon_cycle_box",
+                        "bifurcation_snowball",
+                    ],
+                },
+                "params": {
+                    "type": "object",
+                    "description": "Parametros especificos del modo (opcional, cada modo trae defaults razonables).",
+                },
+            },
+            "required": ["mode"],
+        },
+    },
+
 ]
 
 
@@ -1140,6 +1171,8 @@ for line in sys.stdin:
                     "error": {"code": -32601, "message": f"Tool desconocido: {tool_name}"},
                 }
 
+        elif tool_name == "climate_tool":
+            resp = compute_climate(**args)
         else:
             resp = {"jsonrpc": "2.0", "id": req_id, "result": {}}
 
