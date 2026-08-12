@@ -50,6 +50,7 @@ from finite_element_tool import compute_finite_element, FINITE_ELEMENT_TOOL_SCHE
 from fem_advanced_tool import compute_fem_advanced, FEM_ADVANCED_TOOL_SCHEMA
 from plane_stress_tool import compute_plane_stress, PLANE_STRESS_TOOL_SCHEMA
 from thermal_structural_tool import compute_thermal_structural, THERMAL_STRUCTURAL_TOOL_SCHEMA
+from thermal_conduction_tool import compute_thermal_conduction, THERMAL_CONDUCTION_TOOL_SCHEMA
 from nonlinear_buckling_tool import compute_nonlinear_buckling, NONLINEAR_BUCKLING_TOOL_SCHEMA
 from forced_vibration_tool import compute_forced_vibration, FORCED_VIBRATION_TOOL_SCHEMA
 from spectral_analysis_tool import compute_spectral_analysis, SPECTRAL_ANALYSIS_TOOL_SCHEMA
@@ -203,6 +204,7 @@ TOOLS = [
     FEM_ADVANCED_TOOL_SCHEMA,
     PLANE_STRESS_TOOL_SCHEMA,
     THERMAL_STRUCTURAL_TOOL_SCHEMA,
+    THERMAL_CONDUCTION_TOOL_SCHEMA,
     NONLINEAR_BUCKLING_TOOL_SCHEMA,
     FORCED_VIBRATION_TOOL_SCHEMA,
     SPECTRAL_ANALYSIS_TOOL_SCHEMA,
@@ -1028,6 +1030,12 @@ for line in sys.stdin:
                 }
             elif tool_name == "thermal_structural_tool":
                 result = compute_thermal_structural(args.get("mode"), args.get("params"))
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+            elif tool_name == "thermal_conduction_tool":
+                result = compute_thermal_conduction(args.get("mode"), args.get("params"))
                 resp = {
                     "jsonrpc": "2.0", "id": req_id,
                     "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
