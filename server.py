@@ -155,6 +155,9 @@ from survey_tools import (
 from climate_tool import compute_climate
 from advanced_stochastic_tool import compute_advanced_stochastic
 from multivariate_bayes_tool import compute_multivariate_bayes
+from personal_budget_tool import compute_personal_budget_tool, PERSONAL_BUDGET_TOOL_SCHEMA
+from savings_goal_tool import compute_savings_goal_tool, SAVINGS_GOAL_TOOL_SCHEMA
+from credit_simulation_tool import compute_credit_simulation_tool, CREDIT_SIMULATION_TOOL_SCHEMA
 from natural_hazard_risk_tool import compute_natural_hazard_risk
 from earthquake_analysis_tool import compute_earthquake_analysis
 from wildfire_risk_tool import compute_wildfire_risk
@@ -330,6 +333,9 @@ TOOLS = [
     SURVEY_AREA_VOLUME_TOOL_SCHEMA,
     GAS_TOOL_SCHEMA,
     KNOWLEDGE_GRAPH_TOOL_SCHEMA,
+    PERSONAL_BUDGET_TOOL_SCHEMA,
+    SAVINGS_GOAL_TOOL_SCHEMA,
+    CREDIT_SIMULATION_TOOL_SCHEMA,
     BIOREFINERY_TOOL_SCHEMA,
     {
         "name": "climate_tool",
@@ -1471,6 +1477,24 @@ if __name__ == "__main__":
                     }
                 elif tool_name == "multivariate_bayes_tool":
                     result = compute_multivariate_bayes(args.get("mode"), args.get("params"))
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "personal_budget_tool":
+                    result = compute_personal_budget_tool(args.get("mode", "validate"), args.get("params"))
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "savings_goal_tool":
+                    result = compute_savings_goal_tool(args.get("mode", "validate"), args.get("params"))
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "credit_simulation_tool":
+                    result = compute_credit_simulation_tool(args.get("mode", "validate"), args.get("params"))
                     resp = {
                         "jsonrpc": "2.0", "id": req_id,
                         "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
