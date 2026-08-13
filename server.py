@@ -693,10 +693,22 @@ for line in sys.stdin:
                 result = compute_fractional_fourier(args.get("mode"), args.get("params"))
             elif tool_name == "wave_propagation_tool":
                 result = compute_wave_propagation(args.get("mode"), args.get("params"))
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
             elif tool_name == "dispersion_relation_tool":
                 result = compute_dispersion_relation(args.get("mode"), args.get("params"))
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
             elif tool_name == "audio_processing_tool":
                 result = compute_audio_processing(args.get("mode"), args.get("params"))
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
             elif tool_name == "time_frequency_tool":
                 result = compute_time_frequency(args.get("mode"), args.get("params"))
                 resp = {
