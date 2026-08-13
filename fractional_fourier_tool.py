@@ -346,6 +346,17 @@ def compute_fractional_fourier(mode, params=None):
         )
 
 
+# --- auto-registro en tool_registry (ver tool_registry.py) ---
+try:
+    from tool_registry import register_tool
+    register_tool(
+        name="fractional_fourier_tool",
+        schema=FRACTIONAL_FOURIER_TOOL_SCHEMA,
+        handler=lambda args: compute_fractional_fourier(args.get("mode"), args.get("params")),
+    )
+except ImportError:
+    pass
+
 if __name__ == "__main__":
     import json
     d = compute_fractional_fourier("validate")
