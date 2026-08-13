@@ -163,8 +163,10 @@ from water_resource_tool import compute_water_resource
 from flood_modeling_tool import compute_flood_modeling
 from early_warning_tool import compute_early_warning
 from climate_scenario_tool import compute_climate_scenario
+from disaster_simulation_tool import compute_disaster_simulation
 TOOLS = [
     {"name": "climate_scenario_tool", "description": "Analisis de escenarios climaticos: trend_analysis (regresion lineal, Mann-Kendall, changepoint CUSUM sobre series temporales), rcp_projection (proyeccion de temperatura/nivel del mar para un RCP y anio dado), list_rcp_scenarios (catalogo RCP2.6/4.5/6.0/8.5 con datos IPCC AR5), validate.", "inputSchema": {"type": "object", "properties": {"mode": {"type": "string"}, "params": {"type": "object"}}, "required": ["mode"]}},
+    {"name": "disaster_simulation_tool", "description": "Simulacion Monte Carlo de desastres (modelo actuarial frecuencia-severidad Poisson-LogNormal) para gestion publica de riesgos: monte_carlo_losses (distribucion de perdida agregada anual dado lambda de frecuencia y mu/sigma de severidad lognormal, con VaR y CVaR/Tail-VaR a percentiles configurables), return_period_loss (perdida esperada para periodos de retorno dados, estimador empirico de Weibull T=(n+1)/m, consistente con natural_hazard_risk_tool.gumbel_return_period), exceedance_curve (curva de probabilidad de excedencia anual -EP curve- para una lista de umbrales de perdida), multi_hazard_combine (combina dos peligros independientes o correlacionados via copula gaussiana en una perdida agregada conjunta), validate (suite de 10 checks). Motor generico: no trae catalogo de parametros por tipo de peligro (lambda/mu/sigma los provee quien llama), confidence_flag 'alta' para toda la mecanica estadistica.", "inputSchema": {"type": "object", "properties": {"mode": {"type": "string"}, "params": {"type": "object"}}, "required": ["mode"]}},
     {
         "name": "run_octave",
         "description": "Ejecuta codigo GNU Octave",
@@ -764,6 +766,12 @@ if __name__ == "__main__":
                     }
                 elif tool_name == "early_warning_tool":
                     result = compute_early_warning(args.get("mode"), args.get("params"))
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "disaster_simulation_tool":
+                    result = compute_disaster_simulation(args.get("mode"), args.get("params"))
                     resp = {
                         "jsonrpc": "2.0", "id": req_id,
                         "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
