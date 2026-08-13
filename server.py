@@ -368,29 +368,6 @@ TOOLS = [
         },
     },
 
-    {
-        "name": "electromagnetic_tool",
-        "description": (
-            "Fisica electromagnetica (TMM, Born & Wolf) con validacion analitica. Modos: "
-            "wave_1d (reflexion/transmision Fresnel en una interfaz simple), "
-            "photonic_bandgap (gap fotonico de un stack cuarto-de-onda periodico, "
-            "validado contra la formula de Yariv-Yeh)."
-        ),
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "mode": {
-                    "type": "string",
-                    "enum": ["wave_1d", "photonic_bandgap"],
-                },
-                "params": {
-                    "type": "object",
-                    "description": "Parametros especificos del modo (opcional, cada modo trae defaults razonables).",
-                },
-            },
-            "required": ["mode"],
-        },
-    },
 
     {
         "name": "advanced_stochastic_tool",
