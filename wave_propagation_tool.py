@@ -203,6 +203,18 @@ def compute_wave_propagation(mode, params=None):
         raise ValueError(f"modo desconocido: {mode}")
 
 
+# --- auto-registro en tool_registry (ver tool_registry.py) ---
+try:
+    from tool_registry import register_tool
+    register_tool(
+        name="wave_propagation_tool",
+        schema=WAVE_PROPAGATION_TOOL_SCHEMA,
+        handler=lambda args: compute_wave_propagation(args.get("mode"), args.get("params")),
+    )
+except ImportError:
+    pass
+
+
 if __name__ == "__main__":
     d = compute_wave_propagation("validate")
     print(json.dumps(d, indent=2, ensure_ascii=False))

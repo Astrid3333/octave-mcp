@@ -2,6 +2,7 @@
 import subprocess, json, sys, os
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import tool_registry
 from lyapunov_tool import compute_lyapunov_exponent, LYAPUNOV_TOOL_SCHEMA
 from stiff_ode_tool import integrate_stiff_ode, STIFF_ODE_TOOL_SCHEMA
 from bifurcation_tool import compute_bifurcation_diagram, BIFURCATION_TOOL_SCHEMA
@@ -235,8 +236,6 @@ TOOLS = [
     STOCHASTIC_PROCESSES_TOOL_SCHEMA,
     ADVANCED_PROBABILITY_TOOL_SCHEMA,
     FILTER_DESIGN_TOOL_SCHEMA,
-    FRACTIONAL_FOURIER_TOOL_SCHEMA,
-    WAVE_PROPAGATION_TOOL_SCHEMA,
     DISPERSION_RELATION_TOOL_SCHEMA,
     AUDIO_PROCESSING_TOOL_SCHEMA,
     TIME_FREQUENCY_TOOL_SCHEMA,
@@ -424,7 +423,7 @@ TOOLS = [
     {"name": "water_resource_tool", "description": "Hidrologia de cuencas para gestion de recursos hidricos: rational_method (caudal pico Qp=CIA/360), scs_curve_number (escorrentia directa por numero de curva SCS), time_of_concentration (formula de Kirpich), water_balance (balance de masa de embalse/cuenca con deteccion de deficit y desborde).", "inputSchema": {"type": "object", "properties": {"mode": {"type": "string"}, "params": {"type": "object"}}, "required": ["mode"]}},
     {"name": "flood_modeling_tool", "description": "Modelado de crecidas para planificacion de drenajes: scs_triangular_hydrograph (hidrograma unitario triangular SCS), muskingum_routing (transito de crecidas por un tramo de cauce), manning_normal_depth (tirante normal y ancho de inundacion en seccion trapezoidal via ecuacion de Manning).", "inputSchema": {"type": "object", "properties": {"mode": {"type": "string"}, "params": {"type": "object"}}, "required": ["mode"]}},
     {"name": "early_warning_tool", "description": "Analisis de series temporales para alertas tempranas: threshold_crossing (cruce de umbrales tipo semaforo con proyeccion de tiempo hasta el proximo umbral), trend_analysis (regresion lineal, pendiente y R2), rate_of_change_alert (tasa de cambio y deteccion de subidas/bajadas criticas), moving_average_anomaly (deteccion de anomalias contra media movil trailing).", "inputSchema": {"type": "object", "properties": {"mode": {"type": "string"}, "params": {"type": "object"}}, "required": ["mode"]}},
-]
+] + tool_registry.get_schemas()
 
 
 if __name__ == "__main__":
@@ -457,7 +456,13 @@ if __name__ == "__main__":
                 tool_name = req["params"]["name"]
                 args = req["params"].get("arguments", {})
 
-                if tool_name == "run_octave":
+                if tool_name in tool_registry.REGISTRY:
+                    result = tool_registry.REGISTRY[tool_name]["handler"](args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "run_octave":
                     output = run_octave(args["code"])
                     resp = {
                         "jsonrpc": "2.0", "id": req_id,
@@ -731,14 +736,6 @@ if __name__ == "__main__":
                         "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
                     }
 
-                elif tool_name == "fractional_fourier_tool":
-                    result = compute_fractional_fourier(args.get("mode"), args.get("params"))
-                elif tool_name == "wave_propagation_tool":
-                    result = compute_wave_propagation(args.get("mode"), args.get("params"))
-                    resp = {
-                        "jsonrpc": "2.0", "id": req_id,
-                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                    }
                 elif tool_name == "dispersion_relation_tool":
                     result = compute_dispersion_relation(args.get("mode"), args.get("params"))
                     resp = {
