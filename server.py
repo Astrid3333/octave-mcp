@@ -40,6 +40,7 @@ from mcdm_tool import compute_mcdm, MCDM_TOOL_SCHEMA
 from octave_syntax_tool import compute_octave_syntax, OCTAVE_SYNTAX_TOOL_SCHEMA
 from stochastic_processes_tool import compute_stochastic_processes, STOCHASTIC_PROCESSES_TOOL_SCHEMA
 from advanced_probability_tool import compute_advanced_probability, ADVANCED_PROBABILITY_TOOL_SCHEMA
+from filter_design_tool import compute_filter_design, FILTER_DESIGN_TOOL_SCHEMA
 from information_theory_tool import compute_information_theory, INFORMATION_THEORY_TOOL_SCHEMA
 from control_theory_tool import compute_control_theory, CONTROL_THEORY_TOOL_SCHEMA
 from optimal_control_tool import compute_optimal_control, OPTIMAL_CONTROL_TOOL_SCHEMA
@@ -198,6 +199,7 @@ TOOLS = [
     OCTAVE_SYNTAX_TOOL_SCHEMA,
     STOCHASTIC_PROCESSES_TOOL_SCHEMA,
     ADVANCED_PROBABILITY_TOOL_SCHEMA,
+    FILTER_DESIGN_TOOL_SCHEMA,
     INFORMATION_THEORY_TOOL_SCHEMA,
     CONTROL_THEORY_TOOL_SCHEMA,
     OPTIMAL_CONTROL_TOOL_SCHEMA,
@@ -665,6 +667,13 @@ for line in sys.stdin:
                 }
             elif tool_name == "advanced_probability_tool":
                 result = compute_advanced_probability(**args)
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+
+            elif tool_name == "filter_design_tool":
+                result = compute_filter_design(**args)
                 resp = {
                     "jsonrpc": "2.0", "id": req_id,
                     "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
