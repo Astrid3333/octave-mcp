@@ -155,6 +155,8 @@ from survey_tools import (
 from climate_tool import compute_climate
 from advanced_stochastic_tool import compute_advanced_stochastic
 from multivariate_bayes_tool import compute_multivariate_bayes
+from natural_hazard_risk_tool import compute_natural_hazard_risk
+from decision_support_tool import compute_decision_support
 TOOLS = [
     {
         "name": "run_octave",
@@ -383,6 +385,8 @@ TOOLS = [
             "required": ["mode", "params"]
         }
     },
+    {"name": "natural_hazard_risk_tool", "description": "Modelado de riesgo multifactorial (R=H*E*V/A) para gestion publica de desastres naturales: risk_index (indice de riesgo puntual con clasificacion en bandas), risk_grid (mapa de calor de riesgo sobre grilla), gumbel_return_period (periodo de retorno empirico T=(n+1)/m), gumbel_fit (ajuste de distribucion de Gumbel por momentos y estimacion de magnitud de diseno o periodo de retorno).", "inputSchema": {"type": "object", "properties": {"mode": {"type": "string"}, "params": {"type": "object"}}, "required": ["mode"]}},
+    {"name": "decision_support_tool", "description": "Sistemas de apoyo a decisiones multicriterio para priorizacion de inversiones publicas: ahp (Proceso Analitico Jerarquico de Saaty, pesos via autovector principal y ratio de consistencia CR), topsis (ordenamiento de alternativas por cercania a la solucion ideal, con criterios de beneficio/costo y pesos configurables).", "inputSchema": {"type": "object", "properties": {"mode": {"type": "string"}, "params": {"type": "object"}}, "required": ["mode"]}},
 ]
 
 
@@ -699,6 +703,18 @@ for line in sys.stdin:
                 }
             elif tool_name == "dispersion_relation_tool":
                 result = compute_dispersion_relation(args.get("mode"), args.get("params"))
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+            elif tool_name == "natural_hazard_risk_tool":
+                result = compute_natural_hazard_risk(args.get("mode"), args.get("params"))
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+            elif tool_name == "decision_support_tool":
+                result = compute_decision_support(args.get("mode"), args.get("params"))
                 resp = {
                     "jsonrpc": "2.0", "id": req_id,
                     "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
