@@ -42,6 +42,10 @@ from stochastic_processes_tool import compute_stochastic_processes, STOCHASTIC_P
 from advanced_probability_tool import compute_advanced_probability, ADVANCED_PROBABILITY_TOOL_SCHEMA
 from filter_design_tool import compute_filter_design, FILTER_DESIGN_TOOL_SCHEMA
 from fractional_fourier_tool import compute_fractional_fourier, FRACTIONAL_FOURIER_TOOL_SCHEMA
+from wave_propagation_tool import compute_wave_propagation, WAVE_PROPAGATION_TOOL_SCHEMA
+from dispersion_relation_tool import compute_dispersion_relation, DISPERSION_RELATION_TOOL_SCHEMA
+from audio_processing_tool import compute_audio_processing, AUDIO_PROCESSING_TOOL_SCHEMA
+from time_frequency_tool import compute_time_frequency, TIME_FREQUENCY_TOOL_SCHEMA
 from information_theory_tool import compute_information_theory, INFORMATION_THEORY_TOOL_SCHEMA
 from control_theory_tool import compute_control_theory, CONTROL_THEORY_TOOL_SCHEMA
 from optimal_control_tool import compute_optimal_control, OPTIMAL_CONTROL_TOOL_SCHEMA
@@ -202,6 +206,10 @@ TOOLS = [
     ADVANCED_PROBABILITY_TOOL_SCHEMA,
     FILTER_DESIGN_TOOL_SCHEMA,
     FRACTIONAL_FOURIER_TOOL_SCHEMA,
+    WAVE_PROPAGATION_TOOL_SCHEMA,
+    DISPERSION_RELATION_TOOL_SCHEMA,
+    AUDIO_PROCESSING_TOOL_SCHEMA,
+    TIME_FREQUENCY_TOOL_SCHEMA,
     INFORMATION_THEORY_TOOL_SCHEMA,
     CONTROL_THEORY_TOOL_SCHEMA,
     OPTIMAL_CONTROL_TOOL_SCHEMA,
@@ -683,6 +691,14 @@ for line in sys.stdin:
 
             elif tool_name == "fractional_fourier_tool":
                 result = compute_fractional_fourier(args.get("mode"), args.get("params"))
+            elif tool_name == "wave_propagation_tool":
+                result = compute_wave_propagation(args.get("mode"), args.get("params"))
+            elif tool_name == "dispersion_relation_tool":
+                result = compute_dispersion_relation(args.get("mode"), args.get("params"))
+            elif tool_name == "audio_processing_tool":
+                result = compute_audio_processing(args.get("mode"), args.get("params"))
+            elif tool_name == "time_frequency_tool":
+                result = compute_time_frequency(args.get("mode"), args.get("params"))
                 resp = {
                     "jsonrpc": "2.0", "id": req_id,
                     "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
