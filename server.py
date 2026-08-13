@@ -157,11 +157,14 @@ from advanced_stochastic_tool import compute_advanced_stochastic
 from multivariate_bayes_tool import compute_multivariate_bayes
 from natural_hazard_risk_tool import compute_natural_hazard_risk
 from earthquake_analysis_tool import compute_earthquake_analysis
+from wildfire_risk_tool import compute_wildfire_risk
 from decision_support_tool import compute_decision_support
 from water_resource_tool import compute_water_resource
 from flood_modeling_tool import compute_flood_modeling
 from early_warning_tool import compute_early_warning
+from climate_scenario_tool import compute_climate_scenario
 TOOLS = [
+    {"name": "climate_scenario_tool", "description": "Analisis de escenarios climaticos: trend_analysis (regresion lineal, Mann-Kendall, changepoint CUSUM sobre series temporales), rcp_projection (proyeccion de temperatura/nivel del mar para un RCP y anio dado), list_rcp_scenarios (catalogo RCP2.6/4.5/6.0/8.5 con datos IPCC AR5), validate.", "inputSchema": {"type": "object", "properties": {"mode": {"type": "string"}, "params": {"type": "object"}}, "required": ["mode"]}},
     {
         "name": "run_octave",
         "description": "Ejecuta codigo GNU Octave",
@@ -391,6 +394,7 @@ TOOLS = [
     },
     {"name": "natural_hazard_risk_tool", "description": "Modelado de riesgo multifactorial (R=H*E*V/A) para gestion publica de desastres naturales: risk_index (indice de riesgo puntual con clasificacion en bandas), risk_grid (mapa de calor de riesgo sobre grilla), gumbel_return_period (periodo de retorno empirico T=(n+1)/m), gumbel_fit (ajuste de distribucion de Gumbel por momentos y estimacion de magnitud de diseno o periodo de retorno).", "inputSchema": {"type": "object", "properties": {"mode": {"type": "string"}, "params": {"type": "object"}}, "required": ["mode"]}},
     {"name": "earthquake_analysis_tool", "description": "Peligrosidad sismica para gestion publica municipal: deterministic (atenuacion de Esteva PGA=5700*exp(0.8M)/(R+40)^2, amplificacion de sitio tipo NEHRP simplificado por clase de suelo A-E, conversion PGA->MMI de Wald et al.), psha (recurrencia Gutenberg-Richter, curva de peligrosidad tasa de excedencia vs PGA, inversion por biseccion a PGA de diseno para un periodo de retorno dado, ej. 475 anios), validate (suite de 9 checks).", "inputSchema": {"type": "object", "properties": {"mode": {"type": "string"}, "params": {"type": "object"}}, "required": ["mode"]}},
+    {"name": "wildfire_risk_tool", "description": "Peligrosidad de incendios forestales via modelo de Rothermel (1972) con ponderacion muerto/vivo: rate_of_spread (velocidad de propagacion ft/min, intensidad de linea de fuego e Byram, largo de llama, dado viento/pendiente/humedad y un modelo de combustible), fuel_model_info (parametros crudos de un modelo), list_fuel_models (codigos disponibles por catalogo), validate (suite de 10 checks de consistencia fisica). fuel_catalog: anderson13 (13 modelos, confianza media-alta), scott_burgan40 (40 modelos, confianza BAJA -- valores estimados por patron, no verificados contra la tabla fuente, ver campo data_confidence en cada respuesta), o custom (fuel_model provisto por quien llama, sin datos hardcodeados)." , "inputSchema": {"type": "object", "properties": {"mode": {"type": "string"}, "params": {"type": "object"}}, "required": ["mode"]}},
     {"name": "decision_support_tool", "description": "Sistemas de apoyo a decisiones multicriterio para priorizacion de inversiones publicas: ahp (Proceso Analitico Jerarquico de Saaty, pesos via autovector principal y ratio de consistencia CR), topsis (ordenamiento de alternativas por cercania a la solucion ideal, con criterios de beneficio/costo y pesos configurables).", "inputSchema": {"type": "object", "properties": {"mode": {"type": "string"}, "params": {"type": "object"}}, "required": ["mode"]}},
     {"name": "water_resource_tool", "description": "Hidrologia de cuencas para gestion de recursos hidricos: rational_method (caudal pico Qp=CIA/360), scs_curve_number (escorrentia directa por numero de curva SCS), time_of_concentration (formula de Kirpich), water_balance (balance de masa de embalse/cuenca con deteccion de deficit y desborde).", "inputSchema": {"type": "object", "properties": {"mode": {"type": "string"}, "params": {"type": "object"}}, "required": ["mode"]}},
     {"name": "flood_modeling_tool", "description": "Modelado de crecidas para planificacion de drenajes: scs_triangular_hydrograph (hidrograma unitario triangular SCS), muskingum_routing (transito de crecidas por un tramo de cauce), manning_normal_depth (tirante normal y ancho de inundacion en seccion trapezoidal via ecuacion de Manning).", "inputSchema": {"type": "object", "properties": {"mode": {"type": "string"}, "params": {"type": "object"}}, "required": ["mode"]}},
@@ -728,6 +732,12 @@ if __name__ == "__main__":
                         "jsonrpc": "2.0", "id": req_id,
                         "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
                     }
+                elif tool_name == "wildfire_risk_tool":
+                    result = compute_wildfire_risk(args.get("mode"), args.get("params"))
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
                 elif tool_name == "decision_support_tool":
                     result = compute_decision_support(args.get("mode"), args.get("params"))
                     resp = {
@@ -742,6 +752,12 @@ if __name__ == "__main__":
                     }
                 elif tool_name == "flood_modeling_tool":
                     result = compute_flood_modeling(args.get("mode"), args.get("params"))
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "climate_scenario_tool":
+                    result = compute_climate_scenario(args.get("mode"), args.get("params"))
                     resp = {
                         "jsonrpc": "2.0", "id": req_id,
                         "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
