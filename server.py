@@ -396,1011 +396,1012 @@ TOOLS = [
 ]
 
 
-for line in sys.stdin:
-    line = line.strip()
-    if not line:
-        continue
-    req_id = None
-    try:
-        req = json.loads(line)
-        req_id = req.get("id")
-        method = req.get("method", "")
-        if req_id is None:
+if __name__ == "__main__":
+    for line in sys.stdin:
+        line = line.strip()
+        if not line:
             continue
+        req_id = None
+        try:
+            req = json.loads(line)
+            req_id = req.get("id")
+            method = req.get("method", "")
+            if req_id is None:
+                continue
+
+            if method == "initialize":
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {
+                        "protocolVersion": "2024-11-05",
+                        "capabilities": {"tools": {}},
+                        "serverInfo": {"name": "octave-mcp", "version": "1.2"},
+                    },
+                }
+
+            elif method == "tools/list":
+                resp = {"jsonrpc": "2.0", "id": req_id, "result": {"tools": TOOLS}}
+
+            elif method == "tools/call":
+                tool_name = req["params"]["name"]
+                args = req["params"].get("arguments", {})
+
+                if tool_name == "run_octave":
+                    output = run_octave(args["code"])
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": output or "(sin salida)"}]},
+                    }
+
+                elif tool_name == "compute_lyapunov_exponent":
+                    result = compute_lyapunov_exponent(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "integrate_stiff_ode":
+                    result = integrate_stiff_ode(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "compute_bifurcation_diagram":
+                    result = compute_bifurcation_diagram(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "compute_hilbert_transform":
+                    result = compute_hilbert_transform(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "compute_gradient_hessian":
+                    result = compute_gradient_hessian(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "compute_jacobian":
+                    result = compute_jacobian(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "math_error_analyzer":
+                    result = compute_math_error_analysis(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "math_benchmark":
+                    result = compute_math_benchmark(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "math_interpolation":
+                    result = compute_math_interpolation(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "run_math_pipeline":
+                    result = run_math_pipeline(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "math_interpreter":
+                    result = interpret_math_query(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "math_visualization":
+                    result = compute_math_visualization(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "math_explainer":
+                    result = interpret_and_explain(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "machine_learning_math":
+                    result = compute_machine_learning_math(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "financial_math":
+                    result = compute_financial_math(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "quantity_takeoff":
+                    result = compute_quantity_takeoff(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "structural_analysis":
+                    result = compute_structural_analysis(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "earthworks":
+                    result = compute_earthworks(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "budgeting_tool":
+                    result = compute_budgeting(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "construction_scheduling_tool":
+                    result = compute_construction_scheduling(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "math_humanizer_tool":
+                    result = compute_math_humanizer(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "game_theory":
+                    result = compute_game_theory(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "tensor_calculus":
+                    result = compute_tensor_calculus(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "network_science":
+                    result = compute_network_science(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "population_genetics":
+                    result = compute_population_genetics(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "wavelet":
+                    result = compute_wavelet(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "percolation_theory":
+                    result = compute_percolation_theory(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "reaction_diffusion":
+                    result = compute_reaction_diffusion(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "chemometrics_tool":
+                    result = compute_chemometrics(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "econometrics_tool":
+                    result = compute_econometrics(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "archaeological_simulation":
+                    result = compute_archaeological_simulation(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "statistical_physics_tool":
+                    # bug conocido: schema declara "params" anidado pero la funcion
+                    # usa **params flat -> desempaquetamos aca en vez de tocar el schema
+                    _params = args.get("params") or {}
+                    result = compute_statistical_physics(mode=args["mode"], **_params)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "cfd_tool":
+                    result = compute_cfd(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "glm_tool":
+                    result = compute_glm(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "clustering_tool":
+                    _params = args.get("params") or {}
+                    result = compute_clustering(mode=args["mode"], **_params)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "mcdm":
+                    result = compute_mcdm(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "octave_syntax":
+                    result = compute_octave_syntax(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "stochastic_processes":
+                    result = compute_stochastic_processes(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "advanced_probability_tool":
+                    result = compute_advanced_probability(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "filter_design_tool":
+                    result = compute_filter_design(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "fractional_fourier_tool":
+                    result = compute_fractional_fourier(args.get("mode"), args.get("params"))
+                elif tool_name == "wave_propagation_tool":
+                    result = compute_wave_propagation(args.get("mode"), args.get("params"))
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "dispersion_relation_tool":
+                    result = compute_dispersion_relation(args.get("mode"), args.get("params"))
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "natural_hazard_risk_tool":
+                    result = compute_natural_hazard_risk(args.get("mode"), args.get("params"))
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "decision_support_tool":
+                    result = compute_decision_support(args.get("mode"), args.get("params"))
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "water_resource_tool":
+                    result = compute_water_resource(args.get("mode"), args.get("params"))
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "flood_modeling_tool":
+                    result = compute_flood_modeling(args.get("mode"), args.get("params"))
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "early_warning_tool":
+                    result = compute_early_warning(args.get("mode"), args.get("params"))
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "audio_processing_tool":
+                    result = compute_audio_processing(args.get("mode"), args.get("params"))
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "time_frequency_tool":
+                    result = compute_time_frequency(args.get("mode"), args.get("params"))
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "information_theory":
+                    result = compute_information_theory(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "control_theory":
+                    result = compute_control_theory(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "optimal_control":
+                    result = compute_optimal_control(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "spatial_statistics":
+                    result = compute_spatial_statistics(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "text_analysis_math":
+                    result = compute_text_analysis_math(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "archaeoastronomy":
+                    result = compute_archaeoastronomy(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "quantum_information":
+                    result = compute_quantum_information(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "octave_run":
+                    output = octave_run(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": output or "(sin salida)"}]},
+                    }
+
+                elif tool_name == "octave_eval_expr":
+                    output = octave_eval_expr(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": output or "(sin salida)"}]},
+                    }
+
+                elif tool_name == "octave_run_script":
+                    output = octave_run_script(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": output or "(sin salida)"}]},
+                    }
+
+                elif tool_name == "octave_version":
+                    output = octave_version(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": output or "(sin salida)"}]},
+                    }
+
+                elif tool_name == "compute_lyapunov_v2":
+                    result = compute_lyapunov_v2(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "graph_algorithms":
+                    result = compute_graph_algorithms(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "qm_potential_well":
+                    result = compute_qm_potential_well(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "nuclear_decay_chain":
+                    result = compute_nuclear_decay_chain(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "fractal_dimension":
+                    result = compute_fractal_dimension(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "ethnomath":
+                    result = compute_ethnomath(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "ethnomath2":
+                    result = compute_ethnomath2(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "ancient_calculator":
+                    result = compute_ancient_calculator(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "ancestral_octave":
+                    result = compute_ancestral_octave(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "math_philosophy_history":
+                    result = compute_math_philosophy_history(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "levant":
+                    result = compute_levant(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "originarios":
+                    result = compute_originarios(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "cross_validation":
+                    result = compute_cross_validation(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "entropy_structure":
+                    result = compute_entropy_structure(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "music_math":
+                    result = compute_music_math(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "linear_algebra":
+                    result = compute_linear_algebra(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "persistent_homology":
+                    result = compute_persistent_homology(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "statistics":
+                    result = compute_statistics(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "number_theory":
+                    result = compute_number_theory(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "symbolic":
+                    result = compute_symbolic(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "optimization":
+                    result = compute_optimization(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "pde":
+                    result = compute_pde(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "braid_group":
+                    result = compute_braid_group(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "population_dynamics":
+                    result = compute_population_dynamics(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "reaction_diffusion_real":
+                    result = reaction_diffusion_real(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "enzyme_kinetics":
+                    result = compute_enzyme_kinetics(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "tritbraid":
+                    result = compute_tritbraid(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "historian":
+                    result = compute_historian(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "antibiotic_diffusion":
+                    result = compute_antibiotic_diffusion(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "plague_sir":
+                    result = compute_plague_sir(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "settlement_clusters":
+                    result = compute_settlement_clusters(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "historical_extractor":
+                    result = compute_historical_extractor(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "paleography":
+                    result = compute_paleography(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "abstract_algebra":
+                    result = compute_abstract_algebra(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "ocas_symbolic":
+                    result = compute_ocas_symbolic(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "workspace_save":
+                    result = save_run(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "workspace_load":
+                    result = load_run(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "workspace_list":
+                    result = list_runs(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "workspace_describe":
+                    result = describe_run(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "workspace_delete":
+                    result = delete_run(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "plot_workspace_run":
+                    result = plot_run(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "multibody_dynamics_tool":
+                    result = compute_multibody_dynamics(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "particle_simulation_tool":
+                    result = compute_particle_simulation(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "finite_element_tool":
+                    result = compute_finite_element(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "fem_advanced_tool":
+                    result = compute_fem_advanced(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "plane_stress_tool":
+                    result = compute_plane_stress(args.get("mode"), args.get("params"))
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "thermal_structural_tool":
+                    result = compute_thermal_structural(args.get("mode"), args.get("params"))
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "thermal_conduction_tool":
+                    result = compute_thermal_conduction(args.get("mode"), args.get("params"))
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "thermal_advanced_tool":
+                    result = compute_thermal_advanced(args.get("mode"), args.get("params"))
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "nonlinear_buckling_tool":
+                    result = compute_nonlinear_buckling(args.get("mode"), args.get("params"))
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "forced_vibration_tool":
+                    result = compute_forced_vibration(args.get("mode"), args.get("params"))
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "spectral_analysis_tool":
+                    result = compute_spectral_analysis(args.get("mode"), args.get("params"))
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "genome_signal_analysis":
+                    result = compute_genome_signal_analysis(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "sdf_tool":
+                    result = compute_sdf_tool(args.get("mode"), args.get("params"))
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "lscm_tool":
+                    result = compute_lscm_tool(args.get("mode"), args.get("params"))
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "mesh_pde_tool":
+                    result = compute_mesh_pde_tool(args.get("mode"), args.get("params"))
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "quantum_astro_tool":
+                    result = compute_quantum_astro_tool(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "semiclassical_cosmology_tool":
+                    result = compute_semiclassical_cosmology_tool(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "cosmological_mcmc_tool":
+                    result = compute_cosmological_mcmc_tool(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "quantum_cosmology_tool":
+                    result = compute_quantum_cosmology_tool(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "distmesh_tool":
+                    result = compute_distmesh(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "electromagnetic_tool":
+                    result = handle_electromagnetic_tool(args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "acoustics_tool":
+                    result = compute_acoustics_tool(args.get("mode", "validate"), args.get("params"))
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "polarization_mapping":
+                    result = compute_polarization_mapping(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "circuit_tool":
+                    result = compute_circuit_tool(args.get("mode", "validate"), args.get("params"))
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "topology_optimization_tool":
+                    result = compute_topology_optimization_tool(args.get("mode", "validate"), args.get("params"))
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "geometric_algebra_protein":
+                    result = compute_geometric_algebra_protein(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "optical_sequence_id":
+                    result = compute_optical_sequence_id(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "infrasound_tool":
+                    result = compute_infrasound_tool(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "bacterial_growth_tool":
+                    result = compute_bacterial_growth_tool(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "viral_lattice_tool":
+                    result = compute_viral_lattice_tool(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "enzyme_stochastic":
+                    result = compute_enzyme_stochastic(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "evo_LGCA_tool":
+                    result = compute_evo_lgca_tool(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "mesh_spectral_tool":
+                    result = compute_mesh_spectral_tool(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "survey_angles_tool":
+                    result = compute_survey_angles(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "survey_distance_tool":
+                    result = compute_survey_distance(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "survey_curvature_tool":
+                    result = compute_survey_curvature(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "traverse_adjustment_tool":
+                    result = compute_traverse_adjustment(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "survey_curves_tool":
+                    result = compute_survey_curves(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "survey_area_volume_tool":
+                    result = compute_survey_area_volume(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "gas_tool":
+                    result = compute_gas(args.get("mode"), args.get("params"))
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "knowledge_graph_tool":
+                    result = compute_knowledge_graph(args.get("mode"), args.get("params"), tools=TOOLS)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "biorefinery_tool":
+                    result = compute_biorefinery(args.get("mode"), args.get("params"))
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "climate_tool":
+                    result = compute_climate(args.get("mode"), args.get("params"))
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "advanced_stochastic_tool":
+                    result = compute_advanced_stochastic(args.get("mode"), args.get("params"))
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "multivariate_bayes_tool":
+                    result = compute_multivariate_bayes(args.get("mode"), args.get("params"))
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                else:
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "error": {"code": -32601, "message": f"Tool desconocido: {tool_name}"},
+                    }
 
-        if method == "initialize":
-            resp = {
-                "jsonrpc": "2.0", "id": req_id,
-                "result": {
-                    "protocolVersion": "2024-11-05",
-                    "capabilities": {"tools": {}},
-                    "serverInfo": {"name": "octave-mcp", "version": "1.2"},
-                },
-            }
-
-        elif method == "tools/list":
-            resp = {"jsonrpc": "2.0", "id": req_id, "result": {"tools": TOOLS}}
-
-        elif method == "tools/call":
-            tool_name = req["params"]["name"]
-            args = req["params"].get("arguments", {})
-
-            if tool_name == "run_octave":
-                output = run_octave(args["code"])
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": output or "(sin salida)"}]},
-                }
-
-            elif tool_name == "compute_lyapunov_exponent":
-                result = compute_lyapunov_exponent(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "integrate_stiff_ode":
-                result = integrate_stiff_ode(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "compute_bifurcation_diagram":
-                result = compute_bifurcation_diagram(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "compute_hilbert_transform":
-                result = compute_hilbert_transform(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "compute_gradient_hessian":
-                result = compute_gradient_hessian(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "compute_jacobian":
-                result = compute_jacobian(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "math_error_analyzer":
-                result = compute_math_error_analysis(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "math_benchmark":
-                result = compute_math_benchmark(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "math_interpolation":
-                result = compute_math_interpolation(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "run_math_pipeline":
-                result = run_math_pipeline(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "math_interpreter":
-                result = interpret_math_query(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "math_visualization":
-                result = compute_math_visualization(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "math_explainer":
-                result = interpret_and_explain(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "machine_learning_math":
-                result = compute_machine_learning_math(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-            elif tool_name == "financial_math":
-                result = compute_financial_math(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-            elif tool_name == "quantity_takeoff":
-                result = compute_quantity_takeoff(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-            elif tool_name == "structural_analysis":
-                result = compute_structural_analysis(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-            elif tool_name == "earthworks":
-                result = compute_earthworks(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-            elif tool_name == "budgeting_tool":
-                result = compute_budgeting(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-            elif tool_name == "construction_scheduling_tool":
-                result = compute_construction_scheduling(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-            elif tool_name == "math_humanizer_tool":
-                result = compute_math_humanizer(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "game_theory":
-                result = compute_game_theory(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "tensor_calculus":
-                result = compute_tensor_calculus(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "network_science":
-                result = compute_network_science(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "population_genetics":
-                result = compute_population_genetics(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "wavelet":
-                result = compute_wavelet(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "percolation_theory":
-                result = compute_percolation_theory(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "reaction_diffusion":
-                result = compute_reaction_diffusion(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-            elif tool_name == "chemometrics_tool":
-                result = compute_chemometrics(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-            elif tool_name == "econometrics_tool":
-                result = compute_econometrics(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-            elif tool_name == "archaeological_simulation":
-                result = compute_archaeological_simulation(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-            elif tool_name == "statistical_physics_tool":
-                # bug conocido: schema declara "params" anidado pero la funcion
-                # usa **params flat -> desempaquetamos aca en vez de tocar el schema
-                _params = args.get("params") or {}
-                result = compute_statistical_physics(mode=args["mode"], **_params)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-            elif tool_name == "cfd_tool":
-                result = compute_cfd(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-            elif tool_name == "glm_tool":
-                result = compute_glm(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-            elif tool_name == "clustering_tool":
-                _params = args.get("params") or {}
-                result = compute_clustering(mode=args["mode"], **_params)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-            elif tool_name == "mcdm":
-                result = compute_mcdm(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-            elif tool_name == "octave_syntax":
-                result = compute_octave_syntax(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "stochastic_processes":
-                result = compute_stochastic_processes(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-            elif tool_name == "advanced_probability_tool":
-                result = compute_advanced_probability(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "filter_design_tool":
-                result = compute_filter_design(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "fractional_fourier_tool":
-                result = compute_fractional_fourier(args.get("mode"), args.get("params"))
-            elif tool_name == "wave_propagation_tool":
-                result = compute_wave_propagation(args.get("mode"), args.get("params"))
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-            elif tool_name == "dispersion_relation_tool":
-                result = compute_dispersion_relation(args.get("mode"), args.get("params"))
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-            elif tool_name == "natural_hazard_risk_tool":
-                result = compute_natural_hazard_risk(args.get("mode"), args.get("params"))
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-            elif tool_name == "decision_support_tool":
-                result = compute_decision_support(args.get("mode"), args.get("params"))
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-            elif tool_name == "water_resource_tool":
-                result = compute_water_resource(args.get("mode"), args.get("params"))
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-            elif tool_name == "flood_modeling_tool":
-                result = compute_flood_modeling(args.get("mode"), args.get("params"))
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-            elif tool_name == "early_warning_tool":
-                result = compute_early_warning(args.get("mode"), args.get("params"))
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-            elif tool_name == "audio_processing_tool":
-                result = compute_audio_processing(args.get("mode"), args.get("params"))
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-            elif tool_name == "time_frequency_tool":
-                result = compute_time_frequency(args.get("mode"), args.get("params"))
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "information_theory":
-                result = compute_information_theory(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "control_theory":
-                result = compute_control_theory(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "optimal_control":
-                result = compute_optimal_control(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "spatial_statistics":
-                result = compute_spatial_statistics(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "text_analysis_math":
-                result = compute_text_analysis_math(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "archaeoastronomy":
-                result = compute_archaeoastronomy(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "quantum_information":
-                result = compute_quantum_information(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "octave_run":
-                output = octave_run(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": output or "(sin salida)"}]},
-                }
-
-            elif tool_name == "octave_eval_expr":
-                output = octave_eval_expr(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": output or "(sin salida)"}]},
-                }
-
-            elif tool_name == "octave_run_script":
-                output = octave_run_script(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": output or "(sin salida)"}]},
-                }
-
-            elif tool_name == "octave_version":
-                output = octave_version(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": output or "(sin salida)"}]},
-                }
-
-            elif tool_name == "compute_lyapunov_v2":
-                result = compute_lyapunov_v2(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "graph_algorithms":
-                result = compute_graph_algorithms(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "qm_potential_well":
-                result = compute_qm_potential_well(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "nuclear_decay_chain":
-                result = compute_nuclear_decay_chain(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "fractal_dimension":
-                result = compute_fractal_dimension(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "ethnomath":
-                result = compute_ethnomath(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "ethnomath2":
-                result = compute_ethnomath2(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "ancient_calculator":
-                result = compute_ancient_calculator(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "ancestral_octave":
-                result = compute_ancestral_octave(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "math_philosophy_history":
-                result = compute_math_philosophy_history(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "levant":
-                result = compute_levant(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "originarios":
-                result = compute_originarios(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "cross_validation":
-                result = compute_cross_validation(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "entropy_structure":
-                result = compute_entropy_structure(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "music_math":
-                result = compute_music_math(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "linear_algebra":
-                result = compute_linear_algebra(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "persistent_homology":
-                result = compute_persistent_homology(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "statistics":
-                result = compute_statistics(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "number_theory":
-                result = compute_number_theory(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "symbolic":
-                result = compute_symbolic(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "optimization":
-                result = compute_optimization(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "pde":
-                result = compute_pde(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "braid_group":
-                result = compute_braid_group(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "population_dynamics":
-                result = compute_population_dynamics(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "reaction_diffusion_real":
-                result = reaction_diffusion_real(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "enzyme_kinetics":
-                result = compute_enzyme_kinetics(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "tritbraid":
-                result = compute_tritbraid(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "historian":
-                result = compute_historian(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "antibiotic_diffusion":
-                result = compute_antibiotic_diffusion(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "plague_sir":
-                result = compute_plague_sir(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "settlement_clusters":
-                result = compute_settlement_clusters(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "historical_extractor":
-                result = compute_historical_extractor(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "paleography":
-                result = compute_paleography(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "abstract_algebra":
-                result = compute_abstract_algebra(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "ocas_symbolic":
-                result = compute_ocas_symbolic(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "workspace_save":
-                result = save_run(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "workspace_load":
-                result = load_run(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "workspace_list":
-                result = list_runs(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "workspace_describe":
-                result = describe_run(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "workspace_delete":
-                result = delete_run(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "plot_workspace_run":
-                result = plot_run(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "multibody_dynamics_tool":
-                result = compute_multibody_dynamics(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-            elif tool_name == "particle_simulation_tool":
-                result = compute_particle_simulation(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-            elif tool_name == "finite_element_tool":
-                result = compute_finite_element(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-            elif tool_name == "fem_advanced_tool":
-                result = compute_fem_advanced(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-            elif tool_name == "plane_stress_tool":
-                result = compute_plane_stress(args.get("mode"), args.get("params"))
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-            elif tool_name == "thermal_structural_tool":
-                result = compute_thermal_structural(args.get("mode"), args.get("params"))
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-            elif tool_name == "thermal_conduction_tool":
-                result = compute_thermal_conduction(args.get("mode"), args.get("params"))
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-            elif tool_name == "thermal_advanced_tool":
-                result = compute_thermal_advanced(args.get("mode"), args.get("params"))
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-            elif tool_name == "nonlinear_buckling_tool":
-                result = compute_nonlinear_buckling(args.get("mode"), args.get("params"))
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-            elif tool_name == "forced_vibration_tool":
-                result = compute_forced_vibration(args.get("mode"), args.get("params"))
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-            elif tool_name == "spectral_analysis_tool":
-                result = compute_spectral_analysis(args.get("mode"), args.get("params"))
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-            elif tool_name == "genome_signal_analysis":
-                result = compute_genome_signal_analysis(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-            elif tool_name == "sdf_tool":
-                result = compute_sdf_tool(args.get("mode"), args.get("params"))
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-            elif tool_name == "lscm_tool":
-                result = compute_lscm_tool(args.get("mode"), args.get("params"))
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-            elif tool_name == "mesh_pde_tool":
-                result = compute_mesh_pde_tool(args.get("mode"), args.get("params"))
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-            elif tool_name == "quantum_astro_tool":
-                result = compute_quantum_astro_tool(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-            elif tool_name == "semiclassical_cosmology_tool":
-                result = compute_semiclassical_cosmology_tool(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-            elif tool_name == "cosmological_mcmc_tool":
-                result = compute_cosmological_mcmc_tool(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-            elif tool_name == "quantum_cosmology_tool":
-                result = compute_quantum_cosmology_tool(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-            elif tool_name == "distmesh_tool":
-                result = compute_distmesh(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-            elif tool_name == "electromagnetic_tool":
-                result = handle_electromagnetic_tool(args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-            elif tool_name == "acoustics_tool":
-                result = compute_acoustics_tool(args.get("mode", "validate"), args.get("params"))
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-            elif tool_name == "polarization_mapping":
-                result = compute_polarization_mapping(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-            elif tool_name == "circuit_tool":
-                result = compute_circuit_tool(args.get("mode", "validate"), args.get("params"))
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-            elif tool_name == "topology_optimization_tool":
-                result = compute_topology_optimization_tool(args.get("mode", "validate"), args.get("params"))
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-            elif tool_name == "geometric_algebra_protein":
-                result = compute_geometric_algebra_protein(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-            elif tool_name == "optical_sequence_id":
-                result = compute_optical_sequence_id(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-            elif tool_name == "infrasound_tool":
-                result = compute_infrasound_tool(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-            elif tool_name == "bacterial_growth_tool":
-                result = compute_bacterial_growth_tool(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-            elif tool_name == "viral_lattice_tool":
-                result = compute_viral_lattice_tool(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-            elif tool_name == "enzyme_stochastic":
-                result = compute_enzyme_stochastic(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-            elif tool_name == "evo_LGCA_tool":
-                result = compute_evo_lgca_tool(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-
-            elif tool_name == "mesh_spectral_tool":
-                result = compute_mesh_spectral_tool(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-            elif tool_name == "survey_angles_tool":
-                result = compute_survey_angles(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-            elif tool_name == "survey_distance_tool":
-                result = compute_survey_distance(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-            elif tool_name == "survey_curvature_tool":
-                result = compute_survey_curvature(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-            elif tool_name == "traverse_adjustment_tool":
-                result = compute_traverse_adjustment(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-            elif tool_name == "survey_curves_tool":
-                result = compute_survey_curves(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-            elif tool_name == "survey_area_volume_tool":
-                result = compute_survey_area_volume(**args)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-            elif tool_name == "gas_tool":
-                result = compute_gas(args.get("mode"), args.get("params"))
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-            elif tool_name == "knowledge_graph_tool":
-                result = compute_knowledge_graph(args.get("mode"), args.get("params"), tools=TOOLS)
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-            elif tool_name == "biorefinery_tool":
-                result = compute_biorefinery(args.get("mode"), args.get("params"))
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-            elif tool_name == "climate_tool":
-                result = compute_climate(args.get("mode"), args.get("params"))
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-            elif tool_name == "advanced_stochastic_tool":
-                result = compute_advanced_stochastic(args.get("mode"), args.get("params"))
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
-            elif tool_name == "multivariate_bayes_tool":
-                result = compute_multivariate_bayes(args.get("mode"), args.get("params"))
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                }
             else:
-                resp = {
-                    "jsonrpc": "2.0", "id": req_id,
-                    "error": {"code": -32601, "message": f"Tool desconocido: {tool_name}"},
-                }
+                resp = {"jsonrpc": "2.0", "id": req_id, "result": {}}
 
-        else:
-            resp = {"jsonrpc": "2.0", "id": req_id, "result": {}}
+            print(json.dumps(resp), flush=True)
 
-        print(json.dumps(resp), flush=True)
-
-    except Exception as e:
-        print(json.dumps({"jsonrpc": "2.0", "id": req_id, "error": {"code": -32603, "message": str(e)}}), flush=True)
+        except Exception as e:
+            print(json.dumps({"jsonrpc": "2.0", "id": req_id, "error": {"code": -32603, "message": str(e)}}), flush=True)
