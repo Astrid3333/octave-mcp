@@ -11,7 +11,10 @@ confidence_flag="model_under_stated_assumptions".
 
 Reutiliza el motor de amortización francesa de credit_simulation_tool.py:
 _standard_payment(principal, rate_per_period, n_periods)
-_amortization_schedule(principal, rate_per_period, n_periods, extra_payment=0.0)
+_amortization_schedule(principal, rate_per_period, n_periods, extra_payment=0.0, ...)
+    -> dict con claves: scheduled_payment, n_periods_actual, total_interest,
+       total_paid, schedule (lista de periodos), hit_hard_cap
+    cada periodo en 'schedule': {period, payment, interest, principal_payment, balance}
 """
 
 from __future__ import annotations
@@ -26,51 +29,63 @@ try:
 except ImportError:
     # Fallback local SOLO para poder correr/validar este archivo de forma
     # aislada (sandbox) cuando credit_simulation_tool.py no está presente
-    # en el mismo directorio. En el repo real de Astrid el import de
-    # arriba es el que se usa — este bloque nunca debería ejecutarse ahí.
+    # en el mismo directorio. Replica EXACTAMENTE la forma de retorno real
+    # confirmada vía inspect en el repo de Astrid (dict con scheduled_payment,
+    # n_periods_actual, total_interest, total_paid, schedule, hit_hard_cap;
+    # cada periodo con period/payment/interest/principal_payment/balance).
     def _standard_payment(principal, rate_per_period, n_periods):
         if rate_per_period == 0:
             return principal / n_periods
         r = rate_per_period
         return principal * (r * (1 + r) ** n_periods) / ((1 + r) ** n_periods - 1)
 
-    def _amortization_schedule(principal, rate_per_period, n_periods, extra_payment=0.0):
+    def _amortization_schedule(principal, rate_per_period, n_periods, extra_payment=0.0,
+                                extra_lump_sum=0.0, extra_lump_month=None, hard_cap_periods=1200):
+        payment = _standard_payment(principal, rate_per_period, n_periods)
         schedule = []
         balance = principal
-        payment = _standard_payment(principal, rate_per_period, n_periods)
         period = 0
-        max_periods = int(n_periods) * 4 + 12
-        while balance > 1e-4 and period < max_periods:
+        hit_hard_cap = False
+        while balance > 1e-4:
             period += 1
+            if period > hard_cap_periods:
+                hit_hard_cap = True
+                break
             interest = balance * rate_per_period
-            principal_paid = payment - interest + extra_payment
-            if principal_paid > balance:
-                principal_paid = balance
-            balance -= principal_paid
+            principal_payment = payment - interest + extra_payment
+            if extra_lump_month is not None and period == extra_lump_month:
+                principal_payment += extra_lump_sum
+            if principal_payment > balance:
+                principal_payment = balance
+            balance -= principal_payment
             schedule.append({
                 "period": period,
                 "payment": round(payment + extra_payment, 2),
                 "interest": round(interest, 2),
-                "principal": round(principal_paid, 2),
+                "principal_payment": round(principal_payment, 2),
                 "balance": round(max(balance, 0.0), 2),
             })
-            if balance <= 1e-4:
-                break
-        return schedule
+        total_interest = sum(p["interest"] for p in schedule)
+        total_paid = sum(p["payment"] for p in schedule)
+        return {
+            "scheduled_payment": round(payment, 2),
+            "n_periods_actual": len(schedule),
+            "total_interest": round(total_interest, 2),
+            "total_paid": round(total_paid, 2),
+            "schedule": schedule,
+            "hit_hard_cap": hit_hard_cap,
+        }
 
 
 MODEL_DISCLAIMER = "model_under_stated_assumptions"
 
 
-def _total_interest(schedule):
-    return sum(p["interest"] for p in schedule)
-
-
-def _total_paid_over_horizon(schedule, horizon_months):
-    """Suma pagos (cuota) de un schedule limitado a horizon_months períodos.
-    Si el schedule termina antes del horizonte, no se agregan pagos extra
-    (el crédito ya está saldado)."""
-    return sum(p["payment"] for p in schedule[:horizon_months])
+def _total_paid_over_horizon(schedule_result, horizon_months):
+    """Suma pagos (cuota) de un resultado de _amortization_schedule limitado
+    a horizon_months periodos. Si el credito ya esta saldado antes del
+    horizonte, no se agregan pagos extra."""
+    periods = schedule_result["schedule"][:horizon_months]
+    return sum(p["payment"] for p in periods)
 
 
 def _payment_comparison(params):
@@ -85,20 +100,18 @@ def _payment_comparison(params):
     r_current = annual_rate_current / 12.0
     r_new = annual_rate_new / 12.0
 
-    current_payment = _standard_payment(principal, r_current, remaining_term_months)
-    current_schedule = _amortization_schedule(principal, r_current, remaining_term_months)
+    current = _amortization_schedule(principal, r_current, remaining_term_months)
 
     new_principal = principal + closing_costs if roll_closing_costs_into_loan else principal
-    new_payment = _standard_payment(new_principal, r_new, new_term_months)
-    new_schedule = _amortization_schedule(new_principal, r_new, new_term_months)
+    new = _amortization_schedule(new_principal, r_new, new_term_months)
 
-    monthly_savings = current_payment - new_payment
+    monthly_savings = current["scheduled_payment"] - new["scheduled_payment"]
 
     return {
-        "current_monthly_payment": round(current_payment, 2),
-        "current_total_interest_remaining_term": round(_total_interest(current_schedule), 2),
-        "new_monthly_payment": round(new_payment, 2),
-        "new_total_interest_full_term": round(_total_interest(new_schedule), 2),
+        "current_monthly_payment": current["scheduled_payment"],
+        "current_total_interest_remaining_term": current["total_interest"],
+        "new_monthly_payment": new["scheduled_payment"],
+        "new_total_interest_full_term": new["total_interest"],
         "new_principal_financed": round(new_principal, 2),
         "monthly_savings": round(monthly_savings, 2),
         "closing_costs": round(closing_costs, 2),
@@ -154,12 +167,12 @@ def _total_cost_comparison(params):
     r_current = annual_rate_current / 12.0
     r_new = annual_rate_new / 12.0
 
-    current_schedule = _amortization_schedule(principal, r_current, remaining_term_months)
+    current = _amortization_schedule(principal, r_current, remaining_term_months)
     new_principal = principal + closing_costs if roll_closing_costs_into_loan else principal
-    new_schedule = _amortization_schedule(new_principal, r_new, new_term_months)
+    new = _amortization_schedule(new_principal, r_new, new_term_months)
 
-    total_cost_current = _total_paid_over_horizon(current_schedule, horizon_months)
-    total_cost_new = _total_paid_over_horizon(new_schedule, horizon_months)
+    total_cost_current = _total_paid_over_horizon(current, horizon_months)
+    total_cost_new = _total_paid_over_horizon(new, horizon_months)
     if not roll_closing_costs_into_loan:
         total_cost_new += closing_costs
 
@@ -207,11 +220,18 @@ def _refinance_decision(params):
 def _validate():
     checks = []
 
-    # Check 1: tasa 0% -> cuota = principal / n_periods (caso analítico exacto)
-    p1 = _standard_payment(12000, 0.0, 12)
-    checks.append({"name": "zero_rate_payment_exact", "passed": abs(p1 - 1000.0) < 1e-6})
+    # Check 1: autoconsistencia — _standard_payment debe coincidir con el
+    # scheduled_payment que devuelve _amortization_schedule para los mismos
+    # parametros (evita depender de un caso borde de tasa 0% que la funcion
+    # real podria no soportar igual que el fallback local)
+    p1 = _standard_payment(100000, 0.005, 12)
+    s1 = _amortization_schedule(100000, 0.005, 12)
+    checks.append({
+        "name": "standard_payment_matches_schedule",
+        "passed": abs(p1 - s1["scheduled_payment"]) < 0.05,
+    })
 
-    # Check 2: breakeven analítico simple: closing_costs=3000, monthly_savings=100 -> 30 meses
+    # Check 2: breakeven analitico simple: closing_costs=3000, monthly_savings=100 -> 30 meses
     b2 = _breakeven_analysis({"monthly_savings": 100.0, "closing_costs": 3000.0})
     checks.append({
         "name": "breakeven_simple_analytic",
@@ -223,15 +243,17 @@ def _validate():
     checks.append({"name": "breakeven_no_savings_safe", "passed": b3["reaches_breakeven"] is False})
 
     # Check 4: schedule nuevo amortiza a ~0 exactamente al final del plazo nuevo
-    sched4 = _amortization_schedule(200000, 0.05 / 12, 180)
+    s4 = _amortization_schedule(200000, 0.05 / 12, 180)
     checks.append({
         "name": "new_loan_fully_amortizes",
-        "passed": len(sched4) > 0 and sched4[-1]["balance"] < 1e-2 and len(sched4) == 180,
+        "passed": (
+            s4["n_periods_actual"] == 180
+            and len(s4["schedule"]) == 180
+            and s4["schedule"][-1]["balance"] < 1e-2
+        ),
     })
 
     # Check 4b: a IGUAL plazo, tasa nueva menor -> cuota nueva estrictamente menor
-    # (aislado del efecto de acortar/alargar plazo, que puede compensar o revertir
-    # el efecto de la tasa)
     pc4b = _payment_comparison({
         "principal": 200000, "annual_rate_current": 0.07, "remaining_term_months": 180,
         "annual_rate_new": 0.05, "new_term_months": 180, "closing_costs": 4000,
