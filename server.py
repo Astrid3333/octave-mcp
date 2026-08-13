@@ -147,6 +147,8 @@ from survey_tools import (
     compute_survey_area_volume, SURVEY_AREA_VOLUME_TOOL_SCHEMA,
 )
 from climate_tool import compute_climate
+from advanced_stochastic_tool import compute_advanced_stochastic
+from multivariate_bayes_tool import compute_multivariate_bayes
 TOOLS = [
     {
         "name": "run_octave",
@@ -345,6 +347,30 @@ TOOLS = [
         },
     },
 
+    {
+        "name": "advanced_stochastic_tool",
+        "description": "Procesos estocasticos avanzados: HMM (forward-backward + Viterbi), filtro de Kalman, particle filter (bootstrap), y GARCH(1,1) por MLE.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "mode": {"type": "string", "enum": ["hmm", "kalman", "particle_filter", "garch"]},
+                "params": {"type": "object"}
+            },
+            "required": ["mode", "params"]
+        }
+    },
+    {
+        "name": "multivariate_bayes_tool",
+        "description": "Estadistica bayesiana multivariada: normal/t multivariada, Wishart, modelo jerarquico (Gibbs), regresion via HMC, PCA con biplot y CV, y Factor Analysis via EM.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "mode": {"type": "string", "enum": ["mvn_sample", "mvt_sample", "wishart_sample", "hierarchical", "hmc_regression", "pca_biplot", "pca_cv", "factor_analysis"]},
+                "params": {"type": "object"}
+            },
+            "required": ["mode", "params"]
+        }
+    },
 ]
 
 
@@ -1263,6 +1289,18 @@ for line in sys.stdin:
                 }
             elif tool_name == "climate_tool":
                 result = compute_climate(args.get("mode"), args.get("params"))
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+            elif tool_name == "advanced_stochastic_tool":
+                result = compute_advanced_stochastic(args.get("mode"), args.get("params"))
+                resp = {
+                    "jsonrpc": "2.0", "id": req_id,
+                    "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                }
+            elif tool_name == "multivariate_bayes_tool":
+                result = compute_multivariate_bayes(args.get("mode"), args.get("params"))
                 resp = {
                     "jsonrpc": "2.0", "id": req_id,
                     "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
