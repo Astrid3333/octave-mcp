@@ -663,7 +663,7 @@ for line in sys.stdin:
                     "jsonrpc": "2.0", "id": req_id,
                     "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
                 }
-            elif tool_name == "advanced_probability":
+            elif tool_name == "advanced_probability_tool":
                 result = compute_advanced_probability(**args)
                 resp = {
                     "jsonrpc": "2.0", "id": req_id,
