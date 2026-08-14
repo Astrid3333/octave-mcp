@@ -99,6 +99,8 @@ def compute_ancestral_octave(preset: str = None, params: dict = None, extra_octa
     (no un dict con returncode/stdout/stderr por separado)."""
     if run_octave_fn is None:
         return {"error": "run_octave_fn no fue provisto (bug de wiring en server.py)"}
+    if mode == "validate":
+        return _validate_ancestral_octave(run_octave_fn)
     if preset is None:
         return {"error": "falta 'preset' (parametro requerido salvo mode='validate')"}
     params = params or {}
@@ -113,3 +115,61 @@ def compute_ancestral_octave(preset: str = None, params: dict = None, extra_octa
         return json.loads(json_line)
     except json.JSONDecodeError:
         return {"error": "no se pudo parsear JSON de la ultima linea de salida", "raw_output": raw, "script": script}
+
+
+def _validate_ancestral_octave(run_octave_fn) -> dict:
+    """Corre 5 de los 9 presets con parametros de prueba y compara contra
+    valores analiticos conocidos. quipu_encode, ifa_cast, ifa_cast_random
+    y etak_deadreckoning quedan afuera: no hay smoke test previo de su
+    implementacion real, y un check sin eso seria placebo."""
+    import math
+
+    def _call(preset, params):
+        script = build_octave_call(preset, params, "")
+        raw = run_octave_fn(script)
+        lines = [l for l in raw.splitlines() if l.strip()]
+        if not lines:
+            return None
+        try:
+            return json.loads(lines[-1])
+        except json.JSONDecodeError:
+            return None
+
+    checks = []
+
+    r = _call("suanpan_add", {"a": 3, "b": 4})
+    checks.append({"name": "suanpan_add(3,4)==7", "passed": r is not None and r.get("result") == 7, "got": r})
+
+    r = _call("vedic_multiply", {"a": 6, "b": 7})
+    checks.append({"name": "vedic_multiply(6,7)==42", "passed": r is not None and r.get("result") == 42, "got": r})
+
+    r = _call("chinese_remainder", {"remainders": [2, 3, 2], "moduli": [3, 5, 7]})
+    checks.append({"name": "chinese_remainder([2,3,2],[3,5,7])==23", "passed": r is not None and r.get("solution") == 23, "got": r})
+
+    r4 = _call("archimedes_pi", {"iterations": 4})
+    r8 = _call("archimedes_pi", {"iterations": 8})
+    encloses = (
+        r4 is not None and r8 is not None
+        and r4.get("pi_lower", 0) <= math.pi <= r4.get("pi_upper", 0)
+        and r8.get("pi_lower", 0) <= math.pi <= r8.get("pi_upper", 0)
+    )
+    checks.append({"name": "archimedes_pi encierra pi real en iter=4 y iter=8", "passed": encloses, "got": {"iter4": r4, "iter8": r8}})
+    tightened = (
+        r4 is not None and r8 is not None
+        and (r8["pi_upper"] - r8["pi_lower"]) < (r4["pi_upper"] - r4["pi_lower"])
+    )
+    checks.append({"name": "archimedes_pi: cota mas angosta con mas iteraciones", "passed": tightened, "got": None})
+
+    r = _call("madhava_pi_series", {"n_terms": 10})
+    ok = (
+        r is not None
+        and r.get("error_corrected", 1) < r.get("error_basic", 0)
+        and r.get("error_corrected", 1) < 0.01
+    )
+    checks.append({"name": "madhava_pi_series: correccion de Kerala reduce error real y converge <1%", "passed": ok, "got": r})
+
+    return {
+        "validation_passed": all(c["passed"] for c in checks),
+        "checks": checks,
+        "not_covered": ["quipu_encode", "ifa_cast", "ifa_cast_random", "etak_deadreckoning"],
+    }
