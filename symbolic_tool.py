@@ -70,6 +70,8 @@ def compute_symbolic(mode="simplify", preset="known_simplify", expression=None,
     known = None
 
     try:
+        if mode == "validate":
+            return _validate_symbolic()
         if mode == "simplify":
             if preset == "custom":
                 if not expression:
@@ -164,3 +166,23 @@ if __name__ == "__main__":
     print(json.dumps(compute_symbolic("differentiate", "known_derivative"), indent=2, ensure_ascii=False))
     print(json.dumps(compute_symbolic("integrate", "known_integral"), indent=2, ensure_ascii=False))
     print(json.dumps(compute_symbolic("taylor_series", "known_taylor"), indent=2, ensure_ascii=False))
+
+
+def _validate_symbolic() -> dict:
+    """Checks exactos (algebra simbolica, sin ruido): simplify known_simplify
+    debe dar x+1 exacto; solve known_solve debe dar raices {2,3} exactas."""
+    checks = []
+
+    r1 = compute_symbolic(mode="simplify", preset="known_simplify")
+    simplify_ok = "error" not in r1 and r1.get("simplified") == "x + 1"
+    checks.append({"name": "simplify known_simplify: resultado == 'x + 1' exacto", "passed": simplify_ok, "got": r1.get("simplified") if "error" not in r1 else r1})
+
+    r2 = compute_symbolic(mode="solve", preset="known_solve")
+    if "error" in r2:
+        checks.append({"name": "solve known_solve: raices == {2, 3} exacto", "passed": False, "got": r2})
+    else:
+        got_roots = set(r2.get("solutions", []))
+        solve_ok = got_roots == {"2", "3"}
+        checks.append({"name": "solve known_solve: raices == {2, 3} exacto", "passed": solve_ok, "got": r2.get("solutions")})
+
+    return {"mode": "validate", "validation_passed": all(c["passed"] for c in checks), "checks": checks}

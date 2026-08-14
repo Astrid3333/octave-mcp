@@ -76,6 +76,9 @@ def compute_pde(mode="heat_equation", preset="known_first_mode", L=1.0, coeffici
     known = None
     dx = L / (n_points - 1)
 
+    if mode == "validate":
+        return _validate_pde()
+
     if mode == "heat_equation":
         alpha = coefficient
         dt = 0.4 * dx ** 2 / alpha  # r=0.4 < 0.5, margen de seguridad bajo CFL
@@ -196,3 +199,23 @@ if __name__ == "__main__":
     import json
     print(json.dumps(compute_pde("heat_equation", "known_first_mode"), indent=2, ensure_ascii=False))
     print(json.dumps(compute_pde("wave_equation", "known_first_mode"), indent=2, ensure_ascii=False))
+
+
+def _validate_pde() -> dict:
+    """Check: heat_equation known_first_mode (primer modo normal, bordes
+    fijos en 0) tiene solucion analitica exacta u(x,t)=sin(pi*x/L)*exp(-alpha*(pi/L)^2*t).
+    El esquema FTCS explicito con r=0.4 (< 0.5, CFL estable) introduce error
+    de discretizacion de segundo orden en dx, tolerancia generosa por eso."""
+    checks = []
+
+    r = compute_pde(mode="heat_equation", preset="known_first_mode")
+    if "error" in r:
+        checks.append({"name": "heat_equation known_first_mode: sin error", "passed": False, "got": r})
+    else:
+        cfl_ok = bool(r.get("cfl_stable"))
+        err = r.get("max_error_vs_analytic")
+        err_ok = err is not None and err < 1e-3
+        checks.append({"name": "heat_equation known_first_mode: CFL estable (r<=0.5)", "passed": cfl_ok, "got": r.get("cfl_r")})
+        checks.append({"name": "heat_equation known_first_mode: error vs analitica < 1e-3", "passed": err_ok, "got": err})
+
+    return {"mode": "validate", "validation_passed": all(c["passed"] for c in checks), "checks": checks}

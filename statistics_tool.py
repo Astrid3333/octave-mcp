@@ -97,6 +97,9 @@ def compute_statistics(mode="linear_regression", preset="known_linear", x=None, 
                         sample=None, mu0=5.0, prior_a=1.0, prior_b=1.0, successes=7, trials=10):
     known = None
 
+    if mode == "validate":
+        return _validate_statistics()
+
     if mode == "linear_regression":
         if preset == "custom":
             if not x or not y or len(x) != len(y):
@@ -222,3 +225,24 @@ if __name__ == "__main__":
     print(json.dumps(compute_statistics("t_test", "known_ttest", mu0=5.0), indent=2, ensure_ascii=False))
     print(json.dumps(compute_statistics("t_test", "known_ttest", mu0=6.0), indent=2, ensure_ascii=False))
     print(json.dumps(compute_statistics("bayesian_beta_binomial", "known_bayesian"), indent=2, ensure_ascii=False))
+
+
+def _validate_statistics() -> dict:
+    """Check con tolerancia (hay ruido gaussiano inyectado en el preset, no
+    puede ser exacto): regresion lineal sobre known_linear debe recuperar
+    slope~2.0 e intercept~3.0 (generados por _gen_known_linear), con R2
+    cercano a 1 dado que el ruido es chico (sigma=0.1)."""
+    checks = []
+
+    r1 = compute_statistics(mode="linear_regression", preset="known_linear")
+    if "error" in r1:
+        checks.append({"name": "linear_regression known_linear: sin error", "passed": False, "got": r1})
+    else:
+        slope_ok = abs(r1["slope"] - 2.0) < 0.05
+        intercept_ok = abs(r1["intercept"] - 3.0) < 0.1
+        r2_ok = r1["r_squared"] > 0.99
+        checks.append({"name": "linear_regression known_linear: slope~2.0 (tol 0.05)", "passed": slope_ok, "got": r1["slope"]})
+        checks.append({"name": "linear_regression known_linear: intercept~3.0 (tol 0.1)", "passed": intercept_ok, "got": r1["intercept"]})
+        checks.append({"name": "linear_regression known_linear: R2 > 0.99", "passed": r2_ok, "got": r1["r_squared"]})
+
+    return {"mode": "validate", "validation_passed": all(c["passed"] for c in checks), "checks": checks}

@@ -92,6 +92,9 @@ def _gen_singular_matrix():
 def compute_linear_algebra(mode="eigen", preset="known_symmetric", matrix=None, data=None):
     known = None
 
+    if mode == "validate":
+        return _validate_linear_algebra()
+
     if mode in ("eigen", "svd", "matrix_analysis"):
         if preset == "custom":
             if not matrix:
@@ -227,3 +230,28 @@ if __name__ == "__main__":
     print(json.dumps(compute_linear_algebra("svd", "known_svd"), indent=2, ensure_ascii=False))
     print(json.dumps(compute_linear_algebra("matrix_analysis", "singular_matrix"), indent=2, ensure_ascii=False))
     print(json.dumps(compute_linear_algebra("pca", "known_pca_dominant"), indent=2, ensure_ascii=False))
+
+
+def _validate_linear_algebra() -> dict:
+    """2 checks deterministicos: autovalores exactos de la matriz simetrica
+    conocida [[2,1],[1,2]] (esperados [1.0, 3.0]), y error de reconstruccion
+    SVD (U*S*V' == A) cercano a cero sobre la misma matriz."""
+    checks = []
+
+    r1 = compute_linear_algebra(mode="eigen", preset="known_symmetric")
+    if "error" in r1:
+        checks.append({"name": "eigen known_symmetric: sin error", "passed": False, "got": r1})
+    else:
+        esperado = [1.0, 3.0]
+        got = r1["eigenvalues"]
+        ok = len(got) == 2 and all(abs(a - b) < 1e-6 for a, b in zip(got, esperado))
+        checks.append({"name": "eigen known_symmetric: autovalores == [1.0, 3.0]", "passed": ok, "got": got})
+
+    r2 = compute_linear_algebra(mode="svd", preset="known_symmetric")
+    if "error" in r2:
+        checks.append({"name": "svd known_symmetric: sin error", "passed": False, "got": r2})
+    else:
+        err_recon = r2.get("reconstruction_max_error")
+        checks.append({"name": "svd known_symmetric: error de reconstruccion < 1e-8", "passed": bool(r2.get("reconstruction_ok")), "got": err_recon})
+
+    return {"mode": "validate", "validation_passed": all(c["passed"] for c in checks), "checks": checks}

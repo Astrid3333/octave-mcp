@@ -102,7 +102,7 @@ printf("|%.8f|%d", fmin, status);
     fmin = float(fmin_str)
     status = int(status_str)
     return {"x_optimal": [round(v, 6) for v in x_opt], "objective_value": round(fmin, 6),
-            "glpk_status": status, "status_ok": status == 5}, None
+            "glpk_status": status, "status_ok": status == 0}, None
 
 
 def _safe_parse(expr_str, symbols_dict):
@@ -116,6 +116,9 @@ def compute_optimization(mode="linear_programming", preset="known_lp", sense="ma
                           c=None, A_ub=None, b_ub=None, expression=None, start=None,
                           learning_rate=0.1, n_iterations=200):
     known = None
+
+    if mode == "validate":
+        return _validate_optimization()
 
     if mode == "linear_programming":
         if preset == "custom":
@@ -191,3 +194,23 @@ if __name__ == "__main__":
     import json
     print(json.dumps(compute_optimization("linear_programming", "known_lp"), indent=2, ensure_ascii=False))
     print(json.dumps(compute_optimization("gradient_descent", "known_gradient_descent"), indent=2, ensure_ascii=False))
+
+
+def _validate_optimization() -> dict:
+    """Check exacto: LP known_lp (c=[3,5], A_ub=[[1,0],[0,2],[3,2]], b_ub=[4,12,18], max)
+    tiene solucion analitica conocida x*=[2,6], objetivo=36 (vertice factible optimo
+    del poliedro, glpk deberia converger exacto sin ambiguedad)."""
+    checks = []
+
+    r = compute_optimization(mode="linear_programming", preset="known_lp")
+    if "error" in r:
+        checks.append({"name": "linear_programming known_lp: sin error", "passed": False, "got": r})
+    else:
+        x_ok = r.get("x_optimal") == [2.0, 6.0]
+        obj_ok = r.get("objective_value") == 36.0
+        status_ok = bool(r.get("status_ok"))
+        checks.append({"name": "linear_programming known_lp: x_optimal == [2.0, 6.0] exacto", "passed": x_ok, "got": r.get("x_optimal")})
+        checks.append({"name": "linear_programming known_lp: objective_value == 36.0 exacto", "passed": obj_ok, "got": r.get("objective_value")})
+        checks.append({"name": "linear_programming known_lp: glpk_status_ok (status==0, sin error de wrapper)", "passed": status_ok, "got": r.get("glpk_status")})
+
+    return {"mode": "validate", "validation_passed": all(c["passed"] for c in checks), "checks": checks}
