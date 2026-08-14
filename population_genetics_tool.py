@@ -166,6 +166,7 @@ def compute_population_genetics(mode, **kwargs):
         "natural_selection": compute_natural_selection,
         "coalescence": compute_coalescence,
         "genetic_distance": compute_genetic_distance,
+        "validate": lambda **kwargs: _validate_population_genetics(),
     }
     if mode not in fns:
         raise ValueError(f"mode desconocido: {mode}")
@@ -178,7 +179,7 @@ POPULATION_GENETICS_TOOL_SCHEMA = {
     "inputSchema": {
         "type": "object",
         "properties": {
-            "mode": {"type": "string", "enum": ["hardy_weinberg", "genetic_drift", "natural_selection", "coalescence", "genetic_distance"]},
+            "mode": {"type": "string", "enum": ["hardy_weinberg", "genetic_drift", "natural_selection", "coalescence", "genetic_distance", "validate"]},
             "p": {"type": "number"},
             "observed_counts": {"type": "object"},
             "N": {"type": "integer"}, "p0": {"type": "number"}, "generations": {"type": "integer"},
@@ -201,3 +202,44 @@ if __name__ == "__main__":
     print(compute_population_genetics(mode="coalescence", sample_size=5, effective_population_size=1000))
     print(compute_population_genetics(mode="genetic_distance", method="fst", freq_pop1=[0.3, 0.5, 0.7], freq_pop2=[0.6, 0.5, 0.2]))
     print(compute_population_genetics(mode="genetic_distance", method="nei", freq_pop1=[[0.3, 0.7], [0.5, 0.5]], freq_pop2=[[0.6, 0.4], [0.5, 0.5]]))
+
+
+def _validate_population_genetics():
+    """6 checks deterministicos (o con tolerancia generosa en el unico caso
+    estocastico) que no dependen de valores magicos externos, sino de
+    invariantes matematicos del propio modulo:
+    1) las frecuencias de Hardy-Weinberg suman 1 (identidad algebraica).
+    2) seleccion neutral (fitness iguales) preserva la frecuencia alelica
+       exacta -- sin diferencial de fitness no hay cambio de frecuencia.
+    3) la suma de tiempos esperados por cada k de linajes coincide con el
+       TMRCA total reportado (consistencia interna de coalescencia).
+    4) Fst=0 cuando dos poblaciones tienen frecuencias identicas (sin
+       diferenciacion no puede haber estructuracion poblacional).
+    5) identidad de Nei I=1 y distancia D=0 en el mismo caso.
+    6) con N efectivo muy grande, la deriva genica apenas mueve la
+       frecuencia media lejos de p0 en pocas generaciones (unico check con
+       tolerancia, por ser estocastico incluso con seed fija)."""
+    checks = []
+
+    r1 = compute_hardy_weinberg(p=0.35)
+    total = sum(r1["expected_frequencies"].values())
+    checks.append({"name": "hardy_weinberg: frecuencias suman 1", "passed": abs(total - 1.0) < 1e-9, "got": round(total, 10)})
+
+    r2 = compute_natural_selection(p0=0.37, generations=100, w_AA=1.0, w_Aa=1.0, w_aa=1.0)
+    checks.append({"name": "seleccion neutral (fitness iguales) preserva frecuencia inicial", "passed": abs(r2["final_frequency"] - 0.37) < 1e-9, "got": r2["final_frequency"]})
+
+    r3 = compute_coalescence(sample_size=6, effective_population_size=500)
+    suma = sum(x["expected_time_generations"] for x in r3["per_k_lineages"])
+    checks.append({"name": "coalescence: suma de tiempos por k == TMRCA reportado", "passed": abs(suma - r3["expected_tmrca_generations"]) < 1e-6, "got": {"suma": round(suma, 4), "tmrca": r3["expected_tmrca_generations"]}})
+
+    r4 = compute_genetic_distance(method="fst", freq_pop1=[0.3, 0.5, 0.7], freq_pop2=[0.3, 0.5, 0.7])
+    checks.append({"name": "fst=0 cuando poblaciones identicas", "passed": abs(r4["fst_mean"]) < 1e-9, "got": r4["fst_mean"]})
+
+    r5 = compute_genetic_distance(method="nei", freq_pop1=[[0.3, 0.7], [0.5, 0.5]], freq_pop2=[[0.3, 0.7], [0.5, 0.5]])
+    checks.append({"name": "nei: I=1 y D=0 cuando poblaciones identicas", "passed": abs(r5["genetic_identity_I"] - 1.0) < 1e-9 and abs(r5["genetic_distance_D"]) < 1e-9, "got": {"I": r5["genetic_identity_I"], "D": r5["genetic_distance_D"]}})
+
+    r6 = compute_genetic_drift(N=50000, p0=0.4, generations=20, n_simulations=500, seed=7)
+    final_mean = r6["trajectory_mean_frequency"][-1]["mean_frequency"]
+    checks.append({"name": "genetic_drift: N grande mantiene frecuencia cerca de p0 (poca deriva)", "passed": abs(final_mean - 0.4) < 0.02, "got": final_mean})
+
+    return {"mode": "validate", "validation_passed": all(c["passed"] for c in checks), "checks": checks}
