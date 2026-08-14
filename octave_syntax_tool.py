@@ -65,9 +65,59 @@ def compute_syntax_check(code, timeout=10):
         return result
 
 
+def _validate_octave_syntax(**kwargs) -> dict:
+    """Corre los mismos 4 casos ya usados como smoke test en __main__: 1
+    codigo valido y 3 tipos de error de sintaxis distintos (parentesis sin
+    cerrar, 'end' faltante, typo de keyword). Verifica que
+    compute_syntax_check detecte cada uno correctamente, no solo que no
+    tire excepcion."""
+    checks = []
+
+    valid_code = """
+    x = 1;
+    y = 2;
+    for i = 1:10
+      x = x + i;
+    endfor
+    printf("%d\\n", x);
+    """
+    r = compute_syntax_check(valid_code)
+    checks.append({"name": "codigo valido: valid==True", "passed": r.get("valid") is True, "got": r})
+
+    broken_paren = """
+    x = 1;
+    y = (1 + 2;
+    z = x + y;
+    """
+    r = compute_syntax_check(broken_paren)
+    checks.append({"name": "parentesis sin cerrar: valid==False", "passed": r.get("valid") is False, "got": r})
+
+    broken_end = """
+    for i = 1:10
+      x = i;
+    """
+    r = compute_syntax_check(broken_end)
+    checks.append({"name": "falta 'endfor': valid==False", "passed": r.get("valid") is False, "got": r})
+
+    typo_keyword = """
+    x = 1;
+    fi x > 0
+      y = 2;
+    endif
+    """
+    r = compute_syntax_check(typo_keyword)
+    checks.append({"name": "typo en keyword 'if': valid==False", "passed": r.get("valid") is False, "got": r})
+
+    return {
+        "mode": "validate",
+        "validation_passed": all(c["passed"] for c in checks),
+        "checks": checks,
+    }
+
+
 def compute_octave_syntax(mode, **kwargs):
     """Dispatcher unico para el tool MCP octave_syntax, segun 'mode'."""
-    fns = {"syntax_check": compute_syntax_check}
+    fns = {"syntax_check": compute_syntax_check, "validate": _validate_octave_syntax}
     if mode not in fns:
         raise ValueError(f"mode desconocido: {mode}")
     return fns[mode](**kwargs)
@@ -79,11 +129,11 @@ OCTAVE_SYNTAX_TOOL_SCHEMA = {
     "inputSchema": {
         "type": "object",
         "properties": {
-            "mode": {"type": "string", "enum": ["syntax_check"]},
+            "mode": {"type": "string", "enum": ["syntax_check", "validate"]},
             "code": {"type": "string"},
             "timeout": {"type": "integer"},
         },
-        "required": ["mode", "code"],
+        "required": ["mode"],
     },
 }
 
