@@ -39,7 +39,7 @@ BRAID_GROUP_SCHEMA = {
     "inputSchema": {
         "type": "object",
         "properties": {
-            "mode": {"type": "string", "enum": ["verify_braid_relation", "apply_braid_sequence"], "default": "verify_braid_relation"},
+            "mode": {"type": "string", "enum": ["verify_braid_relation", "apply_braid_sequence", "validate"], "default": "verify_braid_relation"},
             "sequence": {"type": "string", "description": "Para apply_braid_sequence: secuencia de generadores separados por coma, ej '1,2,1,2,1'", "default": "1,2,1"},
             "initial_state": {"type": "array", "description": "Estado inicial [re0,im0,re1,im1] en el espacio de fusion 2D. Default: [1,0,0,0] (canal '1' puro)"},
         },
@@ -86,7 +86,39 @@ def _get_generators():
     return sigma1, sigma2
 
 
-def compute_braid_group(mode="verify_braid_relation", sequence="1,2,1", initial_state=None):
+def _validate_braid_group() -> dict:
+    """4 checks deterministicos y exactos (sin Octave, sin aleatoriedad):
+    1-2) sigma1 y sigma2 son unitarias (condicion necesaria para gates
+    cuanticos validos). 3) se cumple la relacion de trenzas de Yang-Baxter
+    sigma1*sigma2*sigma1=sigma2*sigma1*sigma2 (identidad algebraica del
+    grupo de trenzas B3, no un ajuste numerico). 4) apply_braid_sequence
+    preserva la norma del estado (consecuencia directa de que sigma1/sigma2
+    son unitarias -- es la base de la proteccion topologica)."""
+    checks = []
+
+    r1 = compute_braid_group(mode="verify_braid_relation")
+    if "error" in r1:
+        checks.append({"name": "verify_braid_relation: sin error", "passed": False, "got": r1})
+    else:
+        checks.append({"name": "sigma1 es unitaria", "passed": bool(r1["sigma1_unitaria"]), "got": r1["sigma1_unitaria"]})
+        checks.append({"name": "sigma2 es unitaria", "passed": bool(r1["sigma2_unitaria"]), "got": r1["sigma2_unitaria"]})
+        checks.append({"name": "relacion de Yang-Baxter sigma1*sigma2*sigma1=sigma2*sigma1*sigma2",
+                        "passed": bool(r1["relacion_yang_baxter_sigma1_sigma2_sigma1_eq_sigma2_sigma1_sigma2"]),
+                        "got": r1["relacion_yang_baxter_sigma1_sigma2_sigma1_eq_sigma2_sigma1_sigma2"]})
+
+    r2 = compute_braid_group(mode="apply_braid_sequence", sequence="1,2,1,2,1")
+    if "error" in r2:
+        checks.append({"name": "apply_braid_sequence: sin error", "passed": False, "got": r2})
+    else:
+        checks.append({"name": "norma del estado preservada (consecuencia de unitariedad)",
+                        "passed": bool(r2["norm_preserved"]), "got": r2["norm_preserved"]})
+
+    return {"mode": "validate", "validation_passed": all(c["passed"] for c in checks), "checks": checks}
+
+
+def compute_braid_group(mode="verify_braid_relation", sequence="1,2,1", initial_state=None, **kwargs):
+    if mode == "validate":
+        return _validate_braid_group()
     sigma1, sigma2 = _get_generators()
 
     if mode == "verify_braid_relation":

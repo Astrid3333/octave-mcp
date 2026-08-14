@@ -43,7 +43,7 @@ ENTROPY_STRUCTURE_SCHEMA = {
         "properties": {
             "preset": {
                 "type": "string",
-                "enum": ["random_iid", "markov_structured", "custom"],
+                "enum": ["random_iid", "markov_structured", "custom", "validate"],
                 "default": "random_iid",
             },
             "sequence": {
@@ -110,8 +110,46 @@ def _gen_markov_structured(alphabet_size, n_symbols, seed):
     return seq, alphabet
 
 
+def _validate_entropy_structure() -> dict:
+    """3 checks: 1-2) los dos presets sinteticos sirven de ground truth
+    conocido -- random_iid (sin estructura por construccion) debe dar
+    redundancia_secuencial cerca de 0 (tol < 0.05 con n_symbols=5000
+    default), markov_structured (transiciones sesgadas 80/20 por
+    construccion) debe dar redundancia > 0.3. 3) invariante universal de
+    teoria de la informacion, valido para CUALQUIER secuencia (no solo los
+    presets): H1 (entropia condicional de orden 1) nunca puede superar H0
+    (entropia de orden 0) -- condicionar nunca aumenta la entropia. Se
+    chequea sobre ambos presets con margen de tolerancia para error de
+    punto flotante."""
+    checks = []
+
+    r1 = compute_entropy_structure(preset="random_iid")
+    if "error" in r1:
+        checks.append({"name": "random_iid: sin error", "passed": False, "got": r1})
+    else:
+        checks.append({"name": "random_iid: redundancia_secuencial cerca de 0 (< 0.05)",
+                        "passed": r1["redundancia_secuencial"] < 0.05, "got": r1["redundancia_secuencial"]})
+        checks.append({"name": "random_iid: H1 <= H0 (invariante de teoria de la informacion)",
+                        "passed": r1["H1_condicional_orden1_bits"] <= r1["H0_orden0_bits"] + 1e-6,
+                        "got": {"H0": r1["H0_orden0_bits"], "H1": r1["H1_condicional_orden1_bits"]}})
+
+    r2 = compute_entropy_structure(preset="markov_structured")
+    if "error" in r2:
+        checks.append({"name": "markov_structured: sin error", "passed": False, "got": r2})
+    else:
+        checks.append({"name": "markov_structured: redundancia_secuencial alta (> 0.3)",
+                        "passed": r2["redundancia_secuencial"] > 0.3, "got": r2["redundancia_secuencial"]})
+        checks.append({"name": "markov_structured: H1 <= H0 (invariante de teoria de la informacion)",
+                        "passed": r2["H1_condicional_orden1_bits"] <= r2["H0_orden0_bits"] + 1e-6,
+                        "got": {"H0": r2["H0_orden0_bits"], "H1": r2["H1_condicional_orden1_bits"]}})
+
+    return {"mode": "validate", "validation_passed": all(c["passed"] for c in checks), "checks": checks}
+
+
 def compute_entropy_structure(preset="random_iid", sequence=None, alphabet_size=5,
-                               n_symbols=5000, seed=1):
+                               n_symbols=5000, seed=1, **kwargs):
+    if preset == "validate":
+        return _validate_entropy_structure()
     known_baseline = None
 
     if preset == "random_iid":
