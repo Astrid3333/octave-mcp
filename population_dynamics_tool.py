@@ -33,7 +33,7 @@ POPULATION_DYNAMICS_SCHEMA = {
     "inputSchema": {
         "type": "object",
         "properties": {
-            "mode": {"type": "string", "enum": ["lotka_volterra", "logistic_growth"], "default": "lotka_volterra"},
+            "mode": {"type": "string", "enum": ["lotka_volterra", "logistic_growth", "validate"], "default": "lotka_volterra"},
             "a": {"type": "number", "default": 1.0, "description": "LV: tasa crecimiento presa"},
             "b": {"type": "number", "default": 0.1, "description": "LV: tasa depredacion"},
             "c": {"type": "number", "default": 1.5, "description": "LV: tasa muerte depredador"},
@@ -63,8 +63,45 @@ def _run_octave(code, timeout=30):
     return r.stdout.strip(), None
 
 
+def _validate_population_dynamics() -> dict:
+    """2 checks: 1) logistic_growth con params default (r=0.5,K=100,x0=10)
+    comparado contra la solucion analitica cerrada
+    x(t)=K/(1+((K-x0)/x0)*exp(-r*t)) -- error maximo reportado por la
+    propia tool. 2) lotka_volterra con params default: Lotka-Volterra no
+    tiene un punto fijo estable (el sistema oscila indefinidamente), pero
+    el PROMEDIO temporal de la trayectoria converge al equilibrio
+    analitico [c/d, a/b] -- propiedad clasica del sistema. Tolerancia 20%
+    relativa porque t_max=50 default puede no cubrir un numero entero de
+    periodos completos de oscilacion."""
+    checks = []
+
+    r_log = compute_population_dynamics(mode="logistic_growth")
+    if "error" in r_log:
+        checks.append({"name": "logistic_growth: sin error", "passed": False, "got": r_log})
+    else:
+        checks.append({"name": "logistic_growth vs analitico x(t)=K/(1+((K-x0)/x0)*exp(-r*t)): max_error < 0.2 (tolerancias default de ode45 en Octave, RelTol~1e-3, no dan mas precision que esto sobre poblacion~K=100)",
+                        "passed": r_log["max_error_vs_analytic"] < 0.2, "got": r_log["max_error_vs_analytic"]})
+
+    r_lv = compute_population_dynamics(mode="lotka_volterra")
+    if "error" in r_lv:
+        checks.append({"name": "lotka_volterra: sin error", "passed": False, "got": r_lv})
+    else:
+        x_eq, y_eq = r_lv["equilibrio_analitico"]
+        x_mean, y_mean = r_lv["promedio_temporal_simulado"]
+        rel_err_x = abs(x_mean - x_eq) / x_eq
+        rel_err_y = abs(y_mean - y_eq) / y_eq
+        checks.append({"name": "lotka_volterra: promedio temporal cerca del equilibrio analitico [c/d,a/b] (tol 20% relativo)",
+                        "passed": rel_err_x < 0.20 and rel_err_y < 0.20,
+                        "got": {"equilibrio_analitico": [x_eq, y_eq], "promedio_simulado": [x_mean, y_mean],
+                                "error_relativo": [round(rel_err_x, 4), round(rel_err_y, 4)]}})
+
+    return {"mode": "validate", "validation_passed": all(c["passed"] for c in checks), "checks": checks}
+
+
 def compute_population_dynamics(mode="lotka_volterra", a=1.0, b=0.1, c=1.5, d=0.075,
-                                 x0=10.0, y0=5.0, r=0.5, K=100.0, t_max=50.0, n_points=50):
+                                 x0=10.0, y0=5.0, r=0.5, K=100.0, t_max=50.0, n_points=50, **kwargs):
+    if mode == "validate":
+        return _validate_population_dynamics()
     if mode == "lotka_volterra":
         code = f"""
 a={a}; b={b}; c={c}; d={d};

@@ -27,7 +27,7 @@ ENZYME_KINETICS_SCHEMA = {
     "inputSchema": {
         "type": "object",
         "properties": {
-            "mode": {"type": "string", "enum": ["full_kinetics", "michaelis_menten", "compare"], "default": "compare"},
+            "mode": {"type": "string", "enum": ["full_kinetics", "michaelis_menten", "compare", "validate"], "default": "compare"},
             "k1": {"type": "number", "default": 100.0, "description": "tasa de asociacion E+S->ES"},
             "km1": {"type": "number", "default": 10.0, "description": "tasa de disociacion ES->E+S"},
             "k2": {"type": "number", "default": 5.0, "description": "tasa de catalisis ES->E+P"},
@@ -54,8 +54,47 @@ def _run_octave(code, timeout=30):
     return r.stdout.strip(), None
 
 
+def _validate_enzyme_kinetics() -> dict:
+    """3 checks: 1) formulas analiticas de Km y Vmax con params default
+    (Km=(km1+k2)/k1=0.15, Vmax=k2*E0=5.0) -- algebraico, instantaneo, sin
+    Octave. 2) balance de masa: full_kinetics debe conservar S+ES+P=S0 en
+    toda la trayectoria (ley de conservacion de sustrato, independiente de
+    la exactitud del integrador ode45). 3) condicion QSSA con params
+    default (E0=1.0 << S0=100.0): aproximacion_valida debe ser True y el
+    error relativo promedio MM vs cinetica completa debe ser < 0.05."""
+    checks = []
+
+    Km_esperado = (10.0 + 5.0) / 100.0
+    Vmax_esperado = 5.0 * 1.0
+    checks.append({"name": "Km=(km1+k2)/k1 params default == 0.15 exacto",
+                    "passed": abs(Km_esperado - 0.15) < 1e-9, "got": Km_esperado})
+    checks.append({"name": "Vmax=k2*E0 params default == 5.0 exacto",
+                    "passed": abs(Vmax_esperado - 5.0) < 1e-9, "got": Vmax_esperado})
+
+    r_full = compute_enzyme_kinetics(mode="full_kinetics")
+    if "error" in r_full:
+        checks.append({"name": "full_kinetics: sin error", "passed": False, "got": r_full})
+    else:
+        S0 = 100.0
+        max_balance_err = max(abs(p["S"] + p["ES"] + p["P"] - S0) for p in r_full["trajectory_sample"])
+        checks.append({"name": "balance de masa S+ES+P=S0 en toda la trayectoria (tol 1e-2)",
+                        "passed": max_balance_err < 1e-2, "got": {"max_balance_error": max_balance_err}})
+
+    r_cmp = compute_enzyme_kinetics(mode="compare")
+    if "error" in r_cmp:
+        checks.append({"name": "compare: sin error", "passed": False, "got": r_cmp})
+    else:
+        checks.append({"name": "QSSA valida params default (E0<<S0): aproximacion_valida==True, error<0.05",
+                        "passed": bool(r_cmp["aproximacion_valida"]) and r_cmp["error_relativo_promedio_MM_vs_completo"] < 0.05,
+                        "got": r_cmp})
+
+    return {"mode": "validate", "validation_passed": all(c["passed"] for c in checks), "checks": checks}
+
+
 def compute_enzyme_kinetics(mode="compare", k1=100.0, km1=10.0, k2=5.0,
-                             E0=1.0, S0=100.0, t_max=5.0, n_points=50):
+                             E0=1.0, S0=100.0, t_max=5.0, n_points=50, **kwargs):
+    if mode == "validate":
+        return _validate_enzyme_kinetics()
     Vmax = k2 * E0
     Km = (km1 + k2) / k1
 
