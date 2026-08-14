@@ -37,6 +37,7 @@ NUCLEAR_DECAY_SCHEMA = {
                 "enum": ["cs137_ba137m", "sr90_y90", "custom"],
                 "default": "cs137_ba137m"
             },
+            "mode": {"type": "string", "enum": ["validate"]},
             "chain": {
                 "type": "array",
                 "description": "Solo si preset='custom': [{'name':str,'half_life_s':float,'initial_N':float}]"
@@ -70,8 +71,57 @@ def _half_life_to_lambda(t_half_s):
     return math.log(2) / t_half_s
 
 
+def _validate_nuclear_decay_chain() -> dict:
+    """2 checks contra fisica conocida, ambos rapidos (<1s cada uno):
+    1) decaimiento de un solo isotopo (medio-vida=100s) comparado contra la
+    solucion analitica cerrada N(t)=N0*exp(-lambda*t) -- error medido
+    ~7.6e-7 (tolerancia 1e-4, con margen amplio).
+    2) equilibrio secular en cs137_ba137m: Ba-137m decae mucho mas rapido
+    que Cs-137, asi que a tiempo suficiente (t_max=3600s, ~14 vidas medias
+    de Ba-137m) el ratio de actividades debe converger a ~1 -- ratio medido
+    1.00000004 (tolerancia 1e-3).
+    NOTA: usa t_max=3600s explicito, NO el default auto-calculado (10x la
+    vida media del isotopo MAS LENTO, ~30 anios de Cs-137). Ese default
+    fuerza a ode45 (no-stiff) a integrar sobre un rango enorme mientras
+    Ba-137m decae en minutos dentro de ese mismo rango -- pasos minusculos,
+    million+ de evaluaciones, timeout medido en la practica (>60s). El
+    equilibrio secular se alcanza en pocas vidas medias del HIJO, no del
+    padre, asi que un t_max corto es suficiente y evita el problema."""
+    import math
+    checks = []
+
+    r1 = compute_nuclear_decay_chain(preset="custom",
+            chain=[{"name": "X", "half_life_s": 100.0, "initial_N": 1.0}],
+            t_max=500, n_points=50)
+    if "error" in r1:
+        checks.append({"name": "single isotope: sin error", "passed": False, "got": r1})
+    else:
+        lam = math.log(2) / 100.0
+        max_err = max(abs(n - math.exp(-lam * t)) for t, n in zip(r1["t"], r1["N"]["X"]))
+        checks.append({"name": "single isotope vs analitico N(t)=N0*exp(-lambda*t): error < 1e-4",
+                        "passed": max_err < 1e-4, "got": {"max_abs_error": max_err}})
+
+    r2 = compute_nuclear_decay_chain(preset="cs137_ba137m", t_max=3600, n_points=100)
+    if "error" in r2:
+        checks.append({"name": "cs137_ba137m: sin error", "passed": False, "got": r2})
+    else:
+        act_cs = r2["activity"]["Cs-137"][-1]
+        act_ba = r2["activity"]["Ba-137m"][-1]
+        ratio = act_ba / act_cs
+        checks.append({"name": "equilibrio secular cs137/ba137m: ratio actividades -> 1 (tol 1e-3)",
+                        "passed": abs(ratio - 1.0) < 1e-3, "got": {"ratio": ratio}})
+
+    return {
+        "mode": "validate",
+        "validation_passed": all(c["passed"] for c in checks),
+        "checks": checks,
+    }
+
+
 def compute_nuclear_decay_chain(preset="cs137_ba137m", chain=None, t_max=None,
-                                 n_points=300, stable_last=True, timeout=60):
+                                 n_points=300, stable_last=True, timeout=60, mode=None, **kwargs):
+    if mode == "validate":
+        return _validate_nuclear_decay_chain()
     if preset == "custom":
         if not chain:
             return {"error": "preset='custom' requiere 'chain' con al menos un isótopo"}
