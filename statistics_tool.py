@@ -55,7 +55,7 @@ STATISTICS_SCHEMA = {
 }
 
 
-def _run_octave(code, timeout=30):
+def _run_octave(code, timeout=60):
     with tempfile.NamedTemporaryFile(mode="w", suffix=".m", delete=False) as fh:
         fh.write(code)
         script_path = fh.name
