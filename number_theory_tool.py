@@ -36,7 +36,7 @@ NUMBER_THEORY_SCHEMA = {
         "properties": {
             "mode": {
                 "type": "string",
-                "enum": ["primality_test", "rsa_toy", "elliptic_curve_add"],
+                "enum": ["primality_test", "rsa_toy", "elliptic_curve_add", "validate"],
                 "default": "primality_test",
             },
             "preset": {
@@ -123,11 +123,48 @@ def _ec_add(P, Q, a, p):
     return (x3, y3)
 
 
+def _validate_number_theory() -> dict:
+    """Reusa los 3 presets con referencia de libro de texto ya documentados
+    en el propio codigo: primality_test/known_cases incluye el numero de
+    Carmichael 561 (compuesto que pasa Fermat simple pero Miller-Rabin debe
+    rechazar) y un primo de Mersenne grande (2^31-1); rsa_toy/classic_rsa_example
+    debe recuperar d=2753 (ejemplo clasico del paper RSA original 1978) y
+    roundtrip_ok=True; elliptic_curve_add/hankerson_curve_example debe dar
+    2G=(6,3) exacto (Hankerson, Menezes & Vanstone)."""
+    checks = []
+
+    r1 = compute_number_theory("primality_test", "known_cases")
+    checks.append({"name": "primality_test known_cases: todos correctos (incl. Carmichael 561)",
+                    "passed": r1.get("todos_correctos") is True, "got": r1})
+
+    r2 = compute_number_theory("rsa_toy", "classic_rsa_example")
+    checks.append({"name": "rsa_toy classic: d==2753 (paper RSA original) y roundtrip_ok",
+                    "passed": r2.get("private_key_d") == 2753 and r2.get("roundtrip_ok") is True,
+                    "got": r2})
+
+    r3 = compute_number_theory("elliptic_curve_add", "hankerson_curve_example")
+    checks.append({"name": "elliptic_curve_add hankerson: 2G==(6,3) exacto",
+                    "passed": r3.get("result") == (6, 3) and r3.get("point1_on_curve") is True,
+                    "got": r3})
+
+    r4 = compute_number_theory("primality_test", "custom")
+    checks.append({"name": "primality_test custom sin 'n' devuelve error",
+                    "passed": "error" in r4, "got": r4})
+
+    return {
+        "mode": "validate",
+        "validation_passed": all(c["passed"] for c in checks),
+        "checks": checks,
+    }
+
+
 def compute_number_theory(mode="primality_test", preset="known_cases", n=None,
                            p=None, q=None, e=17, message=None,
                            curve_a=None, curve_b=None, curve_p=None,
-                           point1=None, point2=None):
+                           point1=None, point2=None, **kwargs):
 
+    if mode == "validate":
+        return _validate_number_theory()
     if mode == "primality_test":
         if preset == "custom":
             if n is None:
