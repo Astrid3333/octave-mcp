@@ -9,3 +9,4 @@ patch_server*.py
 wire_*.py
 datetime
 *.bak*
+octave-workspace
