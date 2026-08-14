@@ -22,7 +22,7 @@ custom.
 import random
 
 NUMBER_THEORY_SCHEMA = {
-    "name": "compute_number_theory",
+    "name": "number_theory",
     "description": (
         "Teoria de numeros con aplicacion criptografica: primality_test "
         "(Miller-Rabin, detecta incluso numeros de Carmichael como 561), "
