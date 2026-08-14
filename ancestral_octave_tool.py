@@ -93,15 +93,23 @@ def _oct_vec(pylist):
     return "[" + ", ".join(str(x) for x in pylist) + "]"
 
 
-def compute_ancestral_octave(preset: str, params: dict, extra_octave: str, run_octave_fn) -> dict:
-    """run_octave_fn: la misma _run_octave(code, working_dir, timeout) que ya
-    usa el resto del server — se pasa por parametro para no duplicar la
-    ejecucion de subprocess."""
+def compute_ancestral_octave(preset: str = None, params: dict = None, extra_octave: str = None, run_octave_fn=None, mode: str = None) -> dict:
+    """run_octave_fn: la funcion run_octave(code) real de server.py -- toma
+    codigo Octave y devuelve stdout+stderr concatenados como UN SOLO STRING
+    (no un dict con returncode/stdout/stderr por separado)."""
+    if run_octave_fn is None:
+        return {"error": "run_octave_fn no fue provisto (bug de wiring en server.py)"}
+    if preset is None:
+        return {"error": "falta 'preset' (parametro requerido salvo mode='validate')"}
+    params = params or {}
+    extra_octave = extra_octave or ""
     script = build_octave_call(preset, params, extra_octave)
-    result = run_octave_fn(script)
-    if result["returncode"] != 0:
-        return {"error": result["stderr"] or "error desconocido en Octave", "script": script}
+    raw = run_octave_fn(script)
+    lines = [l for l in raw.splitlines() if l.strip()]
+    if not lines:
+        return {"error": "Octave no devolvio salida", "raw": raw, "script": script}
+    json_line = lines[-1]
     try:
-        return json.loads(result["stdout"])
+        return json.loads(json_line)
     except json.JSONDecodeError:
-        return {"raw_stdout": result["stdout"], "stderr": result["stderr"]}
+        return {"error": "no se pudo parsear JSON de la ultima linea de salida", "raw_output": raw, "script": script}

@@ -963,7 +963,7 @@ if __name__ == "__main__":
                     }
 
                 elif tool_name == "ancestral_octave":
-                    result = compute_ancestral_octave(**args)
+                    result = compute_ancestral_octave(**args, run_octave_fn=run_octave)
                     resp = {
                         "jsonrpc": "2.0", "id": req_id,
                         "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
