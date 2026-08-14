@@ -84,8 +84,51 @@ def _run_scipy(system, params, t_max, n_steps, transient_frac):
     return [tuple(row) for row in pts], None
 
 
+def _validate_cross_validation() -> dict:
+    """Corre chen_lee con resolucion reducida (t_max=50, n_steps=5000, ~2.6s
+    medido) en vez de los defaults reales (t_max=2000, n_steps=200000, que
+    tardan minutos) -- elegida por tener margen real bajo tolerance
+    (rel_diff ~0.024 vs tolerance=0.15). Una resolucion mas chica probada
+    (t_max=20, n_steps=2000) dio rel_diff=0.144, casi en el limite -- mismo
+    sesgo de submuestreo que esta tool fue creada para detectar, descartada
+    por riesgo de falso negativo. No verifica solo que no tire excepcion:
+    exige rango fisico razonable en las dimensiones y margen real bajo
+    tolerancia, no solo el booleano cross_validated al limite."""
+    checks = []
+    try:
+        r = compute_cross_validation(t_max=50, n_steps=5000)
+    except Exception as e:
+        return {"mode": "validate", "validation_passed": False,
+                "checks": [{"name": "compute_cross_validation no tira excepcion", "passed": False, "error": str(e)}]}
+
+    checks.append({"name": "respuesta sin campo error", "passed": "error" not in r, "got": r.get("error")})
+
+    n_o, n_s = r.get("n_points_octave", 0), r.get("n_points_scipy", 0)
+    checks.append({"name": "ambos motores devuelven puntos (>0)", "passed": n_o > 0 and n_s > 0, "got": {"octave": n_o, "scipy": n_s}})
+
+    dim_o, dim_s = r.get("dimension_octave_ode45"), r.get("dimension_scipy_rk45")
+    dims_sane = all(isinstance(d, (int, float)) and 0.3 < d < 3.0 for d in (dim_o, dim_s) if d is not None)
+    checks.append({"name": "dimensiones en rango fisico razonable (0.3-3.0)", "passed": dims_sane, "got": {"octave": dim_o, "scipy": dim_s}})
+
+    rel_diff, tol = r.get("relative_difference", 1.0), r.get("tolerance", 0.0)
+    margin_ok = r.get("cross_validated") is True and rel_diff < (tol / 2)
+    checks.append({"name": "cross_validated==True con margen real (rel_diff < tolerance/2)", "passed": margin_ok, "got": {"cross_validated": r.get("cross_validated"), "relative_difference": rel_diff, "tolerance": tol}})
+
+    return {
+        "mode": "validate",
+        "validation_passed": all(c["passed"] for c in checks),
+        "checks": checks,
+        "not_covered": [
+            "caso negativo (forzar cross_validated=False para confirmar que el flag detecta divergencia real, no solo confirma acuerdo)",
+            "otros sistemas dinamicos -- SYSTEMS solo tiene chen_lee implementado hoy",
+        ],
+    }
+
+
 def compute_cross_validation(system="chen_lee", params=None, t_max=2000, n_steps=200000,
-                              transient_frac=0.1, tolerance=0.15):
+                              transient_frac=0.1, tolerance=0.15, mode=None):
+    if mode == "validate":
+        return _validate_cross_validation()
     if system not in SYSTEMS:
         return {"error": f"sistema desconocido: {system}", "sistemas_disponibles": list(SYSTEMS.keys())}
     params = params or {}
