@@ -422,6 +422,62 @@ if __name__ == "__main__":
 # Dispatcher unificado por 'mode' (agregado para wiring con server.py)
 # ---------------------------------------------------------------------------
 
+def _validate_financial_math() -> dict:
+    """Reusa los checks numericos del __main__ (checks_ok), contra valores de
+    referencia de libro de texto conocidos: Black-Scholes call ATM clasico
+    (S=K=100,r=5%,sigma=20%,T=1) precio~=10.4506; paridad put-call exacta;
+    anualidad ordinaria PV~=7721.73; perpetuidad PV=pago/tasa exacto (20000);
+    perpetuidad creciente = Gordon Growth Model exacto (2000); bono a la par
+    (cupon==ytm) precio==face_value exacto (1000); YTM recuperado por Newton-
+    Raphson desde el precio de un bono con descuento debe converger de vuelta
+    al 7% usado para generarlo."""
+    checks = []
+
+    r1 = compute_black_scholes(S=100, K=100, T=1, r=0.05, sigma=0.2, option_type="call")
+    checks.append({"name": "black_scholes call ATM ~= 10.4506",
+                    "passed": abs(r1["price"] - 10.4506) < 1e-3, "got": r1["price"]})
+
+    r_put = compute_black_scholes(S=100, K=100, T=1, r=0.05, sigma=0.2, option_type="put")
+    parity_lhs = r1["price"] - r_put["price"]
+    parity_rhs = 100 - 100 * math.exp(-0.05 * 1)
+    checks.append({"name": "paridad put-call: call-put == S-K*e^(-rT)",
+                    "passed": abs(parity_lhs - parity_rhs) < 1e-6,
+                    "got": {"lhs": parity_lhs, "rhs": parity_rhs}})
+
+    r6 = compute_annuity_valuation("present_value", payment=1000, rate=0.05, n_periods=10)
+    checks.append({"name": "anualidad ordinaria PV ~= 7721.73",
+                    "passed": abs(r6["present_value"] - 7721.73) < 1, "got": r6["present_value"]})
+
+    r9 = compute_annuity_valuation("perpetuity", payment=1000, rate=0.05)
+    checks.append({"name": "perpetuidad PV == pago/tasa == 20000 exacto",
+                    "passed": abs(r9["present_value"] - 20000.0) < 1e-6, "got": r9["present_value"]})
+
+    r10 = compute_annuity_valuation("growing_perpetuity", payment=100, rate=0.08, growth_rate=0.03)
+    checks.append({"name": "Gordon Growth Model PV == 100/(0.08-0.03) == 2000 exacto",
+                    "passed": abs(r10["present_value"] - 2000.0) < 1e-6, "got": r10["present_value"]})
+
+    r11 = compute_bond_pricing("price", face_value=1000, coupon_rate=0.06, n_periods=10,
+                                periods_per_year=1, ytm=0.06)
+    checks.append({"name": "bono a la par (cupon==ytm): precio == face_value == 1000 exacto",
+                    "passed": abs(r11["price"] - 1000.0) < 1e-6, "got": r11["price"]})
+
+    r12 = compute_bond_pricing("price", face_value=1000, coupon_rate=0.05, n_periods=10,
+                                periods_per_year=1, ytm=0.07)
+    r13 = compute_bond_pricing("ytm", face_value=1000, coupon_rate=0.05, n_periods=10,
+                                periods_per_year=1, market_price=r12["price"])
+    checks.append({"name": "Newton-Raphson YTM recupera el 7% usado para generar el precio",
+                    "passed": abs(r13["ytm"] - 0.07) < 1e-4, "got": r13["ytm"]})
+
+    return {
+        "mode": "validate",
+        "validation_passed": all(c["passed"] for c in checks),
+        "checks": checks,
+        "not_covered": [
+            "value_at_risk (parametric/historical/monte_carlo): sin valor analitico exacto de referencia, es estadistico por naturaleza",
+        ],
+    }
+
+
 def compute_financial_math(mode, params=None, **kwargs):
     """
     Dispatcher unico para financial_math_tool. mode:
@@ -441,6 +497,8 @@ def compute_financial_math(mode, params=None, **kwargs):
     p = dict(params) if params else {}
     p.update(kwargs)
 
+    if mode == "validate":
+        return _validate_financial_math()
     if mode == "black_scholes":
         return compute_black_scholes(**p)
     elif mode == "option_greeks":
@@ -481,7 +539,7 @@ FINANCIAL_MATH_TOOL_SCHEMA = {
                 "type": "string",
                 "enum": [
                     "black_scholes", "option_greeks", "value_at_risk",
-                    "annuity_valuation", "bond_pricing",
+                    "annuity_valuation", "bond_pricing", "validate",
                 ],
             },
             "params": {

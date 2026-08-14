@@ -120,8 +120,55 @@ def compute_sequence_entropy(sequence, order=1, base=2):
         }
 
 
+def _validate_information_theory() -> dict:
+    """Checks contra valores analiticos exactos: entropia de una distribucion
+    uniforme de n outcomes debe dar exactamente log_base(n) (maxima entropia,
+    redundancy=0); KL de una distribucion contra si misma debe dar exactamente 0
+    (identidad); mutual_information de una conjunta con independencia exacta
+    (filas y columnas independientes) debe dar ~0. Todos calculables a mano,
+    sin necesitar Octave ni datos externos."""
+    checks = []
+
+    r = compute_shannon_entropy([1, 1, 1, 1], base=2)
+    checks.append({"name": "uniforme(4): entropy==2.0 (log2(4)), redundancy==0",
+                    "passed": abs(r["entropy"] - 2.0) < 1e-6 and abs(r["redundancy"]) < 1e-6,
+                    "got": r})
+
+    r = compute_kl_divergence([0.3, 0.7], [0.3, 0.7])
+    checks.append({"name": "KL(p,p)==0 (misma distribucion)",
+                    "passed": abs(r["kl_divergence_p_q"]) < 1e-6 and r["distributions_identical"] is True,
+                    "got": r})
+
+    r = compute_mutual_information([[0.25, 0.25], [0.25, 0.25]])
+    checks.append({"name": "conjunta independiente: mutual_information~=0",
+                    "passed": abs(r["mutual_information"]) < 1e-6 and r["independent_approx"] is True,
+                    "got": r})
+
+    r = compute_cross_entropy([0.5, 0.5], [0.5, 0.5])
+    checks.append({"name": "cross_entropy(p,p)==entropy(p) (KL=0 implica cross=entropy)",
+                    "passed": abs(r["cross_entropy_p_q"] - r["entropy_p"]) < 1e-6,
+                    "got": r})
+
+    seq = list("AAAAAAAAAA")
+    r = compute_shannon_entropy([10], base=2)
+    checks.append({"name": "un solo simbolo: entropy==0 (sin incertidumbre)",
+                    "passed": abs(r["entropy"]) < 1e-9,
+                    "got": r})
+
+    return {
+        "mode": "validate",
+        "validation_passed": all(c["passed"] for c in checks),
+        "checks": checks,
+        "not_covered": [
+            "sequence_entropy de orden>1 (redundancia estructural) no tiene un valor analitico simple de referencia",
+        ],
+    }
+
+
 def compute_information_theory(mode, **kwargs):
     """Dispatcher unico para el tool MCP information_theory, segun 'mode'."""
+    if mode == "validate":
+        return _validate_information_theory()
     fns = {
         "shannon_entropy": compute_shannon_entropy,
         "kl_divergence": compute_kl_divergence,
@@ -140,7 +187,7 @@ INFORMATION_THEORY_TOOL_SCHEMA = {
     "inputSchema": {
         "type": "object",
         "properties": {
-            "mode": {"type": "string", "enum": ["shannon_entropy", "kl_divergence", "mutual_information", "cross_entropy", "sequence_entropy"]},
+            "mode": {"type": "string", "enum": ["shannon_entropy", "kl_divergence", "mutual_information", "cross_entropy", "sequence_entropy", "validate"]},
             "distribution": {"type": "array"}, "base": {"type": "number"},
             "p": {"type": "array"}, "q": {"type": "array"},
             "joint_distribution": {"type": "array"},

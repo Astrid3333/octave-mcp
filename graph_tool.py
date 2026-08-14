@@ -20,6 +20,7 @@ GRAPH_TOOL_SCHEMA = {
                 "enum": ["small_weighted", "disconnected", "with_cycle", "custom"],
                 "default": "small_weighted",
             },
+            "mode": {"type": "string", "enum": ["validate"]},
             "edges": {"type": "array", "items": {"type": "array"}},
             "directed": {"type": "boolean", "default": False},
             "operation": {
@@ -174,14 +175,58 @@ def _detect_cycle(nodes, edges, directed):
         return {"has_cycle": False, "note": "Sin ciclos dirigidos (DAG)."}
 
 
+def _validate_graph_algorithms() -> dict:
+    """Checks contra valores calculados a mano para los 3 presets:
+    small_weighted: Dijkstra desde A da distancias exactas {A:0,B:3,C:2,D:8,
+    E:10,F:13} (via A-C-B=3 mas corto que A-B=4); MST (Kruskal) total_weight
+    exacto=13 con 1 componente; tiene ciclo (9 aristas > 5 = n-1).
+    with_cycle: triangulo A-B-C-A, has_cycle=True.
+    disconnected: 2 componentes (A-B-C y X-Y), es bosque (has_cycle=False),
+    MST marca is_spanning_forest_only=True."""
+    checks = []
+
+    r = compute_graph_algorithms(preset="small_weighted", operation="all")
+    expected_dist = {"A": 0, "B": 3, "C": 2, "D": 8, "E": 10, "F": 13}
+    got_dist = r["dijkstra"]["distances"]
+    checks.append({"name": "small_weighted: Dijkstra desde A distancias exactas",
+                    "passed": got_dist == expected_dist, "got": got_dist})
+    checks.append({"name": "small_weighted: MST total_weight==13, 1 componente",
+                    "passed": r["mst"]["total_weight"] == 13 and r["mst"]["n_components"] == 1,
+                    "got": r["mst"]})
+    checks.append({"name": "small_weighted: tiene ciclo (9 aristas > n-1=5)",
+                    "passed": r["cycle_detection"]["has_cycle"] is True,
+                    "got": r["cycle_detection"]})
+
+    r2 = compute_graph_algorithms(preset="with_cycle", operation="cycle_detection")
+    checks.append({"name": "with_cycle: triangulo A-B-C-A detectado",
+                    "passed": r2["cycle_detection"]["has_cycle"] is True,
+                    "got": r2["cycle_detection"]})
+
+    r3 = compute_graph_algorithms(preset="disconnected", operation="all")
+    checks.append({"name": "disconnected: 2 componentes, es bosque (sin ciclo)",
+                    "passed": r3["mst"]["n_components"] == 2
+                              and r3["mst"]["is_spanning_forest_only"] is True
+                              and r3["cycle_detection"]["has_cycle"] is False,
+                    "got": {"mst": r3["mst"], "cycle_detection": r3["cycle_detection"]}})
+
+    return {
+        "mode": "validate",
+        "validation_passed": all(c["passed"] for c in checks),
+        "checks": checks,
+    }
+
+
 def compute_graph_algorithms(
     preset="small_weighted",
     edges=None,
     directed=False,
     operation="all",
     source=None,
+    mode=None,
     **kwargs,
 ):
+    if mode == "validate":
+        return _validate_graph_algorithms()
     if preset == "custom":
         if not edges:
             raise ValueError("preset='custom' requiere 'edges' (lista de [u, v, peso]).")

@@ -42,6 +42,7 @@ GAME_THEORY_TOOL_SCHEMA = {
                     "shapley_value",
                     "cooperative_core",
                     "evolutionary_dynamics",
+                    "validate",
                 ],
             },
             "payoff_p1": {
@@ -434,7 +435,67 @@ def _evolutionary_dynamics(payoff_matrix):
 # dispatch
 # ---------------------------------------------------------------------------
 
+def _validate_game_theory() -> dict:
+    """Reusa los 6 casos de referencia documentados en __main__, con sus
+    valores analiticos ya verificados a mano: Batalla de los Sexos (2
+    equilibrios puros + 1 mixto), Matching Pennies (valor=0, estrategias
+    50/50), Dilema del Prisionero (converge a Defectar/Defectar), juego de
+    los guantes para Shapley (2/3,1/6,1/6) y Core ((1,0,0) esta en el
+    nucleo), Halcon-Paloma (ESS mixto en x=1/2, x=0 y x=1 inestables)."""
+    checks = []
+
+    A = [["2", "0"], ["0", "1"]]
+    B = [["1", "0"], ["0", "2"]]
+    r1 = _nash_equilibrium(A, B)
+    types = [e["type"] for e in r1["equilibria"]]
+    checks.append({"name": "Batalla de los Sexos: 2 puros + 1 mixto",
+                    "passed": r1["n_equilibria"] == 3 and types.count("pure") == 2 and types.count("mixed") == 1,
+                    "got": r1})
+
+    mp = [["1", "-1"], ["-1", "1"]]
+    r2 = _zero_sum_value(mp)
+    checks.append({"name": "Matching Pennies: valor==0, estrategias (0.5,0.5)",
+                    "passed": abs(r2["game_value"]) < 1e-6
+                              and all(abs(x - 0.5) < 1e-6 for x in r2["p1_optimal_strategy"])
+                              and all(abs(x - 0.5) < 1e-6 for x in r2["p2_optimal_strategy"]),
+                    "got": r2})
+
+    A_pd = [["3", "0"], ["5", "1"]]
+    B_pd = [["3", "5"], ["0", "1"]]
+    r3 = _dominance_elimination(A_pd, B_pd, strict=True)
+    checks.append({"name": "Dilema del Prisionero converge a (Defectar,Defectar)",
+                    "passed": r3["remaining_p1_strategies"] == [1] and r3["remaining_p2_strategies"] == [1],
+                    "got": r3})
+
+    glove_cf = {"": 0, "0": 0, "1": 0, "2": 0, "0,1": 1, "0,2": 1, "1,2": 0, "0,1,2": 1}
+    r4 = _shapley_value(glove_cf, 3)
+    checks.append({"name": "Shapley (guantes) == (2/3, 1/6, 1/6), suma==1",
+                    "passed": r4["shapley_values"] == ["2/3", "1/6", "1/6"] and r4["sum_check"] == "1",
+                    "got": r4})
+
+    r5 = _cooperative_core(glove_cf, 3, ["1", "0", "0"])
+    checks.append({"name": "Core (guantes): (1,0,0) esta en el nucleo",
+                    "passed": r5["is_in_core"] is True, "got": r5})
+
+    hawk_dove = [["-1", "2"], ["0", "1"]]
+    r6 = _evolutionary_dynamics(hawk_dove)
+    stab = {fp["fixed_point_x"]: fp["stability"] for fp in r6["fixed_points"]}
+    checks.append({"name": "Halcon-Paloma: x=1/2 estable (ESS), x=0/x=1 inestables",
+                    "passed": "estable" in stab.get("1/2", "")
+                              and "inestable" in stab.get("0", "")
+                              and "inestable" in stab.get("1", ""),
+                    "got": r6})
+
+    return {
+        "mode": "validate",
+        "validation_passed": all(c["passed"] for c in checks),
+        "checks": checks,
+    }
+
+
 def compute_game_theory(mode, **kwargs):
+    if mode == "validate":
+        return _validate_game_theory()
     if mode == "nash_equilibrium":
         return _nash_equilibrium(kwargs["payoff_p1"], kwargs["payoff_p2"])
     elif mode == "zero_sum_value":
