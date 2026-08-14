@@ -511,7 +511,14 @@ if __name__ == "__main__":
                     }
 
                 elif tool_name == "run_math_pipeline":
-                    result = run_math_pipeline(**args)
+                    # run_math_pipeline solo acepta steps/mode (no sigue la
+                    # convencion mode+params del resto de las tools) -- se
+                    # filtra explicitamente en vez de pasar **args a ciegas,
+                    # para no romper si un cliente MCP manda 'params' de mas.
+                    result = run_math_pipeline(
+                        steps=args.get("steps"),
+                        mode=args.get("mode", "validate"),
+                    )
                     resp = {
                         "jsonrpc": "2.0", "id": req_id,
                         "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
