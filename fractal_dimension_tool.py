@@ -195,7 +195,7 @@ def _validate_fractal_dimension() -> dict:
 
 def compute_fractal_dimension(preset="sierpinski_triangle", points=None, n_points=60000,
                                order=6, n_scales=14, eps_min_frac=0.001, eps_max_frac=0.3,
-                               chen_lee_params=None, mode=None):
+                               chen_lee_params=None, mode=None, **kwargs):
     if mode == "validate":
         return _validate_fractal_dimension()
     known_analytic = None
