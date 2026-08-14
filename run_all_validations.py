@@ -35,7 +35,7 @@ import sys
 import time
 
 SERVER_PATH = "server.py"
-TIMEOUT_SECONDS = 180
+TIMEOUT_SECONDS = 300  # subido de 180: con 58 tools validate (vs 53 original) + enzyme_kinetics ~55-60s, el margen viejo quedaba justo
 
 # Tools que declaran "validate" en su enum de mode pero mode=validate
 # significa otra cosa para ellas (no "correr autochequeos internos") --

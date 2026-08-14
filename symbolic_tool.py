@@ -32,7 +32,7 @@ SYMBOLIC_SCHEMA = {
         "properties": {
             "mode": {
                 "type": "string",
-                "enum": ["simplify", "solve", "differentiate", "integrate", "taylor_series"],
+                "enum": ["simplify", "solve", "differentiate", "integrate", "taylor_series", "validate"],
                 "default": "simplify",
             },
             "preset": {
@@ -63,7 +63,7 @@ def _safe_parse(expr_str, symbols_dict):
 
 
 def compute_symbolic(mode="simplify", preset="known_simplify", expression=None,
-                      variable="x", lower_limit=None, upper_limit=None, point="0", order=5):
+                      variable="x", lower_limit=None, upper_limit=None, point="0", order=5, **kwargs):
     x = sp.Symbol(variable)
     y = sp.Symbol("y")
     symbols_dict = {variable: x, "y": y}

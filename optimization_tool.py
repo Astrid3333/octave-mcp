@@ -33,7 +33,7 @@ OPTIMIZATION_SCHEMA = {
     "inputSchema": {
         "type": "object",
         "properties": {
-            "mode": {"type": "string", "enum": ["linear_programming", "gradient_descent"], "default": "linear_programming"},
+            "mode": {"type": "string", "enum": ["linear_programming", "gradient_descent", "validate"], "default": "linear_programming"},
             "preset": {"type": "string", "enum": ["known_lp", "known_gradient_descent", "custom"], "default": "known_lp"},
             "sense": {"type": "string", "enum": ["max", "min"], "default": "max", "description": "Para linear_programming"},
             "c": {"type": "array", "description": "Coeficientes objetivo, solo si preset='custom' y mode='linear_programming'"},
@@ -114,7 +114,7 @@ def _safe_parse(expr_str, symbols_dict):
 
 def compute_optimization(mode="linear_programming", preset="known_lp", sense="max",
                           c=None, A_ub=None, b_ub=None, expression=None, start=None,
-                          learning_rate=0.1, n_iterations=200):
+                          learning_rate=0.1, n_iterations=200, **kwargs):
     known = None
 
     if mode == "validate":

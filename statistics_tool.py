@@ -34,7 +34,7 @@ STATISTICS_SCHEMA = {
         "properties": {
             "mode": {
                 "type": "string",
-                "enum": ["linear_regression", "correlation", "t_test", "bayesian_beta_binomial"],
+                "enum": ["linear_regression", "correlation", "t_test", "bayesian_beta_binomial", "validate"],
                 "default": "linear_regression",
             },
             "preset": {
@@ -94,7 +94,7 @@ def _gen_known_ttest():
 
 
 def compute_statistics(mode="linear_regression", preset="known_linear", x=None, y=None,
-                        sample=None, mu0=5.0, prior_a=1.0, prior_b=1.0, successes=7, trials=10):
+                        sample=None, mu0=5.0, prior_a=1.0, prior_b=1.0, successes=7, trials=10, **kwargs):
     known = None
 
     if mode == "validate":

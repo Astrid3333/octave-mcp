@@ -31,7 +31,7 @@ LINEAR_ALGEBRA_SCHEMA = {
         "properties": {
             "mode": {
                 "type": "string",
-                "enum": ["eigen", "svd", "pca", "matrix_analysis"],
+                "enum": ["eigen", "svd", "pca", "matrix_analysis", "validate"],
                 "default": "eigen",
             },
             "preset": {
@@ -89,7 +89,7 @@ def _gen_singular_matrix():
     return [[1, 2], [2, 4]], {"rango_esperado": 1, "nota": "fila 2 = 2 x fila 1, matriz singular"}
 
 
-def compute_linear_algebra(mode="eigen", preset="known_symmetric", matrix=None, data=None):
+def compute_linear_algebra(mode="eigen", preset="known_symmetric", matrix=None, data=None, **kwargs):
     known = None
 
     if mode == "validate":

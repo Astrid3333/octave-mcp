@@ -41,7 +41,7 @@ PDE_SCHEMA = {
     "inputSchema": {
         "type": "object",
         "properties": {
-            "mode": {"type": "string", "enum": ["heat_equation", "wave_equation"], "default": "heat_equation"},
+            "mode": {"type": "string", "enum": ["heat_equation", "wave_equation", "validate"], "default": "heat_equation"},
             "preset": {"type": "string", "enum": ["known_first_mode", "custom"], "default": "known_first_mode"},
             "L": {"type": "number", "default": 1.0, "description": "Longitud del dominio"},
             "coefficient": {"type": "number", "default": 0.01, "description": "alpha (calor) o c (onda)"},
@@ -72,7 +72,7 @@ def _vec_to_octave(v):
 
 
 def compute_pde(mode="heat_equation", preset="known_first_mode", L=1.0, coefficient=0.01,
-                 n_points=50, t_final=None, initial_profile=None):
+                 n_points=50, t_final=None, initial_profile=None, **kwargs):
     known = None
     dx = L / (n_points - 1)
 
