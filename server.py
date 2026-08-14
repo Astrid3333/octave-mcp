@@ -4,6 +4,8 @@ import subprocess, json, sys, os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import tool_registry
 import debt_snowball_tool  # auto-registra via tool_registry, no requiere mas ediciones
+import retirement_planner_tool  # auto-registra via tool_registry, no requiere mas ediciones
+import retirement_planner_tool  # auto-registra via tool_registry, no requiere mas ediciones
 from lyapunov_tool import compute_lyapunov_exponent, LYAPUNOV_TOOL_SCHEMA
 from stiff_ode_tool import integrate_stiff_ode, STIFF_ODE_TOOL_SCHEMA
 from bifurcation_tool import compute_bifurcation_diagram, BIFURCATION_TOOL_SCHEMA
