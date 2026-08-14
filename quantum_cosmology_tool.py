@@ -122,6 +122,8 @@ def _evolve(a, da, M, hbar, kind, k, a0, sigma0, p0, t_max, n_t):
     I = np.eye(n_int, dtype=complex)
     A = I + 1j * dt / (2.0 * hbar) * H  # avanza
     B = I - 1j * dt / (2.0 * hbar) * H  # conocido
+    from scipy.linalg import lu_factor, lu_solve
+    lu_piv = lu_factor(A)  # factorizar UNA vez; A es fija durante toda la evolucion
 
     psi0_full = _initial_gaussian(a, a0, sigma0, p0, hbar)
     psi_int = psi0_full[1:-1].astype(complex)
@@ -141,7 +143,7 @@ def _evolve(a, da, M, hbar, kind, k, a0, sigma0, p0, t_max, n_t):
         a_expect[it] = _trapz(a_int * prob, x=a_int) / norm_hist[it]
         if it < n_t - 1:
             rhs = B @ psi
-            psi = np.linalg.solve(A, rhs)
+            psi = lu_solve(lu_piv, rhs)
 
     return times, a_int, psi_snapshots, a_expect, norm_hist, dt
 
