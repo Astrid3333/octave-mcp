@@ -34,7 +34,7 @@ MUSIC_MATH_SCHEMA = {
             "preset": {
                 "type": "string",
                 "enum": ["pythagorean_comma", "temperament_comparison",
-                         "harmonic_series", "ternary_scale", "spectral_analysis"],
+                         "harmonic_series", "ternary_scale", "spectral_analysis", "validate"],
                 "default": "pythagorean_comma",
             },
             "f0": {"type": "number", "default": 220.0, "description": "Frecuencia fundamental en Hz"},
@@ -220,8 +220,57 @@ printf("%.6f ", pks(1:n_peaks));
     }
 
 
+def _validate_music_math() -> dict:
+    """4 checks contra valores analiticos exactos, todos rapidos (sin
+    Octave): pythagorean_comma debe dar 23.46 cents (12 quintas justas vs 7
+    octavas); temperament_comparison: la tercera mayor justa (5:4) debe
+    diferir de 12-TET en -13.69 cents exacto (5:4 es ~14 cents mas grave
+    que 400 cents, el motivo de que un coro a capella 'suene mas limpio'
+    que un piano); harmonic_series con f0=220Hz: el 7mo armonico debe
+    desviarse -31.17 cents del semitono 12-TET mas cercano (la 'septima
+    armonica' de blues/barbershop); ternary_scale con n_power=2 debe dar
+    exactamente 9 pasos de 133.33 cents cada uno (3^2).
+    spectral_analysis NO se incluye: requiere Octave (FFT real) y no tiene
+    valor analitico de referencia simple sin generar antes una senal
+    sintetica -- queda fuera del alcance de un chequeo rapido."""
+    checks = []
+    tol = 1e-2
+
+    r1 = compute_music_math(preset="pythagorean_comma")
+    checks.append({"name": "pythagorean_comma == 23.46 cents exacto",
+                    "passed": abs(r1["cents"] - 23.46) < tol, "got": r1["cents"]})
+
+    r2 = compute_music_math(preset="temperament_comparison")
+    tercera_mayor = next(row for row in r2["tabla"] if row["intervalo"] == "tercera_mayor")
+    checks.append({"name": "tercera_mayor justa vs 12-TET == -13.69 cents exacto",
+                    "passed": abs(tercera_mayor["diferencia_cents"] - (-13.69)) < tol,
+                    "got": tercera_mayor})
+
+    r3 = compute_music_math(preset="harmonic_series", f0=220.0, n_harmonics=8)
+    h7 = r3["armonicos"][6]
+    checks.append({"name": "7mo armonico (f0=220Hz) desviacion == -31.17 cents exacto",
+                    "passed": h7["armonico"] == 7 and abs(h7["desviacion_cents"] - (-31.17)) < tol,
+                    "got": h7})
+
+    r4 = compute_music_math(preset="ternary_scale", n_power=2)
+    checks.append({"name": "ternary_scale n_power=2: 9 pasos de 133.33 cents exacto",
+                    "passed": r4["n_pasos_por_octava"] == 9 and abs(r4["cents_por_paso"] - 133.333) < 0.01,
+                    "got": {"n_pasos": r4["n_pasos_por_octava"], "cents_por_paso": r4["cents_por_paso"]}})
+
+    return {
+        "mode": "validate",
+        "validation_passed": all(c["passed"] for c in checks),
+        "checks": checks,
+        "not_covered": [
+            "spectral_analysis: requiere Octave (FFT real) y no tiene valor analitico simple de referencia sin generar antes una senal sintetica",
+        ],
+    }
+
+
 def compute_music_math(preset="pythagorean_comma", f0=220.0, n_harmonics=8,
-                        n_power=2, signal=None, fs=44100):
+                        n_power=2, signal=None, fs=44100, **kwargs):
+    if preset == "validate":
+        return _validate_music_math()
     if preset == "pythagorean_comma":
         return _pythagorean_comma()
     elif preset == "temperament_comparison":
