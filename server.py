@@ -54,7 +54,7 @@ from optimal_control_tool import compute_optimal_control, OPTIMAL_CONTROL_TOOL_S
 from spatial_statistics_tool import compute_spatial_statistics, SPATIAL_STATISTICS_TOOL_SCHEMA
 from text_analysis_math_tool import compute_text_analysis_math, TEXT_ANALYSIS_MATH_TOOL_SCHEMA
 from multibody_dynamics_tool import compute_multibody_dynamics, MULTIBODY_DYNAMICS_TOOL_SCHEMA
-from particle_simulation_tool import compute_particle_simulation, PARTICLE_SIMULATION_TOOL_SCHEMA
+import particle_simulation_tool  # auto-registra via tool_registry
 from finite_element_tool import compute_finite_element, FINITE_ELEMENT_TOOL_SCHEMA
 from fem_advanced_tool import compute_fem_advanced, FEM_ADVANCED_TOOL_SCHEMA
 from plane_stress_tool import compute_plane_stress, PLANE_STRESS_TOOL_SCHEMA
@@ -246,7 +246,6 @@ TOOLS = [
     SPATIAL_STATISTICS_TOOL_SCHEMA,
     TEXT_ANALYSIS_MATH_TOOL_SCHEMA,
     MULTIBODY_DYNAMICS_TOOL_SCHEMA,
-    PARTICLE_SIMULATION_TOOL_SCHEMA,
     FINITE_ELEMENT_TOOL_SCHEMA,
     FEM_ADVANCED_TOOL_SCHEMA,
     PLANE_STRESS_TOOL_SCHEMA,
@@ -1196,12 +1195,6 @@ if __name__ == "__main__":
 
                 elif tool_name == "multibody_dynamics_tool":
                     result = compute_multibody_dynamics(**args)
-                    resp = {
-                        "jsonrpc": "2.0", "id": req_id,
-                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                    }
-                elif tool_name == "particle_simulation_tool":
-                    result = compute_particle_simulation(**args)
                     resp = {
                         "jsonrpc": "2.0", "id": req_id,
                         "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},

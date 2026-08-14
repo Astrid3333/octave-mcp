@@ -25,7 +25,7 @@ PARTICLE_SIMULATION_TOOL_SCHEMA = {
     "inputSchema": {
         "type": "object",
         "properties": {
-            "mode": {"type": "string", "enum": ["kepler_orbit", "elastic_collision_nbody", "random_walk_diffusion"]},
+            "mode": {"type": "string", "enum": ["kepler_orbit", "elastic_collision_nbody", "random_walk_diffusion", "validate"]},
             "params": {"type": "object", "description": "Parametros especificos de cada modo, ver docstrings."},
         },
         "required": ["mode"],
@@ -102,6 +102,46 @@ def _random_walk_diffusion(n_particles=2000, n_steps=2000, dt=0.01, D_true=0.5, 
     }
 
 
+def _mode_validate():
+    checks = []
+
+    # --- check 1: kepler_orbit -- periodo numerico (RK4) vs analitico (3a ley de Kepler) ---
+    r1 = _kepler_orbit()
+    checks.append({
+        "name": "kepler_period_numeric_matches_analytic",
+        "period_analytic_s": r1["period_analytic_s"],
+        "period_numeric_s": r1["period_numeric_s"],
+        "relative_error_pct": r1["relative_error_pct"],
+        "passed": bool(r1["relative_error_pct"] < 1.0),
+    })
+
+    # --- check 2: elastic_collision_nbody -- conservacion de momento y energia ---
+    r2 = _elastic_collision_nbody(masses=[2.0, 3.0], velocities=[5.0, -2.0])
+    checks.append({
+        "name": "collision_conserves_momentum",
+        "momentum_drift": r2["momentum_drift"],
+        "passed": bool(abs(r2["momentum_drift"]) < 1e-9),
+    })
+    checks.append({
+        "name": "collision_conserves_energy",
+        "energy_drift": r2["energy_drift"],
+        "passed": bool(abs(r2["energy_drift"]) < 1e-9),
+    })
+
+    # --- check 3: random_walk_diffusion -- D recuperado por regresion vs D inyectado ---
+    r3 = _random_walk_diffusion()
+    checks.append({
+        "name": "diffusion_coefficient_recovered",
+        "D_true": r3["D_true"],
+        "D_fit": r3["D_fit"],
+        "relative_error_pct": r3["relative_error_pct"],
+        "passed": bool(r3["relative_error_pct"] < 10.0),
+    })
+
+    validation_passed = all(c["passed"] for c in checks)
+    return {"mode": "validate", "checks": checks, "validation_passed": validation_passed}
+
+
 def compute_particle_simulation(mode, params=None):
     params = params or {}
     if mode == "kepler_orbit":
@@ -110,8 +150,21 @@ def compute_particle_simulation(mode, params=None):
         return _elastic_collision_nbody(**params)
     elif mode == "random_walk_diffusion":
         return _random_walk_diffusion(**params)
+    elif mode == "validate":
+        return _mode_validate()
     else:
-        raise ValueError(f"modo desconocido: {mode}. Use kepler_orbit | elastic_collision_nbody | random_walk_diffusion")
+        raise ValueError(f"modo desconocido: {mode}. Use kepler_orbit | elastic_collision_nbody | random_walk_diffusion | validate")
+
+
+try:
+    from tool_registry import register_tool
+    register_tool(
+        name="particle_simulation_tool",
+        schema=PARTICLE_SIMULATION_TOOL_SCHEMA,
+        handler=lambda args: compute_particle_simulation(args.get("mode"), args.get("params")),
+    )
+except ImportError:
+    pass
 
 
 if __name__ == "__main__":
