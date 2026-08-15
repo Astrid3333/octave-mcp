@@ -141,6 +141,39 @@ def load_run(run_id: str, keys: list[str] | None = None) -> dict:
     return {"run_id": safe_id, "data": data, "meta": meta}
 
 
+
+def load_run_safe(run_id: str, keys: list[str] | None = None) -> dict:
+    """
+    Como load_run, pero con allow_pickle=True: necesario para releer
+    resultados que save_run guardó como arrays dtype=object (dicts
+    anidados, listas de dicts -- el caso normal para 'results' de
+    run_pipeline). load_run (sin _safe) se deja intacto: ya está
+    wireado como workspace_load y no debe cambiarle el comportamiento
+    a una tool existente.
+
+    Trade-off de seguridad: allow_pickle=True puede ejecutar código
+    arbitrario al deserializar un .npz malicioso. Aceptable acá
+    porque WORKSPACE_DIR es 100% autogenerado localmente por las
+    propias tools de este servidor, no un lugar donde entren
+    archivos de terceros.
+    """
+    npz_path, meta_path, safe_id = _paths(run_id)
+    if not npz_path.exists():
+        return {"error": f"run_id '{safe_id}' no encontrado en {WORKSPACE_DIR}"}
+
+    with np.load(npz_path, allow_pickle=True) as npz:
+        available = list(npz.files)
+        selected = keys if keys else available
+        data = {}
+        for k in selected:
+            if k not in available:
+                continue
+            data[k] = npz[k].tolist()
+
+    meta = json.loads(meta_path.read_text()) if meta_path.exists() else {}
+    return {"run_id": safe_id, "data": data, "meta": meta}
+
+
 def list_runs(filter_tool: str | None = None) -> dict:
     """Lista todos los runs guardados, opcionalmente filtrados por meta['tool']."""
     _ensure_workspace_dir()
@@ -228,6 +261,80 @@ WORKSPACE_DELETE_SCHEMA = {
         "type": "object",
         "properties": {"run_id": {"type": "string"}},
         "required": ["run_id"],
+    },
+}
+
+
+LINKS_PATH = WORKSPACE_DIR / "_links.json"
+
+
+def _read_links() -> dict:
+    if not LINKS_PATH.exists():
+        return {}
+    return json.loads(LINKS_PATH.read_text())
+
+
+def _write_links(links: dict):
+    _ensure_workspace_dir()
+    LINKS_PATH.write_text(json.dumps(links, indent=2, ensure_ascii=False))
+
+
+def workspace_link(mode: str, alias: str | None = None, run_id: str | None = None) -> dict:
+    """
+    Alias legibles para run_id, guardados en _links.json dentro de
+    WORKSPACE_DIR (no colisiona con el glob *.meta.json de list_runs).
+    mode: create (valida run_id vía describe_run antes de guardar),
+    resolve (marca 'dangling' si el run fue borrado después),
+    list, delete (no toca el run apuntado).
+    """
+    links = _read_links()
+
+    if mode == "create":
+        if not alias or not run_id:
+            return {"error": "create requiere alias y run_id"}
+        check = describe_run(run_id)
+        if "error" in check:
+            return {"error": f"run_id '{run_id}' no existe, no se puede linkear: {check['error']}"}
+        links[alias] = check["run_id"]
+        _write_links(links)
+        return {"alias": alias, "run_id": check["run_id"], "created": True}
+
+    if mode == "resolve":
+        if not alias:
+            return {"error": "resolve requiere alias"}
+        target = links.get(alias)
+        if target is None:
+            return {"error": f"alias '{alias}' no encontrado"}
+        check = describe_run(target)
+        dangling = "error" in check
+        return {"alias": alias, "run_id": target, "dangling": dangling}
+
+    if mode == "list":
+        return {"count": len(links), "links": links}
+
+    if mode == "delete":
+        if not alias:
+            return {"error": "delete requiere alias"}
+        if alias not in links:
+            return {"error": f"alias '{alias}' no encontrado"}
+        del links[alias]
+        _write_links(links)
+        return {"alias": alias, "deleted": True}
+
+    return {"error": f"mode '{mode}' inválido (usar create/resolve/list/delete)"}
+
+
+WORKSPACE_LINK_SCHEMA = {
+    "name": "workspace_link",
+    "description": "Crea/resuelve/lista/borra alias legibles para run_ids del workspace (ej: alias 'ultimo_sismo' -> run_id real).",
+    "inputSchema": {
+        "type": "object",
+        "properties": {
+            "mode": {"type": "string", "enum": ["create", "resolve", "list", "delete"]},
+            "alias": {"type": "string"},
+            "run_id": {"type": "string"},
+        },
+        "required": ["mode"],
     },
 }
 

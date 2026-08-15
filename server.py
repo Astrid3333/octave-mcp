@@ -126,6 +126,8 @@ from workspace_tool import load_run
 from workspace_tool import list_runs
 from workspace_tool import describe_run
 from workspace_tool import delete_run
+from workspace_tool import load_run_safe
+from workspace_tool import workspace_link
 from plot_tool import plot_run
 from numeral_systems_embedding_tool import compute_numeral_systems_embedding
 
@@ -313,6 +315,7 @@ TOOLS = [
     {"name": "workspace_list", "description": "Lista todos los runs guardados en el workspace, opcionalmente filtrados por tool de origen (ej: 'compute_lyapunov_exponent').", "inputSchema": {"type": "object", "properties": {"filter_tool": {"type": "string"}}}},
     {"name": "workspace_describe", "description": "Muestra shapes/dtypes de un run sin cargar los arrays completos a memoria (util para trayectorias largas antes de graficar).", "inputSchema": {"type": "object", "properties": {"run_id": {"type": "string"}}, "required": ["run_id"]}},
     {"name": "workspace_delete", "description": "Borra un run del workspace (libera espacio en disco).", "inputSchema": {"type": "object", "properties": {"run_id": {"type": "string"}}, "required": ["run_id"]}},
+    {"name": "workspace_link", "description": "Crea/resuelve/lista/borra alias legibles para run_ids del workspace (ej: alias 'ultimo_sismo' -> run_id real). mode: create|resolve|list|delete.", "inputSchema": {"type": "object", "properties": {"mode": {"type": "string", "enum": ["create", "resolve", "list", "delete"]}, "alias": {"type": "string"}, "run_id": {"type": "string"}}, "required": ["mode"]}},
     {"name": "plot_workspace_run", "description": "Genera una visualizacion (PNG en base64 + guardado en disco) a partir de un run guardado en el workspace (ej: la trayectoria de un atractor guardada por compute_lyapunov con run_id). No recalcula nada, solo lee y grafica. plot_type: auto (infiere segun el tool de origen), attractor_3d, attractor_2d, line, scatter, heatmap.", "inputSchema": {"type": "object", "properties": {"run_id": {"type": "string"}, "plot_type": {"type": "string"}, "title": {"type": "string"}, "array_name": {"type": "string"}}, "required": ["run_id"]}},
     {"name": "numeral_systems_embedding", "description": "Vectoriza sistemas numericos antiguos (base, tipo posicional/aditivo/ fisico, presencia de cero, redundancia representacional, soporte fisico) y proyecta a 2D via UMAP o t-SNE, para explorar agrupamientos estructurales entre culturas. Dataset base: maya_long_count, suanpan, soroban, roman_hand_abacus, yupana_depasquale, quipu, ifa_binary. Extensible via extra_systems (lista de dicts con el mismo s", "inputSchema": {"type": "object", "properties": {"method": {"type": "string"}, "extra_systems": {"type": "array"}, "n_neighbors": {"type": "integer"}, "perplexity": {"type": "number"}, "random_state": {"type": "integer"}, "run_id": {"type": "string"}}}},
     GENOME_SIGNAL_ANALYSIS_SCHEMA,
@@ -1157,6 +1160,13 @@ if __name__ == "__main__":
 
                 elif tool_name == "workspace_delete":
                     result = delete_run(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
+                elif tool_name == "workspace_link":
+                    result = workspace_link(**args)
                     resp = {
                         "jsonrpc": "2.0", "id": req_id,
                         "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},

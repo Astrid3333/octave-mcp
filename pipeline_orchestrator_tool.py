@@ -18,7 +18,7 @@ mode='execute' y mode='validate' (mismo patron que el resto del repo).
 import json
 
 import tool_registry  # se usa para REGISTRY (lookup de handlers dentro del pipeline)
-from workspace_tool import save_run  # solo para persistencia opcional final
+from workspace_tool import save_run, load_run_safe, workspace_link  # solo para persistencia opcional final
 
 
 def _extract_field(result, field_path):
@@ -70,6 +70,13 @@ def dry_check_pipeline(steps):
                 )
             if not ifs.get("maps_to_param"):
                 issues.append("input_from_step sin 'maps_to_param'")
+
+        ifw = step.get("input_from_workspace")
+        if ifw is not None:
+            if not ifw.get("ref"):
+                issues.append("input_from_workspace sin 'ref' (run_id o alias)")
+            if not ifw.get("maps_to_param"):
+                issues.append("input_from_workspace sin 'maps_to_param'")
 
         if issues:
             ok = False
@@ -126,6 +133,25 @@ def run_pipeline(steps, verbose=True):
                 break
             params = args.setdefault("params", {})
             params[ifs["maps_to_param"]] = extracted
+
+        ifw = step.get("input_from_workspace")
+        if ifw is not None:
+            try:
+                ref = ifw["ref"]
+                resolved = workspace_link("resolve", alias=ref)
+                run_id = resolved["run_id"] if "run_id" in resolved and not resolved.get("dangling") else ref
+                loaded = load_run_safe(run_id)
+                if "error" in loaded:
+                    raise KeyError(loaded["error"])
+                extracted_ws = _extract_field(loaded["data"], ifw.get("extract_field"))
+            except KeyError as e:
+                msg = f"no se pudo resolver input_from_workspace -- {e}"
+                if verbose:
+                    print(f"[FAIL] {step_id}: {msg}")
+                results.append({"step_id": step_id, "status": "failed", "error": msg})
+                break
+            params = args.setdefault("params", {})
+            params[ifw["maps_to_param"]] = extracted_ws
 
         handler = tool_registry.REGISTRY[tool_name]["handler"]
         try:
