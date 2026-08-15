@@ -25,6 +25,12 @@ _STOPWORDS_ES = {
     "calcula", "calculo", "devuelve", "retorna",
     # boilerplate de docstrings/suites de validacion, sin valor de dominio
     "checks", "quien", "llama", "suite", "confidence_flag", "validado",
+    # 'alta' es boilerplate en la gran mayoria de casos (confidence_flag
+    # 'alta'), confirmado via inspeccion manual de las 16 ocurrencias en
+    # TOOLS reales (13/16 son ese patron exacto). Los pocos usos de dominio
+    # genuino ("alta distorsion", "alta frecuencia") se pierden como costo
+    # aceptable frente al ruido que causaba en stats/search/related.
+    "alta",
 }
 _STOPWORDS_EN = {
     "the", "a", "an", "of", "and", "or", "in", "with", "for", "that", "is",
