@@ -72,6 +72,8 @@ def integrate_stiff_ode(
     abs_tol: float = 1e-8,
     octave_bin: str = "octave",
     timeout_s: int = 60,
+    mode: str | None = None,
+    **kwargs,
 ) -> dict:
     """
     Integra un sistema de ODEs (potencialmente rígido) con un solver implícito.
@@ -91,6 +93,9 @@ def integrate_stiff_ode(
     Returns:
         dict con t, y (lista de listas), solver usado, y metadatos.
     """
+    if mode == "validate":
+        return _validate_stiff_ode(octave_bin=octave_bin, timeout_s=timeout_s)
+
     if solver not in ("ode15s", "ode23s", "lsode"):
         raise ValueError("solver debe ser 'ode15s', 'ode23s' o 'lsode'.")
 
@@ -123,9 +128,10 @@ def integrate_stiff_ode(
             t_out = {t_out_str};
             opts = odeset('RelTol',{rel_tol},'AbsTol',{abs_tol},'InitialStep',1e-6);
             sol = {solver}(f, [{tspan[0]}, {tspan[1]}], y0, opts);
-            Yi = interp1(sol.x, sol.y', t_out)';
-            if rows(Yi) == 1 && numel(y0) > 1
-              Yi = Yi';  % edge case: 1 punto de salida
+            n_dims_out = numel(y0);
+            Yi = zeros(n_dims_out, numel(t_out));
+            for i_dim = 1:n_dims_out
+              Yi(i_dim,:) = interp1(sol.x, sol.y(i_dim,:), t_out);
             end
             printf('T_OUT=');
             printf('%.6g,', t_out);
@@ -208,6 +214,67 @@ def integrate_stiff_ode(
     }
 
 
+def _validate_stiff_ode(octave_bin: str = "octave", timeout_s: int = 60):
+    """
+    Autochequeo con dos sistemas custom de solucion analitica exacta,
+    probando los dos solvers implicitos principales:
+    - decaimiento exponencial y'=-k*y (solver ode15s): y(t) = y0*exp(-k*t).
+    - oscilador armonico y1'=y2, y2'=-w^2*y1 (solver lsode): y1(t) = cos(w*t),
+      con y0=[1,0].
+    Ambos evaluados contra la formula cerrada en el ultimo punto de la
+    malla de salida (que coincide exacto con tspan[1] via linspace).
+    """
+    import math
+
+    checks = []
+    tol = 0.01
+
+    # --- decaimiento exponencial, ode15s ---
+    k = 0.7
+    y0_1 = 2.0
+    tspan1 = [0.0, 3.0]
+    r1 = integrate_stiff_ode(
+        system="custom", custom_equations="-k*y(1)", custom_params={"k": k},
+        y0=[y0_1], tspan=tspan1, solver="ode15s", n_output_points=50,
+        octave_bin=octave_bin, timeout_s=timeout_s,
+    )
+    if "error" in r1:
+        ok1, got1 = False, r1.get("error")
+    else:
+        t_final = r1["t"][-1]
+        y_final = r1["y"][0][-1]
+        expected = y0_1 * math.exp(-k * t_final)
+        ok1 = abs(y_final - expected) < tol
+        got1 = f"y_final={y_final:.6g} vs esperado={expected:.6g}"
+    checks.append({
+        "name": "custom y'=-0.7*y (ode15s): decaimiento exponencial vs formula cerrada y0*exp(-k*t)",
+        "passed": ok1, "got": got1,
+    })
+
+    # --- oscilador armonico, lsode ---
+    w = 2.0
+    tspan2 = [0.0, 1.5]
+    r2 = integrate_stiff_ode(
+        system="custom", custom_equations="y(2); -w2*y(1)", custom_params={"w2": w ** 2},
+        y0=[1.0, 0.0], tspan=tspan2, solver="lsode", n_output_points=50,
+        octave_bin=octave_bin, timeout_s=timeout_s,
+    )
+    if "error" in r2:
+        ok2, got2 = False, r2.get("error")
+    else:
+        t_final2 = r2["t"][-1]
+        y_final2 = r2["y"][0][-1]
+        expected2 = math.cos(w * t_final2)
+        ok2 = abs(y_final2 - expected2) < tol
+        got2 = f"y1_final={y_final2:.6g} vs esperado={expected2:.6g}"
+    checks.append({
+        "name": "custom oscilador armonico w=2 (lsode): y1(t) vs cos(w*t)",
+        "passed": ok2, "got": got2,
+    })
+
+    return {"mode": "validate", "validation_passed": bool(all(c["passed"] for c in checks)), "checks": checks}
+
+
 STIFF_ODE_TOOL_SCHEMA = {
     "name": "integrate_stiff_ode",
     "description": (
@@ -236,6 +303,11 @@ STIFF_ODE_TOOL_SCHEMA = {
             "n_output_points": {"type": "integer", "default": 50},
             "rel_tol": {"type": "number", "default": 1e-6},
             "abs_tol": {"type": "number", "default": 1e-8},
+            "mode": {
+                "type": "string",
+                "enum": ["validate"],
+                "description": "Si es 'validate', ejecuta el autochequeo interno (decaimiento exponencial vs ode15s, oscilador armonico vs lsode) e ignora el resto de los parametros.",
+            },
         },
         "required": [],
     },
