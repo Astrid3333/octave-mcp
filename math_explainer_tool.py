@@ -205,6 +205,137 @@ def _explain_visualization(result, level):
     return "\n".join(lines)
 
 
+def _explain_disaster_simulation(result, level):
+    mode = result.get("mode", "?")
+    lines = []
+
+    if mode == "monte_carlo_losses":
+        n = result.get("n_years_simulated")
+        lines.append(f"Simulacion Monte Carlo de perdidas anuales (modelo Poisson-LogNormal, {n} anos simulados).")
+        lines.append(f"  - Perdida anual promedio: {_fmt(result.get('mean_annual_loss'))} (desvio: {_fmt(result.get('std_annual_loss'))}, mediana: {_fmt(result.get('median_annual_loss'))}).")
+        lines.append(f"  - Perdida maxima simulada: {_fmt(result.get('max_simulated_loss'))}.")
+        lines.append(f"  - Probabilidad de un ano sin perdidas: {_fmt(result.get('probability_zero_loss_year'))}.")
+        var_cvar = result.get("var_cvar_by_percentile", {})
+        for pct, vc in var_cvar.items():
+            lines.append(f"  - {pct}: VaR={_fmt(vc.get('VaR'))}, CVaR={_fmt(vc.get('CVaR'))}.")
+        if level == "basico":
+            lines.append("VaR es la perdida que no se supera con esa probabilidad; CVaR es el promedio de las perdidas cuando SI se supera el VaR (la cola mala).")
+
+    elif mode == "return_period_loss":
+        n = result.get("n_years_sample")
+        lines.append(f"Curva de perdida por periodo de retorno, estimada sobre {n} anos de muestra (estimador Weibull empirico).")
+        for pt in result.get("return_period_curve", []):
+            lines.append(f"  - Periodo de retorno {pt.get('return_period_years')} anos: perdida estimada {_fmt(pt.get('loss'))}.")
+        if level == "basico":
+            lines.append("Un 'periodo de retorno de N anos' significa que, en promedio, una perdida de esa magnitud o mayor ocurre una vez cada N anos -- no que vaya a pasar exactamente cada N anos.")
+
+    elif mode == "exceedance_curve":
+        n = result.get("n_years_sample")
+        lines.append(f"Curva de excedencia de perdidas, estimada sobre {n} anos de muestra.")
+        for pt in result.get("exceedance_curve", []):
+            rp = pt.get("implied_return_period_years")
+            rp_txt = f"{_fmt(rp)} anos" if rp is not None else "no estimable (probabilidad 0 en la muestra)"
+            lines.append(f"  - Umbral {_fmt(pt.get('loss_threshold'))}: probabilidad anual de excedencia {_fmt(pt.get('annual_exceedance_probability'))} (periodo de retorno implicito: {rp_txt}).")
+
+    else:
+        lines.append(f"Resultado de disaster_simulation_tool en modo '{mode}' (sin template narrativo especifico para este modo todavia).")
+        keys = [k for k in result.keys() if k not in ("mode", "confidence_flag", "note", "seed")][:8]
+        lines.append(f"Campos principales: {', '.join(keys)}.")
+
+    return "\n".join(lines)
+
+
+def _explain_critical_infrastructure(result, level):
+    lines = []
+
+    if "redundancy_score" in result and "critical_edges" in result:
+        lines.append(f"Analisis de redundancia N-1 sobre la red: {result.get('total_edges')} enlaces totales.")
+        lines.append(f"  - Red base conectada: {'si' if result.get('base_graph_connected') else 'no'}.")
+        lines.append(f"  - Redundancy score: {_fmt(result.get('redundancy_score'))} (1.0 = ningun enlace es punto unico de falla, 0.0 = todos lo son).")
+        n_crit = result.get("n_critical_edges", 0)
+        if n_crit:
+            edges_txt = ", ".join(f"{e.get('from')}-{e.get('to')}" for e in result.get("critical_edges", [])[:6])
+            lines.append(f"  - {n_crit} enlace(s) critico(s) (single point of failure): {edges_txt}.")
+        else:
+            lines.append("  - Ningun enlace critico: la red tolera la perdida de cualquier enlace individual sin desconectarse.")
+
+    elif "final_failed_count" in result and "history" in result:
+        lines.append(f"Simulacion de falla en cascada: {result.get('iterations_run')} iteracion(es), {'convergio' if result.get('converged') else 'NO convergio dentro del limite de iteraciones'}.")
+        lines.append(f"  - Carga total inicial: {_fmt(result.get('initial_total_load'))}.")
+        lines.append(f"  - Nodos fallados al final: {result.get('final_failed_count')} ({', '.join(result.get('final_failed_nodes', [])[:8])}).")
+        if level == "basico":
+            lines.append("Un nodo falla cuando su carga supera su capacidad; el excedente se redistribuye a los vecinos activos proporcional al headroom disponible de cada uno, y eso puede encadenar mas fallas.")
+
+    elif "redistribution" in result and "failed_node" in result:
+        lines.append(f"Redistribucion de carga tras la falla del nodo '{result.get('failed_node')}': {_fmt(result.get('excess_redistributed'))} de excedente repartido.")
+        overloaded = result.get("newly_overloaded", [])
+        for nid, info in result.get("redistribution", {}).items():
+            flag = " (SUPERA CAPACIDAD)" if info.get("exceeds_capacity") else ""
+            lines.append(f"  - {nid}: recibio {_fmt(info.get('share_received'))}, carga nueva {_fmt(info.get('new_load'))}/{_fmt(info.get('capacity'))}{flag}.")
+        if overloaded:
+            lines.append(f"  - Atencion: {len(overloaded)} vecino(s) quedaron sobrecargados por esta redistribucion, riesgo de cascada secundaria.")
+
+    elif "betweenness" in result and "ranked_critical_nodes" in result:
+        lines.append(f"Identificacion de nodos criticos via betweenness centrality (algoritmo de Brandes).")
+        top = result.get("ranked_critical_nodes", [])[:5]
+        for entry in top:
+            lines.append(f"  - {entry.get('node')}: score={_fmt(entry.get('score'))}")
+        mc = result.get("most_critical_node")
+        if mc is not None:
+            lines.append(f"  - Nodo mas critico estructuralmente: {mc}.")
+        if level == "basico":
+            lines.append("Betweenness alto = el nodo aparece en muchos de los caminos mas cortos entre otros pares de nodos; si falla, desconecta o alarga esas rutas.")
+
+    else:
+        lines.append("Resultado de critical_infrastructure_tool (sin template narrativo especifico para este modo todavia).")
+        keys = list(result.keys())[:8]
+        lines.append(f"Campos principales: {', '.join(keys)}.")
+
+    return "\n".join(lines)
+
+
+def _explain_urban_planning(result, level):
+    lines = []
+
+    if "shannon_entropy_normalized" in result:
+        lines.append(f"Indice de mezcla de uso de suelo sobre {result.get('n_categories')} categoria(s): entropia normalizada = {_fmt(result.get('shannon_entropy_normalized'))}.")
+        for cat, prop in result.get("proportions", {}).items():
+            lines.append(f"  - {cat}: {_fmt(prop)} del area total.")
+        if level == "basico":
+            lines.append("1.0 = mezcla perfectamente equilibrada entre categorias, 0.0 = monocultivo (una sola categoria domina).")
+
+    elif "accessibility_index" in result:
+        lines.append(f"Indice de accesibilidad a servicio (umbral {_fmt(result.get('threshold_km'))} km): {_fmt(result.get('accessibility_index'))}.")
+        lines.append(f"  - Poblacion cubierta: {result.get('covered_population')} de {result.get('total_population')} total.")
+        n_under = result.get("n_underserved_zones", 0)
+        if n_under:
+            lines.append(f"  - {n_under} zona(s) sin cobertura, con {result.get('underserved_population')} habitantes fuera del umbral.")
+
+    elif "density_per_km2" in result:
+        lines.append(f"Densidad poblacional: {_fmt(result.get('density_per_km2'))} hab/km2 ({_fmt(result.get('population'))} hab en {_fmt(result.get('area_km2'))} km2).")
+        if "capacity_per_km2" in result:
+            flag = " -- SUPERA la capacidad de diseno" if result.get("over_capacity") else " -- dentro de la capacidad de diseno"
+            lines.append(f"  - Ratio de utilizacion vs capacidad ({_fmt(result.get('capacity_per_km2'))} hab/km2): {_fmt(result.get('utilization_ratio'))}{flag}.")
+
+    elif "projection" in result:
+        lines.append(f"Proyeccion de demanda de infraestructura: poblacion final {_fmt(result.get('final_population'))}, demanda final {_fmt(result.get('final_demand'))}.")
+        if "year_capacity_exceeded" in result:
+            ey = result.get("year_capacity_exceeded")
+            if ey is not None:
+                lines.append(f"  - La capacidad instalada ({_fmt(result.get('current_capacity'))}) se supera en el ano {ey} de la proyeccion.")
+            else:
+                lines.append(f"  - La capacidad instalada ({_fmt(result.get('current_capacity'))}) no se supera dentro del horizonte proyectado.")
+        if level == "basico":
+            lines.append("El crecimiento poblacional usado es geometrico simple; tratar la proyeccion como escenario, no como pronostico.")
+
+    else:
+        lines.append("Resultado de urban_planning_tool (sin template narrativo especifico para este modo todavia).")
+        keys = list(result.keys())[:8]
+        lines.append(f"Campos principales: {', '.join(keys)}.")
+
+    return "\n".join(lines)
+
+
 _EXPLAINERS = {
     "compute_gradient_hessian": _explain_gradient_hessian,
     "compute_jacobian": _explain_jacobian,
@@ -217,6 +348,9 @@ _EXPLAINERS = {
     "math_interpolation": _explain_interpolation,
     "run_math_pipeline": _explain_pipeline,
     "math_visualization": _explain_visualization,
+    "compute_disaster_simulation": _explain_disaster_simulation,
+    "compute_critical_infrastructure": _explain_critical_infrastructure,
+    "compute_urban_planning": _explain_urban_planning,
 }
 
 
