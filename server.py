@@ -181,17 +181,12 @@ from savings_goal_tool import compute_savings_goal_tool, SAVINGS_GOAL_TOOL_SCHEM
 from credit_simulation_tool import compute_credit_simulation_tool, CREDIT_SIMULATION_TOOL_SCHEMA
 from refinance_analysis_tool import compute_refinance_analysis_tool, REFINANCE_ANALYSIS_TOOL_SCHEMA
 from natural_hazard_risk_tool import compute_natural_hazard_risk
-from earthquake_analysis_tool import compute_earthquake_analysis
-from wildfire_risk_tool import compute_wildfire_risk
 from decision_support_tool import compute_decision_support
 from water_resource_tool import compute_water_resource
 from flood_modeling_tool import compute_flood_modeling
 from early_warning_tool import compute_early_warning
 from climate_scenario_tool import compute_climate_scenario
 from disaster_simulation_tool import compute_disaster_simulation
-from disaster_economics_tool import compute_disaster_economics
-from social_impact_tool import compute_social_impact
-from insurance_risk_tool import compute_insurance_risk
 from critical_infrastructure_tool import compute_critical_infrastructure
 from urban_planning_tool import compute_urban_planning
 from public_data_ingest_tool import compute_public_data_ingest
@@ -201,9 +196,6 @@ from public_data_ingest_tool import PUBLIC_DATA_INGEST_TOOL_SCHEMA
 TOOLS = [
     {"name": "climate_scenario_tool", "description": "Analisis de escenarios climaticos: trend_analysis (regresion lineal, Mann-Kendall, changepoint CUSUM sobre series temporales), rcp_projection (proyeccion de temperatura/nivel del mar para un RCP y anio dado), list_rcp_scenarios (catalogo RCP2.6/4.5/6.0/8.5 con datos IPCC AR5), validate.", "inputSchema": {"type": "object", "properties": {"mode": {"type": "string"}, "params": {"type": "object"}}, "required": ["mode"]}},
     {"name": "disaster_simulation_tool", "description": "Simulacion Monte Carlo de desastres (modelo actuarial frecuencia-severidad Poisson-LogNormal) para gestion publica de riesgos: monte_carlo_losses (distribucion de perdida agregada anual dado lambda de frecuencia y mu/sigma de severidad lognormal, con VaR y CVaR/Tail-VaR a percentiles configurables), return_period_loss (perdida esperada para periodos de retorno dados, estimador empirico de Weibull T=(n+1)/m, consistente con natural_hazard_risk_tool.gumbel_return_period), exceedance_curve (curva de probabilidad de excedencia anual -EP curve- para una lista de umbrales de perdida), multi_hazard_combine (combina dos peligros independientes o correlacionados via copula gaussiana en una perdida agregada conjunta), validate (suite de 10 checks). Motor generico: no trae catalogo de parametros por tipo de peligro (lambda/mu/sigma los provee quien llama), confidence_flag 'alta' para toda la mecanica estadistica.", "inputSchema": {"type": "object", "properties": {"mode": {"type": "string"}, "params": {"type": "object"}}, "required": ["mode"]}},
-    {"name": "disaster_economics_tool", "description": "Economia de desastres para evaluacion de politica publica: direct_indirect_loss (perdida indirecta via multiplicador economico regional, indirect=direct*(m-1)), business_interruption_loss (perdida acumulada por interrupcion de actividad economica durante una recuperacion exponencial hacia el nivel pre-desastre, integral cerrada), benefit_cost_ratio (BCR de una inversion de mitigacion: VAN de la perdida anual esperada evitada vs costo de inversion, a tasa de descuento y horizonte dados), gdp_impact_icor (impacto en el flujo de producto por destruccion de stock de capital via ratio incremental capital-producto ICOR), validate (suite de 10 checks). Motor generico: no trae catalogo de multiplicadores/ICOR por region o sector (los provee quien llama), confidence_flag 'alta' para toda la mecanica.", "inputSchema": {"type": "object", "properties": {"mode": {"type": "string"}, "params": {"type": "object"}}, "required": ["mode"]}},
-    {"name": "social_impact_tool", "description": "Impacto social de desastres y de inversion publica: social_vulnerability_index (indice SoVI via suma de z-scores de indicadores socioeconomicos con signo configurable por indicador), displacement_estimate (poblacion desplazada y unidades de vivienda temporal requeridas a partir de dano habitacional por severidad y ocupacion promedio), equity_weighted_impact (pondera perdida/dano economico por un factor de vulnerabilidad social para priorizar inversion), casualty_estimate (estimacion simplificada de victimas a partir de fraccion de estructuras colapsadas, ocupacion y hora del dia, logica HAZUS-MH simplificada), validate (suite de 10 checks). Motor generico: no trae catalogo de indicadores/pesos por region (los provee quien llama), confidence_flag 'alta' para la mecanica.", "inputSchema": {"type": "object", "properties": {"mode": {"type": "string"}, "params": {"type": "object"}}, "required": ["mode"]}},
-    {"name": "insurance_risk_tool", "description": "Seguros y reaseguro de catastrofes: pure_premium (prima pura mas cargas de gasto y margen de utilidad, sobre una distribucion de perdida Poisson-LogNormal simulada o provista, prima_comercial = prima_pura/(1-expense_ratio-profit_margin)), excess_of_loss_layer (pricing de una capa de reaseguro XoL via Monte Carlo, perdida esperada de capa = E[min(max(L-attachment,0),limit)]), cat_bond_pricing (pricing simplificado de bono catastrofico: cupon = perdida esperada de la capa cubierta/principal + spread de mercado), loss_ratio_analysis (loss ratio, expense ratio y combined ratio de una cartera dado primas y siniestros historicos), validate (suite de 10 checks). Motor generico: no trae catalogo de tasas de mercado ni expense ratios (los provee quien llama), confidence_flag 'alta'.", "inputSchema": {"type": "object", "properties": {"mode": {"type": "string"}, "params": {"type": "object"}}, "required": ["mode"]}},
     CRITICAL_INFRASTRUCTURE_TOOL_SCHEMA,
     URBAN_PLANNING_TOOL_SCHEMA,
     PUBLIC_DATA_INGEST_TOOL_SCHEMA,
@@ -314,7 +306,6 @@ TOOLS = [
     {"name": "historical_extractor", "description": "Extrae MULTIPLES series (anio, valor) de un mismo texto historico via regex por oracion (no NLP), una serie por objeto/concepto mencionado (ej: trigo, cebada, jornal). Corre tendencia por regresion log-lineal en cada serie (reusa el motor de historian), calcula salario real indexado si se indica objeto_salario, y correlacion de Pearson entre series de precios que se solapan en anios. NO interpreta", "inputSchema": {"type": "object", "properties": {"mode": {"type": "string"}, "text_data": {"type": "string"}, "objetos": {"type": "array"}, "objeto_salario": {"type": "string"}}}},
     {"name": "paleography", "description": "Tres motores cuantitativos de paleografia/codicologia sobre rasgos YA EXTRAIDOS (no hace OCR ni lee imagenes): seriation (analisis de correspondencia via SVD sobre matriz documentos x rasgos, ordena por el eje 1 y valida contra anios_conocidos con Spearman si se dan), feature_dating_regression (ajusta anio ~ rasgo sobre documentos ancla de fecha conocida y estima fecha de documentos sin fecha, con error estandar residual), letterform_classification (nearest-centroid sobre rasgos normalizados, clasifica letterforms en clases conocidas y marca casos ambiguos por margen chico). Ninguno da fechas/atribuciones definitivas.", "inputSchema": {"type": "object", "properties": {"mode": {"type": "string"}, "matriz": {"type": "array"}, "doc_ids": {"type": "array"}, "anios_conocidos": {"type": "object"}, "anios_ancla": {"type": "array"}, "rasgo_ancla": {"type": "array"}, "rasgo_predecir": {"type": "array"}, "ids_predecir": {"type": "array"}, "grado_polinomio": {"type": "integer"}, "rasgos_entrenamiento": {"type": "array"}, "clases_entrenamiento": {"type": "array"}, "rasgos_nuevos": {"type": "array"}, "ids_nuevos": {"type": "array"}}}},
     {"name": "abstract_algebra", "description": "Algebra abstracta sobre estructuras finitas chicas (orden <=8 para isomorfismo): cayley_table (genera tabla preset Zn_add, Zn_mult, Sn simetrico, Dn diedral), verify_group_axioms (cerradura/asociatividad/identidad/inverso, reporta si es abeliano), verify_ring_field_axioms (axiomas de anillo via grupo abeliano + distributividad, confirma cuerpo si hay inverso multiplicativo para todo no-cero), check_isomorphism (fuerza bruta sobre permutaciones -- respuesta negativa es definitiva para el orden dado, no una sospecha).", "inputSchema": {"type": "object", "properties": {"mode": {"type": "string"}, "preset": {"type": "string"}, "n": {"type": "integer"}, "elementos": {"type": "array"}, "tabla": {"type": "array"}, "tabla_suma": {"type": "array"}, "tabla_mult": {"type": "array"}, "elementos_a": {"type": "array"}, "tabla_a": {"type": "array"}, "elementos_b": {"type": "array"}, "tabla_b": {"type": "array"}}}},
-    {"name": "ocas_symbolic", "description": "Algebra simbolica y teoria de numeros via oCAS (motor Rust, mas rapido que sympy pero mas nuevo/menos probado, v0.26.0). mode='symbolic': simplify/differentiate/integrate/substitute sobre 'expression' (string, potencia con '^' NO '**', ej 'x^2 + 2*x + 1'). mode='number_theory': operation=isprime|factorint|nextprime|totient|divisor_sigma|mobius|liouville_lambda|jacobi_symbol|discrete_log|crt sobre enteros. mode='diophantine': resuelve a*x+b*y=c. Presets con resultado conocido validado, o preset='custom' con los parametros propios.", "inputSchema": {"type": "object", "properties": {"mode": {"type": "string"}, "preset": {"type": "string"}, "sub_mode": {"type": "string"}, "expression": {"type": "string"}, "variable": {"type": "string"}, "sub_value": {"type": "string"}, "operation": {"type": "string"}, "n": {"type": "integer"}, "a": {"type": "integer"}, "b": {"type": "integer"}, "c": {"type": "integer"}, "moduli": {"type": "array"}, "residues": {"type": "array"}}}},
     {"name": "workspace_save", "description": "Guarda arrays/resultados de un analisis bajo un run_id para reutilizarlos despues (ej: en plot_tool) sin recalcular. Si run_id se omite, se autogenera.", "inputSchema": {"type": "object", "properties": {"run_id": {"type": "string"}, "data": {"type": "object"}, "meta": {"type": "object"}}}},
     {"name": "workspace_load", "description": "Carga un run guardado previamente por run_id. Si keys se omite, devuelve todos los arrays (cuidado con trayectorias muy largas: usar workspace_describe primero).", "inputSchema": {"type": "object", "properties": {"run_id": {"type": "string"}, "keys": {"type": "array"}}, "required": ["run_id"]}},
     {"name": "workspace_list", "description": "Lista todos los runs guardados en el workspace, opcionalmente filtrados por tool de origen (ej: 'compute_lyapunov_exponent').", "inputSchema": {"type": "object", "properties": {"filter_tool": {"type": "string"}}}},
@@ -413,8 +404,6 @@ TOOLS = [
         }
     },
     {"name": "natural_hazard_risk_tool", "description": "Modelado de riesgo multifactorial (R=H*E*V/A) para gestion publica de desastres naturales: risk_index (indice de riesgo puntual con clasificacion en bandas), risk_grid (mapa de calor de riesgo sobre grilla), gumbel_return_period (periodo de retorno empirico T=(n+1)/m), gumbel_fit (ajuste de distribucion de Gumbel por momentos y estimacion de magnitud de diseno o periodo de retorno).", "inputSchema": {"type": "object", "properties": {"mode": {"type": "string"}, "params": {"type": "object"}}, "required": ["mode"]}},
-    {"name": "earthquake_analysis_tool", "description": "Peligrosidad sismica para gestion publica municipal: deterministic (atenuacion de Esteva PGA=5700*exp(0.8M)/(R+40)^2, amplificacion de sitio tipo NEHRP simplificado por clase de suelo A-E, conversion PGA->MMI de Wald et al.), psha (recurrencia Gutenberg-Richter, curva de peligrosidad tasa de excedencia vs PGA, inversion por biseccion a PGA de diseno para un periodo de retorno dado, ej. 475 anios), validate (suite de 9 checks).", "inputSchema": {"type": "object", "properties": {"mode": {"type": "string"}, "params": {"type": "object"}}, "required": ["mode"]}},
-    {"name": "wildfire_risk_tool", "description": "Peligrosidad de incendios forestales via modelo de Rothermel (1972) con ponderacion muerto/vivo: rate_of_spread (velocidad de propagacion ft/min, intensidad de linea de fuego e Byram, largo de llama, dado viento/pendiente/humedad y un modelo de combustible), fuel_model_info (parametros crudos de un modelo), list_fuel_models (codigos disponibles por catalogo), validate (suite de 10 checks de consistencia fisica). fuel_catalog: anderson13 (13 modelos, confianza media-alta), scott_burgan40 (40 modelos, confianza BAJA -- valores estimados por patron, no verificados contra la tabla fuente, ver campo data_confidence en cada respuesta), o custom (fuel_model provisto por quien llama, sin datos hardcodeados)." , "inputSchema": {"type": "object", "properties": {"mode": {"type": "string"}, "params": {"type": "object"}}, "required": ["mode"]}},
     {"name": "decision_support_tool", "description": "Sistemas de apoyo a decisiones multicriterio para priorizacion de inversiones publicas: ahp (Proceso Analitico Jerarquico de Saaty, pesos via autovector principal y ratio de consistencia CR), topsis (ordenamiento de alternativas por cercania a la solucion ideal, con criterios de beneficio/costo y pesos configurables).", "inputSchema": {"type": "object", "properties": {"mode": {"type": "string"}, "params": {"type": "object"}}, "required": ["mode"]}},
     {"name": "water_resource_tool", "description": "Hidrologia de cuencas para gestion de recursos hidricos: rational_method (caudal pico Qp=CIA/360), scs_curve_number (escorrentia directa por numero de curva SCS), time_of_concentration (formula de Kirpich), water_balance (balance de masa de embalse/cuenca con deteccion de deficit y desborde).", "inputSchema": {"type": "object", "properties": {"mode": {"type": "string"}, "params": {"type": "object"}}, "required": ["mode"]}},
     {"name": "flood_modeling_tool", "description": "Modelado de crecidas para planificacion de drenajes: scs_triangular_hydrograph (hidrograma unitario triangular SCS), muskingum_routing (transito de crecidas por un tramo de cauce), manning_normal_depth (tirante normal y ancho de inundacion en seccion trapezoidal via ecuacion de Manning).", "inputSchema": {"type": "object", "properties": {"mode": {"type": "string"}, "params": {"type": "object"}}, "required": ["mode"]}},
@@ -752,18 +741,6 @@ if __name__ == "__main__":
                         "jsonrpc": "2.0", "id": req_id,
                         "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
                     }
-                elif tool_name == "earthquake_analysis_tool":
-                    result = compute_earthquake_analysis(args.get("mode"), args.get("params"))
-                    resp = {
-                        "jsonrpc": "2.0", "id": req_id,
-                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                    }
-                elif tool_name == "wildfire_risk_tool":
-                    result = compute_wildfire_risk(args.get("mode"), args.get("params"))
-                    resp = {
-                        "jsonrpc": "2.0", "id": req_id,
-                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                    }
                 elif tool_name == "decision_support_tool":
                     result = compute_decision_support(args.get("mode"), args.get("params"))
                     resp = {
@@ -796,24 +773,6 @@ if __name__ == "__main__":
                     }
                 elif tool_name == "disaster_simulation_tool":
                     result = compute_disaster_simulation(args.get("mode"), args.get("params"))
-                    resp = {
-                        "jsonrpc": "2.0", "id": req_id,
-                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                    }
-                elif tool_name == "disaster_economics_tool":
-                    result = compute_disaster_economics(args.get("mode"), args.get("params"))
-                    resp = {
-                        "jsonrpc": "2.0", "id": req_id,
-                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                    }
-                elif tool_name == "social_impact_tool":
-                    result = compute_social_impact(args.get("mode"), args.get("params"))
-                    resp = {
-                        "jsonrpc": "2.0", "id": req_id,
-                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                    }
-                elif tool_name == "insurance_risk_tool":
-                    result = compute_insurance_risk(args.get("mode"), args.get("params"))
                     resp = {
                         "jsonrpc": "2.0", "id": req_id,
                         "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
@@ -1160,13 +1119,6 @@ if __name__ == "__main__":
 
                 elif tool_name == "abstract_algebra":
                     result = compute_abstract_algebra(**args)
-                    resp = {
-                        "jsonrpc": "2.0", "id": req_id,
-                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                    }
-
-                elif tool_name == "ocas_symbolic":
-                    result = compute_ocas_symbolic(**args)
                     resp = {
                         "jsonrpc": "2.0", "id": req_id,
                         "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
