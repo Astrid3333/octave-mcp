@@ -8,6 +8,8 @@ import retirement_planner_tool  # auto-registra via tool_registry, no requiere m
 import life_insurance_math_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import education_funding_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import emergency_fund_tool  # auto-registra via tool_registry, no requiere mas ediciones
+import personal_budget_tool  # auto-registra via tool_registry, no requiere mas ediciones
+import savings_goal_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import investment_portfolio_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import tax_estimation_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import insurance_risk_tool  # auto-registra via tool_registry, no requiere mas ediciones
@@ -180,8 +182,6 @@ from survey_tools import (
 from climate_tool import compute_climate
 from advanced_stochastic_tool import compute_advanced_stochastic
 from multivariate_bayes_tool import compute_multivariate_bayes
-from personal_budget_tool import compute_personal_budget_tool, PERSONAL_BUDGET_TOOL_SCHEMA
-from savings_goal_tool import compute_savings_goal_tool, SAVINGS_GOAL_TOOL_SCHEMA
 from credit_simulation_tool import compute_credit_simulation_tool, CREDIT_SIMULATION_TOOL_SCHEMA
 from refinance_analysis_tool import compute_refinance_analysis_tool, REFINANCE_ANALYSIS_TOOL_SCHEMA
 from natural_hazard_risk_tool import compute_natural_hazard_risk
@@ -349,8 +349,6 @@ TOOLS = [
     GAS_TOOL_SCHEMA,
     KNOWLEDGE_GRAPH_TOOL_SCHEMA,
     SEMANTIC_BRIDGE_TOOL_SCHEMA,
-    PERSONAL_BUDGET_TOOL_SCHEMA,
-    SAVINGS_GOAL_TOOL_SCHEMA,
     CREDIT_SIMULATION_TOOL_SCHEMA,
     REFINANCE_ANALYSIS_TOOL_SCHEMA,
     BIOREFINERY_TOOL_SCHEMA,
@@ -1453,18 +1451,6 @@ if __name__ == "__main__":
                     }
                 elif tool_name == "multivariate_bayes_tool":
                     result = compute_multivariate_bayes(args.get("mode"), args.get("params"))
-                    resp = {
-                        "jsonrpc": "2.0", "id": req_id,
-                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                    }
-                elif tool_name == "personal_budget_tool":
-                    result = compute_personal_budget_tool(args.get("mode", "validate"), args.get("params"))
-                    resp = {
-                        "jsonrpc": "2.0", "id": req_id,
-                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                    }
-                elif tool_name == "savings_goal_tool":
-                    result = compute_savings_goal_tool(args.get("mode", "validate"), args.get("params"))
                     resp = {
                         "jsonrpc": "2.0", "id": req_id,
                         "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},

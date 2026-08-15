@@ -292,6 +292,17 @@ SAVINGS_GOAL_TOOL_SCHEMA = {
 }
 
 
+try:
+    from tool_registry import register_tool
+    register_tool(
+        name="savings_goal_tool",
+        schema=SAVINGS_GOAL_TOOL_SCHEMA,
+        handler=lambda args: compute_savings_goal_tool(args.get("mode"), args.get("params")),
+    )
+except ImportError:
+    pass
+
+
 if __name__ == "__main__":
     import json
     print(json.dumps(compute_savings_goal_tool("validate"), indent=2, ensure_ascii=False))

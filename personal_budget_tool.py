@@ -264,6 +264,17 @@ PERSONAL_BUDGET_TOOL_SCHEMA = {
 }
 
 
+try:
+    from tool_registry import register_tool
+    register_tool(
+        name="personal_budget_tool",
+        schema=PERSONAL_BUDGET_TOOL_SCHEMA,
+        handler=lambda args: compute_personal_budget_tool(args.get("mode"), args.get("params")),
+    )
+except ImportError:
+    pass
+
+
 if __name__ == "__main__":
     import json
     print(json.dumps(compute_personal_budget_tool("validate"), indent=2, ensure_ascii=False))
