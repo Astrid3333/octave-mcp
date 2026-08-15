@@ -297,13 +297,13 @@ def _validate_jacobian():
     return {"mode": "validate", "validation_passed": all(c["passed"] for c in checks), "checks": checks}
 
 
-def compute_gradient_hessian(expression: str = None, variables: str = None, order: int = 1, mode: str = None) -> dict:
+def compute_gradient_hessian(expression: str = None, variables: str = None, order: int = 1, mode: str = None, **kwargs) -> dict:
     if mode == "validate":
         return _validate_gradient_hessian()
     return auto_differentiate(expression, variables, order)
 
 
-def compute_jacobian(expressions: str = None, variables: str = None, mode: str = None) -> dict:
+def compute_jacobian(expressions: str = None, variables: str = None, mode: str = None, **kwargs) -> dict:
     if mode == "validate":
         return _validate_jacobian()
     return auto_jacobian(expressions, variables)
