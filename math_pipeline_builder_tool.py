@@ -8,7 +8,9 @@ paso alimente el input de otro via referencias "$save_as.ruta.a.campo".
 No reimplementa matematica: es infraestructura pura sobre los tools ya
 construidos (auto_differentiation_tool, math_error_analyzer_tool,
 math_benchmark_tool, math_interpolation_tool, lyapunov_tool, stiff_ode_tool,
-bifurcation_tool, hilbert_tool).
+bifurcation_tool, hilbert_tool, bacterial_growth_tool, enzyme_kinetics_tool,
+population_dynamics_tool, reaction_diffusion_tool_real, statistics_tool,
+symbolic_tool).
 """
 
 import time
@@ -21,6 +23,12 @@ from hilbert_tool import compute_hilbert_transform
 from math_error_analyzer_tool import compute_math_error_analysis
 from math_benchmark_tool import compute_math_benchmark
 from math_interpolation_tool import compute_math_interpolation
+from bacterial_growth_tool import compute_bacterial_growth_tool
+from enzyme_kinetics_tool import compute_enzyme_kinetics
+from population_dynamics_tool import compute_population_dynamics
+from reaction_diffusion_tool_real import compute_reaction_diffusion as compute_reaction_diffusion_real
+from statistics_tool import compute_statistics
+from symbolic_tool import compute_symbolic
 
 
 REGISTRY = {
@@ -33,6 +41,12 @@ REGISTRY = {
     "compute_math_error_analysis": compute_math_error_analysis,
     "compute_math_benchmark": compute_math_benchmark,
     "compute_math_interpolation": compute_math_interpolation,
+    "compute_bacterial_growth_tool": compute_bacterial_growth_tool,
+    "compute_enzyme_kinetics": compute_enzyme_kinetics,
+    "compute_population_dynamics": compute_population_dynamics,
+    "compute_reaction_diffusion_real": compute_reaction_diffusion_real,
+    "compute_statistics": compute_statistics,
+    "compute_symbolic": compute_symbolic,
 }
 
 # Nombres de tool MCP que difieren del nombre de la funcion Python subyacente
@@ -40,6 +54,12 @@ TOOL_NAME_ALIASES = {
     "math_error_analyzer": "compute_math_error_analysis",
     "math_benchmark": "compute_math_benchmark",
     "math_interpolation": "compute_math_interpolation",
+    "bacterial_growth_tool": "compute_bacterial_growth_tool",
+    "enzyme_kinetics": "compute_enzyme_kinetics",
+    "population_dynamics": "compute_population_dynamics",
+    "reaction_diffusion_real": "compute_reaction_diffusion_real",
+    "statistics": "compute_statistics",
+    "symbolic": "compute_symbolic",
 }
 
 
@@ -186,7 +206,7 @@ PIPELINE_BUILDER_TOOL_SCHEMA = {
     "description": (
         "Encadena llamadas a los tools matematicos de octave-mcp (diferenciacion "
         "simbolica, Jacobiano, Lyapunov, ODEs stiff, bifurcacion, Hilbert, analisis "
-        "de error, benchmark de metodos, interpolacion), pasando el output de un "
+        "de error, benchmark de metodos, interpolacion, crecimiento bacteriano, cinetica enzimatica, dinamica poblacional, reaccion-difusion, estadistica, calculo simbolico), pasando el output de un "
         "paso como input del siguiente via referencias '$save_as.campo.subcampo'. "
         "mode='validate' corre una demo fija (derivada -> analisis de error) sin "
         "pedir argumentos; mode='run' ejecuta los 'steps' dados."
@@ -215,7 +235,7 @@ PIPELINE_BUILDER_TOOL_SCHEMA = {
                                 "Nombre del tool a invocar. Uno de: compute_gradient_hessian, "
                                 "compute_jacobian, compute_lyapunov_exponent, integrate_stiff_ode, "
                                 "compute_bifurcation_diagram, compute_hilbert_transform, "
-                                "math_error_analyzer, math_benchmark, math_interpolation."
+                                "math_error_analyzer, math_benchmark, math_interpolation, bacterial_growth_tool, enzyme_kinetics, population_dynamics, reaction_diffusion_real, statistics, symbolic, compute_bacterial_growth_tool, compute_enzyme_kinetics, compute_math_benchmark, compute_math_error_analysis, compute_math_interpolation, compute_population_dynamics, compute_reaction_diffusion_real, compute_statistics, compute_symbolic."
                             ),
                         },
                         "args": {
