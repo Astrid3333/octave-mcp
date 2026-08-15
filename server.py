@@ -165,6 +165,7 @@ from evo_lgca_tool import compute_evo_lgca_tool, EVO_LGCA_TOOL_SCHEMA
 from mesh_spectral_tool import compute_mesh_spectral_tool, MESH_SPECTRAL_TOOL_SCHEMA
 from gas_tool import compute_gas, GAS_TOOL_SCHEMA
 from knowledge_graph_tool import compute_knowledge_graph, KNOWLEDGE_GRAPH_TOOL_SCHEMA
+from semantic_bridge_tool import compute_semantic_bridge, SEMANTIC_BRIDGE_TOOL_SCHEMA
 from biorefinery_tool import compute_biorefinery, BIOREFINERY_TOOL_SCHEMA
 from survey_tools import (
     compute_survey_angles, SURVEY_ANGLES_TOOL_SCHEMA,
@@ -344,6 +345,7 @@ TOOLS = [
     SURVEY_AREA_VOLUME_TOOL_SCHEMA,
     GAS_TOOL_SCHEMA,
     KNOWLEDGE_GRAPH_TOOL_SCHEMA,
+    SEMANTIC_BRIDGE_TOOL_SCHEMA,
     PERSONAL_BUDGET_TOOL_SCHEMA,
     SAVINGS_GOAL_TOOL_SCHEMA,
     CREDIT_SIMULATION_TOOL_SCHEMA,
@@ -1404,6 +1406,12 @@ if __name__ == "__main__":
                     }
                 elif tool_name == "knowledge_graph_tool":
                     result = compute_knowledge_graph(args.get("mode"), args.get("params"), tools=TOOLS)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "semantic_bridge":
+                    result = compute_semantic_bridge(args.get("mode"), args.get("params"), tools=TOOLS)
                     resp = {
                         "jsonrpc": "2.0", "id": req_id,
                         "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
