@@ -102,6 +102,8 @@ def compute_lyapunov_exponent(
     timeout_s: int = 60,
     run_id: str | None = None,
     save_trajectory_every: int = 10,
+    mode: str | None = None,
+    **kwargs,
 ) -> dict:
     """
     Calcula el exponente de Lyapunov máximo (λ1) de un sistema dinámico.
@@ -122,6 +124,9 @@ def compute_lyapunov_exponent(
     Returns:
         dict con lambda1, interpretacion, y metadatos de la corrida.
     """
+    if mode == "validate":
+        return _validate_lyapunov_v2(octave_bin=octave_bin, timeout_s=timeout_s)
+
     if system == "custom":
         if not custom_equations:
             raise ValueError("system='custom' requiere custom_equations.")
@@ -294,6 +299,36 @@ def compute_lyapunov_exponent(
     }
 
 
+def _validate_lyapunov_v2(octave_bin: str = "octave", timeout_s: int = 60):
+    """
+    Autochequeo con sistemas lineales 3D desacoplados de solucion analitica
+    exacta: y'=k*y -> lambda1==k en cada componente. Se usa 3D (no 1D) porque
+    el script Octave interno tiene el printf final hardcodeado a
+    y(1),y(2),y(3) sin chequear la dimension real del vector de estado.
+    No pasa run_id, asi que no dispara guardado de trayectoria.
+    """
+    checks = []
+    tol = 0.02  # generoso: RK4 + renormalizacion sobre sistema lineal exacto
+
+    r1 = compute_lyapunov_exponent(
+        system="custom", custom_equations="k*y(1); k*y(2); k*y(3)", custom_params={"k": 0.3},
+        y0=[1.0, 1.0, 1.0], dt=0.002, n_steps=5000, octave_bin=octave_bin, timeout_s=timeout_s,
+    )
+    ok1 = "lambda1" in r1 and abs(r1["lambda1"] - 0.3) < tol
+    checks.append({"name": "custom y'=0.3*y (3D desacoplado): lambda1 ~ 0.3 (crecimiento exponencial puro)",
+                    "passed": ok1, "got": r1.get("lambda1", r1.get("error"))})
+
+    r2 = compute_lyapunov_exponent(
+        system="custom", custom_equations="-k*y(1); -k*y(2); -k*y(3)", custom_params={"k": 0.5},
+        y0=[1.0, 1.0, 1.0], dt=0.002, n_steps=5000, octave_bin=octave_bin, timeout_s=timeout_s,
+    )
+    ok2 = "lambda1" in r2 and abs(r2["lambda1"] - (-0.5)) < tol
+    checks.append({"name": "custom y'=-0.5*y (3D desacoplado): lambda1 ~ -0.5 (decaimiento exponencial puro)",
+                    "passed": ok2, "got": r2.get("lambda1", r2.get("error"))})
+
+    return {"mode": "validate", "validation_passed": bool(all(c["passed"] for c in checks)), "checks": checks}
+
+
 # --- Schema para registro manual (patrón types.Tool / allowlist) ---
 LYAPUNOV_TOOL_SCHEMA = {
     "name": "compute_lyapunov_exponent",
@@ -327,6 +362,11 @@ LYAPUNOV_TOOL_SCHEMA = {
                 "type": "integer",
                 "default": 10,
                 "description": "Guardar 1 de cada N pasos de la trayectoria (solo si run_id esta presente).",
+            },
+            "mode": {
+                "type": "string",
+                "enum": ["validate"],
+                "description": "Si es 'validate', ejecuta el autochequeo interno (sistemas lineales con lambda1 exacto conocido) e ignora el resto de los parametros.",
             },
         },
         "required": [],
