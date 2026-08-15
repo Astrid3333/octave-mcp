@@ -42,9 +42,9 @@ STATISTICS_SCHEMA = {
                 "enum": ["known_linear", "known_correlation", "known_ttest", "known_bayesian", "custom"],
                 "default": "known_linear",
             },
-            "x": {"type": "array", "description": "Solo si preset='custom', mode in [linear_regression, correlation]"},
-            "y": {"type": "array", "description": "Solo si preset='custom', mode in [linear_regression, correlation]"},
-            "sample": {"type": "array", "description": "Solo si preset='custom', mode='t_test'"},
+            "x": {"type": "array", "description": "mode in [linear_regression, correlation]. IMPORTANTE: tambien hay que pasar preset='custom' explicitamente -- si se omite, el preset conocido ignora este dato sin avisar."},
+            "y": {"type": "array", "description": "mode in [linear_regression, correlation]. IMPORTANTE: tambien hay que pasar preset='custom' explicitamente -- si se omite, el preset conocido ignora este dato sin avisar."},
+            "sample": {"type": "array", "description": "mode='t_test'. IMPORTANTE: tambien hay que pasar preset='custom' explicitamente -- si se omite, el preset conocido ignora este dato sin avisar."},
             "mu0": {"type": "number", "default": 5.0, "description": "Media hipotetica H0, para t_test"},
             "prior_a": {"type": "number", "default": 1.0, "description": "Para bayesian_beta_binomial"},
             "prior_b": {"type": "number", "default": 1.0, "description": "Para bayesian_beta_binomial"},
@@ -101,6 +101,10 @@ def compute_statistics(mode="linear_regression", preset="known_linear", x=None, 
         return _validate_statistics()
 
     if mode == "linear_regression":
+        if (x is not None or y is not None) and preset != "custom":
+            return {"error": f"Se paso 'x'/'y' pero preset='{preset}' (no 'custom') "
+                              f"-- el preset conocido ignora esos datos silenciosamente. "
+                              f"Usa preset='custom'."}
         if preset == "custom":
             if not x or not y or len(x) != len(y):
                 return {"error": "preset='custom' requiere 'x' e 'y' de igual longitud"}
@@ -131,6 +135,10 @@ printf("%.8f %.8f %.8f", slope, intercept, r2);
         result = {"n_points": len(x), "slope": round(slope, 6), "intercept": round(intercept, 6), "r_squared": round(r2, 6)}
 
     elif mode == "correlation":
+        if (x is not None or y is not None) and preset != "custom":
+            return {"error": f"Se paso 'x'/'y' pero preset='{preset}' (no 'custom') "
+                              f"-- el preset conocido ignora esos datos silenciosamente. "
+                              f"Usa preset='custom'."}
         if preset == "custom":
             if not x or not y or len(x) != len(y):
                 return {"error": "preset='custom' requiere 'x' e 'y' de igual longitud"}
@@ -152,6 +160,10 @@ printf("%.8f", r);
         result = {"n_points": len(x), "pearson_r": round(float(out), 6)}
 
     elif mode == "t_test":
+        if sample is not None and preset != "custom":
+            return {"error": f"Se paso 'sample' pero preset='{preset}' (no 'custom') "
+                              f"-- el preset conocido ignora esos datos silenciosamente. "
+                              f"Usa preset='custom'."}
         if preset == "custom":
             if not sample:
                 return {"error": "preset='custom' requiere 'sample'"}

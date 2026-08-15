@@ -40,7 +40,7 @@ SYMBOLIC_SCHEMA = {
                 "enum": ["known_simplify", "known_solve", "known_derivative", "known_integral", "known_taylor", "custom"],
                 "default": "known_simplify",
             },
-            "expression": {"type": "string", "description": "Expresion en variable 'x' (y opcionalmente 'y'), solo si preset='custom'. Ej: 'sin(x)*x**2'"},
+            "expression": {"type": "string", "description": "Expresion en variable 'x' (y opcionalmente 'y'). IMPORTANTE: tambien hay que pasar preset='custom' explicitamente -- si se omite, el preset conocido por defecto ignora esta expresion sin avisar. Ej: 'sin(x)*x**2'"},
             "variable": {"type": "string", "default": "x"},
             "lower_limit": {"type": "string", "description": "Para integrate: limite inferior (si se da, calcula integral definida)"},
             "upper_limit": {"type": "string", "description": "Para integrate: limite superior"},
@@ -73,6 +73,10 @@ def compute_symbolic(mode="simplify", preset="known_simplify", expression=None,
         if mode == "validate":
             return _validate_symbolic()
         if mode == "simplify":
+            if expression is not None and preset != "custom":
+                return {"error": f"Se paso 'expression' pero preset='{preset}' "
+                                  f"(no 'custom') -- el preset conocido ignora "
+                                  f"'expression' silenciosamente. Usa preset='custom'."}
             if preset == "custom":
                 if not expression:
                     return {"error": "preset='custom' requiere 'expression'"}
@@ -85,6 +89,10 @@ def compute_symbolic(mode="simplify", preset="known_simplify", expression=None,
             result = {"expression_original": str(expr), "simplified": str(sp.simplify(expr))}
 
         elif mode == "solve":
+            if expression is not None and preset != "custom":
+                return {"error": f"Se paso 'expression' pero preset='{preset}' "
+                                  f"(no 'custom') -- el preset conocido ignora "
+                                  f"'expression' silenciosamente. Usa preset='custom'."}
             if preset == "custom":
                 if not expression:
                     return {"error": "preset='custom' requiere 'expression' (se resuelve expression=0)"}
@@ -98,6 +106,10 @@ def compute_symbolic(mode="simplify", preset="known_simplify", expression=None,
             result = {"expression": str(expr) + " = 0", "solutions": [str(s) for s in solutions]}
 
         elif mode == "differentiate":
+            if expression is not None and preset != "custom":
+                return {"error": f"Se paso 'expression' pero preset='{preset}' "
+                                  f"(no 'custom') -- el preset conocido ignora "
+                                  f"'expression' silenciosamente. Usa preset='custom'."}
             if preset == "custom":
                 if not expression:
                     return {"error": "preset='custom' requiere 'expression'"}
@@ -112,6 +124,10 @@ def compute_symbolic(mode="simplify", preset="known_simplify", expression=None,
                       "derivative_simplified": str(sp.simplify(derivative))}
 
         elif mode == "integrate":
+            if expression is not None and preset != "custom":
+                return {"error": f"Se paso 'expression' pero preset='{preset}' "
+                                  f"(no 'custom') -- el preset conocido ignora "
+                                  f"'expression' silenciosamente. Usa preset='custom'."}
             if preset == "custom":
                 if not expression:
                     return {"error": "preset='custom' requiere 'expression'"}
@@ -134,6 +150,10 @@ def compute_symbolic(mode="simplify", preset="known_simplify", expression=None,
                 result = {"expression": str(expr), "type": "indefinida", "antiderivative": str(integral) + " + C"}
 
         elif mode == "taylor_series":
+            if expression is not None and preset != "custom":
+                return {"error": f"Se paso 'expression' pero preset='{preset}' "
+                                  f"(no 'custom') -- el preset conocido ignora "
+                                  f"'expression' silenciosamente. Usa preset='custom'."}
             if preset == "custom":
                 if not expression:
                     return {"error": "preset='custom' requiere 'expression'"}
