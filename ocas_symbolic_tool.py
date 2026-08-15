@@ -131,6 +131,8 @@ def compute_ocas_symbolic(mode="symbolic", preset="known", sub_mode=None, expres
             else:
                 result = {"a": a, "b": b, "c": c, "particular": sol.particular, "general_direction": sol.general}
 
+        elif mode == "validate":
+            return _run_validation()
         else:
             return {"error": f"mode desconocido: {mode}"}
 
@@ -157,7 +159,7 @@ try:
     register_tool(
         name="ocas_symbolic",
         schema=OCAS_SYMBOLIC_SCHEMA,
-        handler=lambda args: compute_ocas_symbolic(**args),
+        handler=lambda args: compute_ocas_symbolic(mode=args.get("mode", "symbolic"), **(args.get("params") or {})),
     )
 except ImportError:
     pass

@@ -254,7 +254,7 @@ try:
     register_tool(
         name="compute_math_pipeline",
         schema=MATH_PIPELINE_SCHEMA,
-        handler=lambda args: compute_math_pipeline(**args),
+        handler=lambda args: compute_math_pipeline(mode=args.get("mode", "validate"), **(args.get("params") or {})),
     )
 except ImportError:
     pass
