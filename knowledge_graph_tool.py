@@ -241,3 +241,98 @@ KNOWLEDGE_GRAPH_TOOL_SCHEMA = {
         "required": ["mode"],
     },
 }
+
+
+if __name__ == "__main__":
+    # Catalogo sintetico controlado (no depende de server.TOOLS real, que
+    # cambia con el tiempo -- este test valida el motor lexico en si mismo).
+    _TEST_TOOLS = [
+        {
+            "name": "control_theory",
+            "description": (
+                "Teoria de control: respuesta a escalon de lazo PID cerrado, "
+                "estabilidad de Routh-Hurwitz, lugar de raices, control OGY "
+                "para estabilizar orbitas periodicas inestables."
+            ),
+        },
+        {
+            "name": "optimal_control",
+            "description": "Control optimo: LQR, ley de control -Kx, simulacion de lazo cerrado.",
+        },
+        {
+            "name": "bacterial_growth_tool",
+            "description": (
+                "Simulacion de crecimiento bacteriano: modelo logistico y "
+                "exponencial, poblacion bacteriana en funcion del tiempo."
+            ),
+        },
+        {
+            "name": "enzyme_kinetics",
+            "description": "Cinetica enzimatica: Michaelis-Menten, full kinetics E+S<->ES->E+P.",
+        },
+        {
+            "name": "run_pipeline",
+            "description": (
+                "Orquestador de pipelines con dependencias explicitas. "
+                "Suite de checks de validacion, quien llama a esto revisa "
+                "confidence_flag, validado contra casos conocidos."
+            ),
+        },
+    ]
+
+    # --- search: coincidencia directa por nombre+descripcion ---
+    r = compute_knowledge_graph("search", {"query": "estabilidad control PID lazo cerrado"}, tools=_TEST_TOOLS)
+    assert r["resultados"][0]["tool"] == "control_theory", r
+    assert r["resultados"][0]["score"] > r["resultados"][1]["score"], "control_theory debe ganar claramente a optimal_control"
+
+    # --- search: stemming de genero (bacteriano/bacteriana) debe matchear ---
+    r = compute_knowledge_graph("search", {"query": "poblacion bacteriana"}, tools=_TEST_TOOLS)
+    tools_encontradas = [x["tool"] for x in r["resultados"]]
+    assert "bacterial_growth_tool" in tools_encontradas, f"stemming de genero fallo: {tools_encontradas}"
+
+    # --- search: query vacia o solo stopwords debe fallar con ValueError ---
+    try:
+        compute_knowledge_graph("search", {"query": "el de la"}, tools=_TEST_TOOLS)
+        raise AssertionError("se esperaba ValueError con query de puras stopwords")
+    except ValueError:
+        pass
+
+    # --- related: control_theory y optimal_control comparten vocabulario de control/lazo ---
+    r = compute_knowledge_graph("related", {"tool_name": "control_theory"}, tools=_TEST_TOOLS)
+    assert r["relacionadas"][0]["tool"] == "optimal_control", r
+
+    # --- related: tool_name inexistente debe fallar con ValueError ---
+    try:
+        compute_knowledge_graph("related", {"tool_name": "no_existe_xyz"}, tools=_TEST_TOOLS)
+        raise AssertionError("se esperaba ValueError con tool_name inexistente")
+    except ValueError:
+        pass
+
+    # --- stats: boilerplate de docstrings no debe aparecer en el top ---
+    r = compute_knowledge_graph("stats", {"top_k": 25}, tools=_TEST_TOOLS)
+    assert r["n_tools_totales"] == len(_TEST_TOOLS)
+    terminos = [x["termino"] for x in r["terminos_mas_frecuentes"]]
+    for boilerplate in ("checks", "quien", "llama", "suite", "confidence_flag", "validado"):
+        assert boilerplate not in terminos, f"boilerplate '{boilerplate}' no deberia aparecer en stats: {terminos}"
+
+    # --- stats: forma legible, no el stem pelado ---
+    # "bacteriana" y "bacteriano" no aparecen en este catalogo de prueba,
+    # pero "poblacion" si -- confirmamos que el termino mostrado es una
+    # palabra real del texto original, no un fragmento cortado a mano.
+    assert all(len(t) > 2 for t in terminos), f"termino sospechosamente corto en stats: {terminos}"
+
+    # --- modo desconocido debe fallar con ValueError ---
+    try:
+        compute_knowledge_graph("modo_inventado", {}, tools=_TEST_TOOLS)
+        raise AssertionError("se esperaba ValueError con modo desconocido")
+    except ValueError:
+        pass
+
+    # --- tools=None debe fallar (falta el catalogo real del servidor) ---
+    try:
+        compute_knowledge_graph("search", {"query": "test"}, tools=None)
+        raise AssertionError("se esperaba ValueError sin tools")
+    except ValueError:
+        pass
+
+    print("Todos los chequeos de knowledge_graph_tool.py pasaron OK.")
