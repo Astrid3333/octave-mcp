@@ -1170,12 +1170,6 @@ if __name__ == "__main__":
                         "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
                     }
 
-                elif tool_name == "workspace_link":
-                    result = workspace_link(**args)
-                    resp = {
-                        "jsonrpc": "2.0", "id": req_id,
-                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                    }
 
                 elif tool_name == "plot_workspace_run":
                     result = plot_run(**args)
