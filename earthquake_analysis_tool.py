@@ -233,6 +233,39 @@ def validate_mode(params=None):
 # Dispatch principal
 # ---------------------------------------------------------------------------
 
+EARTHQUAKE_ANALYSIS_TOOL_SCHEMA = {
+    "name": "earthquake_analysis_tool",
+    "description": (
+        "Peligrosidad sismica: deterministic (PGA por atenuacion de Esteva desde "
+        "magnitud y distancia, amplificacion de sitio NEHRP simplificada, "
+        "conversion a intensidad MMI), psha (peligrosidad probabilistica: "
+        "recurrencia Gutenberg-Richter, curva de peligro, PGA de diseno para un "
+        "periodo de retorno dado), validate (suite de checks)."
+    ),
+    "inputSchema": {
+        "type": "object",
+        "properties": {
+            "mode": {"type": "string", "enum": ["deterministic", "psha", "validate"]},
+            "params": {
+                "type": "object",
+                "properties": {
+                    "magnitude": {"type": "number", "description": "Magnitud (deterministic)"},
+                    "distance_km": {"type": "number", "description": "Distancia epicentral en km (deterministic y psha)"},
+                    "soil_class": {"type": "string", "description": "Clase de sitio NEHRP: A/B/C/D/E (deterministic, default B)"},
+                    "gr_a": {"type": "number", "description": "Parametro a de Gutenberg-Richter (psha)"},
+                    "gr_b": {"type": "number", "description": "Parametro b de Gutenberg-Richter (psha)"},
+                    "m_min": {"type": "number", "description": "Magnitud minima (psha, default 4.0)"},
+                    "m_max": {"type": "number", "description": "Magnitud maxima (psha)"},
+                    "return_period_years": {"type": "number", "description": "Periodo de retorno en anios (psha, default 475)"},
+                    "sigma_ln": {"type": "number", "description": "Dispersion lognormal del residuo de atenuacion (psha, opcional)"},
+                },
+            },
+        },
+        "required": ["mode"],
+    },
+}
+
+
 def compute_earthquake_analysis(mode, params=None):
     params = params or {}
     if mode == "deterministic":
@@ -243,3 +276,22 @@ def compute_earthquake_analysis(mode, params=None):
         return validate_mode(params)
     else:
         raise ValueError(f"mode desconocido: {mode}. Use 'deterministic', 'psha' o 'validate'.")
+
+
+try:
+    from tool_registry import register_tool
+    register_tool(
+        name="earthquake_analysis_tool",
+        schema=EARTHQUAKE_ANALYSIS_TOOL_SCHEMA,
+        handler=lambda args: compute_earthquake_analysis(args.get("mode"), args.get("params")),
+    )
+except ImportError:
+    pass
+
+
+if __name__ == "__main__":
+    import json
+    d = compute_earthquake_analysis("validate")
+    print(json.dumps(d, indent=2, ensure_ascii=False))
+    assert d["validation_passed"], "Validacion fallo, ver detalle arriba"
+    print("\nTodos los chequeos de earthquake_analysis_tool.py pasaron OK.")

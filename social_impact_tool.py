@@ -1,319 +1,351 @@
 """
 social_impact_tool.py
 
-Impacto social de desastres y de inversion publica. Grupo "Economia Publica"
-de la fase C de octave-mcp (junto a disaster_economics_tool, insurance_risk_tool).
+Impacto social de desastres. Cuatro modos + validate:
 
-Motor generico, cuatro metodos estandar de la literatura de vulnerabilidad
-social y evaluacion de impacto:
+- affected_population: poblacion afectada = poblacion_expuesta *
+  fraccion_de_exposicion (dado el area/huella del peligro sobre el
+  area total de la poblacion expuesta).
 
-    - social_vulnerability_index: indice de vulnerabilidad social (SoVI,
-      Cutter, Boruff & Shirley 2003) via suma de z-scores de indicadores
-      socioeconomicos, con signo configurable por indicador (algunos
-      aumentan vulnerabilidad, otros la reducen).
-    - displacement_estimate: estimacion de poblacion desplazada y unidades
-      de vivienda temporal requeridas, a partir de conteos de dano
-      habitacional por severidad (menor/mayor/destruido) y ocupacion
-      promedio por vivienda (metodo estandar en evaluacion de dano post-
-      desastre, p.ej. HAZUS-MH housing damage module).
-    - equity_weighted_impact: pondera una perdida o dano economico por un
-      factor de vulnerabilidad social, para priorizar inversion publica
-      hacia poblaciones mas vulnerables (metodo de "equity weighting" en
-      evaluacion social de proyectos, ver p.ej. HM Treasury Green Book).
-    - casualty_estimate: estimacion simplificada de victimas (fallecidos/
-      heridos) a partir de fraccion de estructuras colapsadas, ocupacion y
-      factor de hora del dia, siguiendo la logica del modulo de victimas de
-      HAZUS-MH (simplificado, sin curvas de fragilidad especificas por tipo
-      estructural).
-    - validate: suite de 10 checks
+- displaced_population: poblacion desplazada = poblacion_afectada *
+  tasa_de_desplazamiento, donde la tasa de desplazamiento es una
+  funcion simple del ratio de dano a vivienda (mas dano estructural ->
+  mayor fraccion de la poblacion afectada queda desplazada):
+  displacement_rate = min(1, housing_damage_ratio * displacement_factor).
 
-confidence_flag: "alta" para la mecanica de cada metodo (formulas
-estandar de la literatura citada). No hay catalogo de indicadores/pesos
-por region: los indicadores, pesos y tasas los provee quien llama.
+- social_vulnerability_index: indice compuesto ponderado 0-100 (mismo
+  patron de composicion que financial_literacy_score_tool), combinando
+  4 componentes normalizados que provee quien llama: dependencia etaria
+  (fraccion de poblacion menor de 15 o mayor de 65), pobreza (fraccion
+  bajo linea de pobreza), densidad poblacional relativa, y fraccion con
+  discapacidad o movilidad reducida -- todos en escala 0-1 donde 1 =
+  mayor vulnerabilidad. Es un indice propio e ilustrativo (no reproduce
+  un indice normativo especifico como el SoVI de Cutter et al.).
+
+- social_recovery_time: tiempo de recuperacion de la funcionalidad
+  social de una comunidad, mismo modelo de recuperacion exponencial que
+  disaster_economics_tool.recovery_time pero aplicado a un indicador de
+  funcionalidad social (acceso a servicios, cohesion comunitaria, etc.)
+  en vez de funcionalidad economica.
+
+- validate: suite de checks contra casos con solucion cerrada conocida.
+
+Convencion identica al resto del repo: compute_social_impact(mode,
+params=None) -> dict, registrado via tool_registry.register_tool().
 """
-
-import math
+import numpy as np
 
 
 SOCIAL_IMPACT_TOOL_SCHEMA = {
     "name": "social_impact_tool",
     "description": (
-        "Impacto social de desastres y de inversion publica: "
-        "social_vulnerability_index (indice SoVI via suma de z-scores de "
-        "indicadores socioeconomicos con signo configurable por indicador), "
-        "displacement_estimate (poblacion desplazada y unidades de vivienda "
-        "temporal requeridas a partir de dano habitacional por severidad y "
-        "ocupacion promedio), equity_weighted_impact (pondera perdida/dano "
-        "economico por un factor de vulnerabilidad social para priorizar "
-        "inversion), casualty_estimate (estimacion simplificada de victimas a "
-        "partir de fraccion de estructuras colapsadas, ocupacion y hora del "
-        "dia, logica HAZUS-MH simplificada), validate (suite de 10 checks). "
-        "Motor generico: no trae catalogo de indicadores/pesos por region "
-        "(los provee quien llama), confidence_flag 'alta' para la mecanica."
+        "Impacto social de desastres: affected_population (poblacion "
+        "expuesta * fraccion de exposicion), displaced_population "
+        "(poblacion afectada * tasa de desplazamiento, funcion del ratio "
+        "de dano a vivienda), social_vulnerability_index (indice "
+        "compuesto 0-100 ponderando dependencia etaria, pobreza, "
+        "densidad relativa y discapacidad/movilidad reducida -- indice "
+        "propio e ilustrativo, no reproduce un indice normativo "
+        "especifico como el SoVI de Cutter et al.), social_recovery_time "
+        "(tiempo para alcanzar un umbral de funcionalidad social via "
+        "recuperacion exponencial, mismo modelo que disaster_economics_"
+        "tool.recovery_time pero aplicado a funcionalidad social), "
+        "validate (suite de checks). Motor generico: los componentes de "
+        "vulnerabilidad normalizados los provee quien llama."
     ),
     "inputSchema": {
         "type": "object",
         "properties": {
-            "mode": {"type": "string"},
+            "mode": {
+                "type": "string",
+                "enum": [
+                    "affected_population",
+                    "displaced_population",
+                    "social_vulnerability_index",
+                    "social_recovery_time",
+                    "validate",
+                ],
+            },
             "params": {"type": "object"},
         },
         "required": ["mode"],
     },
 }
 
+DEFAULT_VULNERABILITY_WEIGHTS = {
+    "age_dependency": 0.25,
+    "poverty": 0.30,
+    "density": 0.20,
+    "disability": 0.25,
+}
 
-def _zscore(value, mean, std):
-    if std == 0:
-        return 0.0
-    return (value - mean) / std
+
+def _mode_affected_population(params):
+    exposed_population = float(params["exposed_population"])
+    if exposed_population < 0:
+        raise ValueError("exposed_population debe ser >= 0")
+
+    exposure_fraction = float(params["exposure_fraction"])
+    if not (0.0 <= exposure_fraction <= 1.0):
+        raise ValueError("exposure_fraction debe estar en [0, 1]")
+
+    affected = exposed_population * exposure_fraction
+
+    return {
+        "mode": "affected_population",
+        "exposed_population": exposed_population,
+        "exposure_fraction": exposure_fraction,
+        "affected_population": float(affected),
+    }
+
+
+def _mode_displaced_population(params):
+    affected_population = float(params["affected_population"])
+    if affected_population < 0:
+        raise ValueError("affected_population debe ser >= 0")
+
+    housing_damage_ratio = float(params["housing_damage_ratio"])
+    if not (0.0 <= housing_damage_ratio <= 1.0):
+        raise ValueError("housing_damage_ratio debe estar en [0, 1]")
+
+    displacement_factor = float(params.get("displacement_factor", 1.0))
+    if displacement_factor < 0:
+        raise ValueError("displacement_factor debe ser >= 0")
+
+    displacement_rate = min(1.0, housing_damage_ratio * displacement_factor)
+    displaced = affected_population * displacement_rate
+
+    return {
+        "mode": "displaced_population",
+        "affected_population": affected_population,
+        "housing_damage_ratio": housing_damage_ratio,
+        "displacement_factor": displacement_factor,
+        "displacement_rate": float(displacement_rate),
+        "displaced_population": float(displaced),
+    }
+
+
+def _get_vulnerability_weights(params):
+    weights = dict(DEFAULT_VULNERABILITY_WEIGHTS)
+    custom = params.get("weights", {})
+    weights.update({k: float(v) for k, v in custom.items()})
+    total = sum(weights.values())
+    if abs(total - 1.0) > 1e-6:
+        raise ValueError(f"los pesos deben sumar 1.0, suman {total}")
+    return weights
+
+
+def _mode_social_vulnerability_index(params):
+    required = ["age_dependency", "poverty", "density", "disability"]
+    missing = [r for r in required if r not in params]
+    if missing:
+        raise ValueError(f"faltan parametros requeridos: {missing}")
+
+    components = {}
+    for k in required:
+        v = float(params[k])
+        if not (0.0 <= v <= 1.0):
+            raise ValueError(f"{k} debe estar en [0, 1]")
+        components[k] = v
+
+    weights = _get_vulnerability_weights(params)
+    score = sum(components[k] * 100.0 * weights[k] for k in weights)
+
+    if score >= 75:
+        level = "muy alta"
+    elif score >= 50:
+        level = "alta"
+    elif score >= 25:
+        level = "moderada"
+    else:
+        level = "baja"
+
+    return {
+        "mode": "social_vulnerability_index",
+        "components": components,
+        "weights": weights,
+        "index_0_100": float(score),
+        "level": level,
+        "confidence_flag": "ilustrativo (indice propio, no reproduce un indice normativo especifico)",
+    }
+
+
+def _mode_social_recovery_time(params):
+    functionality_0 = float(params["functionality_0"])
+    if not (0.0 <= functionality_0 < 1.0):
+        raise ValueError("functionality_0 debe estar en [0, 1)")
+
+    tau_days = float(params["tau_days"])
+    if tau_days <= 0:
+        raise ValueError("tau_days debe ser > 0")
+
+    target_functionality = float(params.get("target_functionality", 0.90))
+    if not (functionality_0 < target_functionality <= 1.0):
+        raise ValueError("target_functionality debe estar en (functionality_0, 1]")
+
+    ratio = (1.0 - target_functionality) / (1.0 - functionality_0)
+    if ratio <= 0:
+        recovery_days = None
+    else:
+        recovery_days = float(-tau_days * np.log(ratio))
+
+    return {
+        "mode": "social_recovery_time",
+        "functionality_0": functionality_0,
+        "tau_days": tau_days,
+        "target_functionality": target_functionality,
+        "recovery_time_days": recovery_days,
+        "method": "recuperacion exponencial: functionality(t) = 1 - (1-f0)*exp(-t/tau)",
+    }
+
+
+def _mode_validate():
+    checks = []
+
+    # 1) affected_population: caso exacto (10000 * 0.3 = 3000)
+    r1 = _mode_affected_population({"exposed_population": 10000.0, "exposure_fraction": 0.3})
+    checks.append({
+        "name": "affected_population_exact",
+        "affected": r1["affected_population"],
+        "passed": abs(r1["affected_population"] - 3000.0) < 1e-9,
+    })
+
+    # 2) affected_population: exposure_fraction fuera de rango lanza excepcion
+    try:
+        _mode_affected_population({"exposed_population": 1000.0, "exposure_fraction": 1.5})
+        raised2 = False
+    except ValueError:
+        raised2 = True
+    checks.append({"name": "exposure_fraction_out_of_range_raises", "passed": raised2})
+
+    # 3) displaced_population: dano total (ratio=1) con factor=1 desplaza a toda la poblacion afectada
+    r3 = _mode_displaced_population({"affected_population": 500.0, "housing_damage_ratio": 1.0, "displacement_factor": 1.0})
+    checks.append({
+        "name": "full_housing_damage_displaces_all_affected",
+        "displaced": r3["displaced_population"],
+        "passed": abs(r3["displaced_population"] - 500.0) < 1e-9,
+    })
+
+    # 4) displaced_population: dano parcial da desplazamiento proporcional
+    r4 = _mode_displaced_population({"affected_population": 1000.0, "housing_damage_ratio": 0.4, "displacement_factor": 1.0})
+    checks.append({
+        "name": "partial_housing_damage_proportional",
+        "displaced": r4["displaced_population"],
+        "passed": abs(r4["displaced_population"] - 400.0) < 1e-9,
+    })
+
+    # 5) displaced_population: displacement_factor alto se clippea la tasa a 1.0 (no puede desplazar mas del 100%)
+    r5 = _mode_displaced_population({"affected_population": 200.0, "housing_damage_ratio": 0.8, "displacement_factor": 3.0})
+    checks.append({
+        "name": "displacement_rate_clips_at_one",
+        "rate": r5["displacement_rate"], "displaced": r5["displaced_population"],
+        "passed": abs(r5["displacement_rate"] - 1.0) < 1e-9 and abs(r5["displaced_population"] - 200.0) < 1e-9,
+    })
+
+    # 6) social_vulnerability_index: todos los componentes en el maximo dan index 100
+    r6 = _mode_social_vulnerability_index({
+        "age_dependency": 1.0, "poverty": 1.0, "density": 1.0, "disability": 1.0,
+    })
+    checks.append({
+        "name": "all_max_vulnerability_gives_index_100",
+        "index": r6["index_0_100"], "level": r6["level"],
+        "passed": abs(r6["index_0_100"] - 100.0) < 1e-9 and r6["level"] == "muy alta",
+    })
+
+    # 7) social_vulnerability_index: todos los componentes en el minimo dan index 0
+    r7 = _mode_social_vulnerability_index({
+        "age_dependency": 0.0, "poverty": 0.0, "density": 0.0, "disability": 0.0,
+    })
+    checks.append({
+        "name": "all_min_vulnerability_gives_index_0",
+        "index": r7["index_0_100"], "level": r7["level"],
+        "passed": abs(r7["index_0_100"]) < 1e-9 and r7["level"] == "baja",
+    })
+
+    # 8) social_vulnerability_index: pesos que no suman 1 lanzan excepcion
+    try:
+        _mode_social_vulnerability_index({
+            "age_dependency": 0.5, "poverty": 0.5, "density": 0.5, "disability": 0.5,
+            "weights": {"poverty": 0.9},
+        })
+        raised8 = False
+    except ValueError:
+        raised8 = True
+    checks.append({"name": "invalid_weights_sum_raises", "passed": raised8})
+
+    # 9) social_vulnerability_index: componente fuera de [0,1] lanza excepcion
+    try:
+        _mode_social_vulnerability_index({
+            "age_dependency": 1.5, "poverty": 0.5, "density": 0.5, "disability": 0.5,
+        })
+        raised9 = False
+    except ValueError:
+        raised9 = True
+    checks.append({"name": "component_out_of_range_raises", "passed": raised9})
+
+    # 10) social_recovery_time: caso analitico simple, f0=0, target=1-1/e da recovery_time=tau exacto
+    target = 1.0 - 1.0 / np.e
+    r10 = _mode_social_recovery_time({"functionality_0": 0.0, "tau_days": 60.0, "target_functionality": float(target)})
+    checks.append({
+        "name": "social_recovery_time_at_one_tau",
+        "recovery_days": r10["recovery_time_days"],
+        "passed": abs(r10["recovery_time_days"] - 60.0) < 1e-6,
+    })
+
+    # 11) social_recovery_time: target_functionality fuera de rango lanza excepcion
+    try:
+        _mode_social_recovery_time({"functionality_0": 0.5, "tau_days": 30.0, "target_functionality": 0.3})
+        raised11 = False
+    except ValueError:
+        raised11 = True
+    checks.append({"name": "target_below_initial_raises", "passed": raised11})
+
+    # 12) modo invalido lanza excepcion
+    try:
+        compute_social_impact("modo_invalido", {})
+        invalid_raised = False
+    except (KeyError, ValueError):
+        invalid_raised = True
+    checks.append({"name": "invalid_mode_raises", "passed": invalid_raised})
+
+    all_passed = all(c["passed"] for c in checks)
+    return {"checks": checks, "validation_passed": all_passed}
 
 
 def compute_social_impact(mode, params=None):
     params = params or {}
 
-    if mode == "social_vulnerability_index":
-        # indicators: lista de {"name","value","population_mean","population_std","direction"}
-        # direction: "increases_vulnerability" (+z) o "decreases_vulnerability" (-z)
-        indicators = params["indicators"]
-        components = []
-        total_z = 0.0
-        for ind in indicators:
-            z = _zscore(float(ind["value"]), float(ind["population_mean"]), float(ind["population_std"]))
-            direction = ind.get("direction", "increases_vulnerability")
-            signed_z = z if direction == "increases_vulnerability" else -z
-            components.append({
-                "name": ind["name"], "z_score": z, "direction": direction, "signed_z_score": signed_z,
-            })
-            total_z += signed_z
-
-        n = len(indicators)
-        avg_z = total_z / n if n > 0 else 0.0
-
-        if avg_z >= 1.0:
-            band = "muy_alta"
-        elif avg_z >= 0.5:
-            band = "alta"
-        elif avg_z >= -0.5:
-            band = "media"
-        elif avg_z >= -1.0:
-            band = "baja"
-        else:
-            band = "muy_baja"
-
-        return {
-            "mode": "social_vulnerability_index",
-            "n_indicators": n,
-            "components": components,
-            "sovi_index_sum": total_z,
-            "sovi_index_avg": avg_z,
-            "vulnerability_band": band,
-            "method": "suma de z-scores con signo (SoVI, Cutter Boruff & Shirley 2003)",
-            "confidence_flag": "alta",
-        }
-
-    elif mode == "displacement_estimate":
-        housing_damage = params["housing_damage_counts"]  # {"minor":n,"major":n,"destroyed":n}
-        occupancy_per_unit = float(params.get("avg_occupancy_per_unit", 3.0))
-        # fracciones estandar de inhabitabilidad temporal por severidad (HAZUS-MH simplificado)
-        uninhabitable_fraction = params.get("uninhabitable_fraction", {
-            "minor": 0.0, "major": 0.6, "destroyed": 1.0,
-        })
-
-        minor = int(housing_damage.get("minor", 0))
-        major = int(housing_damage.get("major", 0))
-        destroyed = int(housing_damage.get("destroyed", 0))
-
-        units_uninhabitable = (
-            minor * uninhabitable_fraction.get("minor", 0.0)
-            + major * uninhabitable_fraction.get("major", 0.6)
-            + destroyed * uninhabitable_fraction.get("destroyed", 1.0)
-        )
-        displaced_population = units_uninhabitable * occupancy_per_unit
-
-        return {
-            "mode": "displacement_estimate",
-            "housing_damage_counts": {"minor": minor, "major": major, "destroyed": destroyed},
-            "avg_occupancy_per_unit": occupancy_per_unit,
-            "uninhabitable_fraction_used": uninhabitable_fraction,
-            "housing_units_uninhabitable": units_uninhabitable,
-            "estimated_displaced_population": displaced_population,
-            "temporary_housing_units_needed": math.ceil(units_uninhabitable),
-            "method": "fracciones de inhabitabilidad por severidad, logica HAZUS-MH housing damage module",
-            "confidence_flag": "alta",
-        }
-
-    elif mode == "equity_weighted_impact":
-        raw_impact = float(params["raw_impact_value"])
-        vulnerability_index = float(params["vulnerability_index"])
-        # peso de equidad: 1 + alpha * vulnerability_index (alpha configurable, default 0.5)
-        # a mayor vulnerabilidad, mayor peso relativo del impacto (metodo HM Treasury Green Book)
-        alpha = float(params.get("equity_weight_alpha", 0.5))
-        equity_weight = 1.0 + alpha * vulnerability_index
-        weighted_impact = raw_impact * equity_weight
-
-        return {
-            "mode": "equity_weighted_impact",
-            "raw_impact_value": raw_impact,
-            "vulnerability_index": vulnerability_index,
-            "equity_weight_alpha": alpha,
-            "equity_weight_applied": equity_weight,
-            "equity_weighted_impact": weighted_impact,
-            "method": "equity weighting lineal sobre indice de vulnerabilidad (HM Treasury Green Book)",
-            "confidence_flag": "alta",
-        }
-
-    elif mode == "casualty_estimate":
-        structures_collapsed = int(params["structures_collapsed"])
-        avg_occupants_per_structure = float(params["avg_occupants_per_structure"])
-        time_of_day_occupancy_factor = float(params.get("time_of_day_occupancy_factor", 1.0))
-        # fracciones estandar simplificadas de resultado dado colapso estructural
-        # (fatalidad, herida grave, herida leve, ilesa), suman 1.0
-        outcome_fractions = params.get("outcome_fractions_given_collapse", {
-            "fatality": 0.10, "severe_injury": 0.20, "minor_injury": 0.30, "uninjured": 0.40,
-        })
-        total_frac = sum(outcome_fractions.values())
-        if abs(total_frac - 1.0) > 1e-6:
-            raise ValueError(f"outcome_fractions_given_collapse debe sumar 1.0 (suma actual: {total_frac})")
-
-        exposed_population = structures_collapsed * avg_occupants_per_structure * time_of_day_occupancy_factor
-
-        results = {k: exposed_population * v for k, v in outcome_fractions.items()}
-
-        return {
-            "mode": "casualty_estimate",
-            "structures_collapsed": structures_collapsed,
-            "avg_occupants_per_structure": avg_occupants_per_structure,
-            "time_of_day_occupancy_factor": time_of_day_occupancy_factor,
-            "exposed_population_estimate": exposed_population,
-            "outcome_fractions_used": outcome_fractions,
-            "estimated_outcomes": results,
-            "method": "logica simplificada de modulo de victimas HAZUS-MH (sin curvas de fragilidad especificas por tipo estructural)",
-            "confidence_flag": "media",
-            "note": "estimacion gruesa; para analisis serio usar fragility curves especificas del tipo estructural y ocupacion real medida.",
-        }
-
+    if mode == "affected_population":
+        return _mode_affected_population(params)
+    elif mode == "displaced_population":
+        return _mode_displaced_population(params)
+    elif mode == "social_vulnerability_index":
+        return _mode_social_vulnerability_index(params)
+    elif mode == "social_recovery_time":
+        return _mode_social_recovery_time(params)
     elif mode == "validate":
-        checks = []
-
-        # 1) SoVI: indicador en la media exacta da z=0
-        r1 = compute_social_impact("social_vulnerability_index", {
-            "indicators": [{"name": "poverty_rate", "value": 20, "population_mean": 20, "population_std": 5,
-                             "direction": "increases_vulnerability"}]
-        })
-        checks.append({
-            "name": "sovi_indicator_at_mean_gives_zero_zscore",
-            "z": r1["components"][0]["z_score"],
-            "passed": abs(r1["components"][0]["z_score"]) < 1e-9,
-        })
-
-        # 2) SoVI: direction "decreases_vulnerability" invierte el signo
-        r2 = compute_social_impact("social_vulnerability_index", {
-            "indicators": [{"name": "income", "value": 30, "population_mean": 20, "population_std": 5,
-                             "direction": "decreases_vulnerability"}]
-        })
-        checks.append({
-            "name": "sovi_decreases_vulnerability_direction_flips_sign",
-            "signed_z": r2["components"][0]["signed_z_score"],
-            "passed": r2["components"][0]["signed_z_score"] < 0,
-        })
-
-        # 3) SoVI: banda muy_alta cuando avg_z >= 1.0
-        r3 = compute_social_impact("social_vulnerability_index", {
-            "indicators": [
-                {"name": "a", "value": 30, "population_mean": 20, "population_std": 5, "direction": "increases_vulnerability"},
-                {"name": "b", "value": 30, "population_mean": 20, "population_std": 5, "direction": "increases_vulnerability"},
-            ]
-        })
-        checks.append({
-            "name": "sovi_high_zscores_give_muy_alta_band",
-            "avg_z": r3["sovi_index_avg"],
-            "band": r3["vulnerability_band"],
-            "passed": r3["vulnerability_band"] == "muy_alta",
-        })
-
-        # 4) displacement: destroyed=100% inhabitable
-        r4 = compute_social_impact("displacement_estimate", {
-            "housing_damage_counts": {"minor": 0, "major": 0, "destroyed": 50},
-            "avg_occupancy_per_unit": 4.0,
-        })
-        checks.append({
-            "name": "displacement_destroyed_units_fully_uninhabitable",
-            "units_uninhabitable": r4["housing_units_uninhabitable"],
-            "passed": r4["housing_units_uninhabitable"] == 50.0,
-        })
-
-        # 5) displacement: poblacion desplazada = unidades * ocupacion
-        checks.append({
-            "name": "displaced_population_equals_units_times_occupancy",
-            "computed": r4["estimated_displaced_population"],
-            "expected": 200.0,
-            "passed": abs(r4["estimated_displaced_population"] - 200.0) < 1e-9,
-        })
-
-        # 6) displacement: minor damage (fraccion 0 por defecto) no desplaza a nadie
-        r6 = compute_social_impact("displacement_estimate", {
-            "housing_damage_counts": {"minor": 100, "major": 0, "destroyed": 0},
-            "avg_occupancy_per_unit": 4.0,
-        })
-        checks.append({
-            "name": "minor_damage_default_zero_displacement",
-            "displaced": r6["estimated_displaced_population"],
-            "passed": r6["estimated_displaced_population"] == 0.0,
-        })
-
-        # 7) equity_weighted_impact: vulnerability_index=0 no cambia el impacto (weight=1)
-        r7 = compute_social_impact("equity_weighted_impact", {
-            "raw_impact_value": 1000.0, "vulnerability_index": 0.0,
-        })
-        checks.append({
-            "name": "zero_vulnerability_gives_unweighted_impact",
-            "weighted": r7["equity_weighted_impact"],
-            "passed": abs(r7["equity_weighted_impact"] - 1000.0) < 1e-9,
-        })
-
-        # 8) equity_weighted_impact: mayor vulnerabilidad -> mayor peso
-        r8a = compute_social_impact("equity_weighted_impact", {"raw_impact_value": 1000.0, "vulnerability_index": 1.0})
-        r8b = compute_social_impact("equity_weighted_impact", {"raw_impact_value": 1000.0, "vulnerability_index": 2.0})
-        checks.append({
-            "name": "higher_vulnerability_gives_higher_weighted_impact",
-            "weighted_v1": r8a["equity_weighted_impact"],
-            "weighted_v2": r8b["equity_weighted_impact"],
-            "passed": r8b["equity_weighted_impact"] > r8a["equity_weighted_impact"],
-        })
-
-        # 9) casualty_estimate: outcome_fractions que no suman 1.0 lanzan excepcion
-        try:
-            compute_social_impact("casualty_estimate", {
-                "structures_collapsed": 10, "avg_occupants_per_structure": 3,
-                "outcome_fractions_given_collapse": {"fatality": 0.5, "uninjured": 0.6},
-            })
-            raised9 = False
-        except ValueError:
-            raised9 = True
-        checks.append({"name": "casualty_outcome_fractions_must_sum_to_one", "passed": raised9})
-
-        # 9b) casualty_estimate: suma de outcomes = poblacion expuesta
-        r9b = compute_social_impact("casualty_estimate", {
-            "structures_collapsed": 10, "avg_occupants_per_structure": 5,
-        })
-        sum_outcomes = sum(r9b["estimated_outcomes"].values())
-        checks.append({
-            "name": "casualty_outcomes_sum_equals_exposed_population",
-            "sum_outcomes": sum_outcomes,
-            "exposed": r9b["exposed_population_estimate"],
-            "passed": abs(sum_outcomes - r9b["exposed_population_estimate"]) < 1e-6,
-        })
-
-        # 10) modo invalido lanza excepcion
-        try:
-            compute_social_impact("modo_invalido", {})
-            invalid_raised = False
-        except (KeyError, ValueError):
-            invalid_raised = True
-        checks.append({"name": "invalid_mode_raises", "passed": invalid_raised})
-
-        all_passed = all(c["passed"] for c in checks)
-        return {"checks": checks, "validation_passed": all_passed}
-
+        return _mode_validate()
     else:
-        raise ValueError(f"Modo desconocido para social_impact_tool: {mode}")
+        raise ValueError(
+            f"modo desconocido: {mode}. Use affected_population | displaced_population | "
+            f"social_vulnerability_index | social_recovery_time | validate"
+        )
+
+
+try:
+    from tool_registry import register_tool
+    register_tool(
+        name="social_impact_tool",
+        schema=SOCIAL_IMPACT_TOOL_SCHEMA,
+        handler=lambda args: compute_social_impact(args.get("mode"), args.get("params")),
+    )
+except ImportError:
+    pass
+
+
+if __name__ == "__main__":
+    import json
+    d = compute_social_impact("validate")
+    print(json.dumps(d, indent=2, ensure_ascii=False))
+    assert d["validation_passed"], "Validacion fallo, ver detalle arriba"
+    print("\nTodos los chequeos de social_impact_tool.py pasaron OK.")
