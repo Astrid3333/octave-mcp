@@ -448,17 +448,17 @@ def _validate_survey_angles():
 
     r1 = compute_survey_angles("bearing_azimuth", delta_e=1, delta_n=1)
     checks.append({"name": "bearing_azimuth: delta_e=delta_n=1 -> azimut=45 exacto",
-                    "passed": abs(r1["azimuth_deg"] - 45.0) < tol, "got": r1["azimuth_deg"]})
+                    "passed": bool(abs(r1["azimuth_deg"] - 45.0) < tol), "got": r1["azimuth_deg"]})
 
     r2 = compute_survey_angles("angle_closure", angles=[60, 60, 61])
     suma_ajustada = sum(r2["adjusted_angles_deg"])
     checks.append({"name": "angle_closure: triangulo con misclosure=1 -> suma ajustada=180 exacto",
-                    "passed": abs(suma_ajustada - 180.0) < 1e-9 and abs(r2["misclosure_deg"] - 1.0) < tol,
+                    "passed": bool(abs(suma_ajustada - 180.0) < 1e-9 and abs(r2["misclosure_deg"] - 1.0) < tol),
                     "got": {"misclosure": r2["misclosure_deg"], "suma_ajustada": suma_ajustada}})
 
     r3 = compute_survey_angles("mean_angle_reduction", face_left=[10], face_right=[190])
     checks.append({"name": "mean_angle_reduction: FL=10,FR=190 (180 exacto de diferencia) -> mean=10, spread=0",
-                    "passed": abs(r3["overall_mean_deg"] - 10.0) < tol and abs(r3["fl_fr_spread_deg"][0]) < tol,
+                    "passed": bool(abs(r3["overall_mean_deg"] - 10.0) < tol and abs(r3["fl_fr_spread_deg"][0]) < tol),
                     "got": {"mean": r3["overall_mean_deg"], "spread": r3["fl_fr_spread_deg"][0]}})
 
     return {"mode": "validate", "validation_passed": all(c["passed"] for c in checks), "checks": checks}
@@ -470,17 +470,17 @@ def _validate_survey_distance():
 
     r1 = compute_survey_distance("slope_correction", slope_distance=100, angle_deg=60, method="angle")
     checks.append({"name": "slope_correction: L=100, angulo=60 -> horizontal=50, correction=50 exacto",
-                    "passed": abs(r1["horizontal_distance"] - 50.0) < 1e-6 and abs(r1["correction"] - 50.0) < 1e-6,
+                    "passed": bool(abs(r1["horizontal_distance"] - 50.0) < 1e-6 and abs(r1["correction"] - 50.0) < 1e-6),
                     "got": {"horizontal": r1["horizontal_distance"], "correction": r1["correction"]}})
 
     r2 = compute_survey_distance("stadia", k=100, s=1, angle_deg=0, c=0)
     checks.append({"name": "stadia: k=100,s=1,angulo=0 -> horizontal=100, vertical=0 exacto",
-                    "passed": abs(r2["horizontal_distance"] - 100.0) < tol and abs(r2["vertical_component"]) < tol,
+                    "passed": bool(abs(r2["horizontal_distance"] - 100.0) < tol and abs(r2["vertical_component"]) < tol),
                     "got": {"horizontal": r2["horizontal_distance"], "vertical": r2["vertical_component"]}})
 
     r3 = compute_survey_distance("edm_correction", measured_distance=1000, delta_n=0.0001, n0=1)
     checks.append({"name": "edm_correction: 1000m + 100ppm -> corregida=1000.1 exacto",
-                    "passed": abs(r3["corrected_distance"] - 1000.1) < 1e-6, "got": r3["corrected_distance"]})
+                    "passed": bool(abs(r3["corrected_distance"] - 1000.1) < 1e-6), "got": r3["corrected_distance"]})
 
     return {"mode": "validate", "validation_passed": all(c["passed"] for c in checks), "checks": checks}
 
@@ -493,7 +493,7 @@ def _validate_survey_curvature():
 
     r1 = compute_survey_curvature("curvature_refraction", observed_angle_deg=0, distance=d, k=k, R=R, direction="add")
     checks.append({"name": "curvature_refraction: formula (1-k)*d/(2R) vs calculo directo, 10km, k=0.13",
-                    "passed": abs(r1["correction_deg"] - correction_deg_esperado) < 1e-9,
+                    "passed": bool(abs(r1["correction_deg"] - correction_deg_esperado) < 1e-9),
                     "got": {"correction_deg": r1["correction_deg"], "esperado": correction_deg_esperado}})
 
     return {"mode": "validate", "validation_passed": all(c["passed"] for c in checks), "checks": checks}
@@ -519,12 +519,12 @@ def _validate_survey_curves():
 
     r1 = compute_survey_curves("horizontal_circular", radius=100, delta_deg=90)
     checks.append({"name": "horizontal_circular: R=100, delta=90 -> tangent=R*tan(45)=100 exacto",
-                    "passed": abs(r1["tangent"] - 100.0) < 1e-6, "got": r1["tangent"]})
+                    "passed": bool(abs(r1["tangent"] - 100.0) < 1e-6), "got": r1["tangent"]})
 
     r2 = compute_survey_curves("vertical_parabolic", g1_pct=-2, g2_pct=2, length=200, elev_pvi=100, station_pvi=0)
     checks.append({"name": "vertical_parabolic: curva simetrica g1=-2,g2=2 -> elev_pvc==elev_pvt==102, punto bajo en el centro",
-                    "passed": abs(r2["elev_pvc"] - 102.0) < 1e-9 and abs(r2["elev_pvt"] - 102.0) < 1e-9
-                              and abs(r2["turning_point_offset_from_pvc"] - 100.0) < 1e-9,
+                    "passed": bool(abs(r2["elev_pvc"] - 102.0) < 1e-9 and abs(r2["elev_pvt"] - 102.0) < 1e-9
+                              and abs(r2["turning_point_offset_from_pvc"] - 100.0) < 1e-9),
                     "got": {"elev_pvc": r2["elev_pvc"], "elev_pvt": r2["elev_pvt"],
                             "turning_offset": r2["turning_point_offset_from_pvc"]}})
 
