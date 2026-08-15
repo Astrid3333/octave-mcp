@@ -10,9 +10,6 @@ import education_funding_tool  # auto-registra via tool_registry, no requiere ma
 import emergency_fund_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import investment_portfolio_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import tax_estimation_tool  # auto-registra via tool_registry, no requiere mas ediciones
-import emergency_fund_tool  # auto-registra via tool_registry, no requiere mas ediciones
-import investment_portfolio_tool  # auto-registra via tool_registry, no requiere mas ediciones
-import tax_estimation_tool  # auto-registra via tool_registry, no requiere mas ediciones
 from lyapunov_tool import compute_lyapunov_exponent, LYAPUNOV_TOOL_SCHEMA
 from stiff_ode_tool import integrate_stiff_ode, STIFF_ODE_TOOL_SCHEMA
 from bifurcation_tool import compute_bifurcation_diagram, BIFURCATION_TOOL_SCHEMA
@@ -64,6 +61,7 @@ from spatial_statistics_tool import compute_spatial_statistics, SPATIAL_STATISTI
 from text_analysis_math_tool import compute_text_analysis_math, TEXT_ANALYSIS_MATH_TOOL_SCHEMA
 from multibody_dynamics_tool import compute_multibody_dynamics, MULTIBODY_DYNAMICS_TOOL_SCHEMA
 import particle_simulation_tool  # auto-registra via tool_registry
+import health_check_tool  # auto-registra via tool_registry, no requiere mas ediciones
 from finite_element_tool import compute_finite_element, FINITE_ELEMENT_TOOL_SCHEMA
 from fem_advanced_tool import compute_fem_advanced, FEM_ADVANCED_TOOL_SCHEMA
 from plane_stress_tool import compute_plane_stress, PLANE_STRESS_TOOL_SCHEMA
