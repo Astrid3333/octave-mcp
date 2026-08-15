@@ -37,6 +37,11 @@ MUSIC_MATH_SCHEMA = {
                          "harmonic_series", "ternary_scale", "spectral_analysis", "validate"],
                 "default": "pythagorean_comma",
             },
+            "mode": {
+                "type": "string",
+                "enum": ["validate"],
+                "description": "Alias de 'preset' solo para mode='validate' (asi lo detecta run_all_validations.py).",
+            },
             "f0": {"type": "number", "default": 220.0, "description": "Frecuencia fundamental en Hz"},
             "n_harmonics": {"type": "integer", "default": 8},
             "n_power": {"type": "integer", "default": 2, "description": "Para ternary_scale: divide en 3^n_power pasos"},
@@ -268,8 +273,8 @@ def _validate_music_math() -> dict:
 
 
 def compute_music_math(preset="pythagorean_comma", f0=220.0, n_harmonics=8,
-                        n_power=2, signal=None, fs=44100, **kwargs):
-    if preset == "validate":
+                        n_power=2, signal=None, fs=44100, mode=None, **kwargs):
+    if preset == "validate" or mode == "validate":
         return _validate_music_math()
     if preset == "pythagorean_comma":
         return _pythagorean_comma()
