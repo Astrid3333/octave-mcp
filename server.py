@@ -22,6 +22,7 @@ import disaster_economics_tool  # auto-registra via tool_registry, no requiere m
 import social_impact_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import math_pipeline_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import ocas_symbolic_tool  # auto-registra via tool_registry, no requiere mas ediciones
+import pipeline_orchestrator_tool  # auto-registra via tool_registry, no requiere mas ediciones
 from lyapunov_tool import compute_lyapunov_exponent, LYAPUNOV_TOOL_SCHEMA
 from stiff_ode_tool import integrate_stiff_ode, STIFF_ODE_TOOL_SCHEMA
 from bifurcation_tool import compute_bifurcation_diagram, BIFURCATION_TOOL_SCHEMA
