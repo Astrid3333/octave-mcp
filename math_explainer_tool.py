@@ -336,6 +336,111 @@ def _explain_urban_planning(result, level):
     return "\n".join(lines)
 
 
+def _explain_enzyme_kinetics(result, level):
+    mode = result.get("mode", "?")
+    lines = []
+
+    if mode == "full_kinetics":
+        p = result.get("params", {})
+        lines.append(f"Cinetica enzimatica completa E+S<->ES->E+P (integracion ODE, no aproximacion): k1={p.get('k1')}, km1={p.get('km1')}, k2={p.get('k2')}, E0={p.get('E0')}, S0={p.get('S0')}.")
+        lines.append(f"  - Km derivado: {_fmt(result.get('Km_derivado'))}, Vmax derivado: {_fmt(result.get('Vmax_derivado'))}.")
+        lines.append(f"  - Al final de la simulacion: S={_fmt(result.get('S_final'))}, P={_fmt(result.get('P_final'))}.")
+        if level == "basico":
+            lines.append("Esta es la trayectoria 'real' del sistema completo (sin aproximaciones), util como referencia para validar la aproximacion de Michaelis-Menten.")
+
+    elif mode == "michaelis_menten":
+        lines.append(f"Aproximacion de Michaelis-Menten: Km={_fmt(result.get('Km'))}, Vmax={_fmt(result.get('Vmax'))}.")
+        lines.append(f"  - Formula: {result.get('formula')}.")
+        sample = result.get("velocidad_sample", [])
+        if sample:
+            lines.append(f"  - Velocidad de reaccion a lo largo del muestreo: de {_fmt(sample[0])} a {_fmt(sample[-1])}.")
+
+    elif mode == "compare":
+        lines.append(f"Comparacion cinetica completa vs aproximacion Michaelis-Menten: Km={_fmt(result.get('Km'))}, Vmax={_fmt(result.get('Vmax'))}.")
+        valida = result.get("aproximacion_valida")
+        err = result.get("error_relativo_promedio_MM_vs_completo")
+        lines.append(f"  - QSSA (E0<<S0): {'se cumple' if result.get('condicion_QSSA_E0_menor_que_S0') else 'NO se cumple'} (ratio E0/S0={_fmt(result.get('ratio_E0_S0'))}).")
+        lines.append(f"  - Error relativo promedio MM vs cinetica completa: {_fmt(err)} -> aproximacion {'VALIDA' if valida else 'NO valida'} (umbral 0.05).")
+        if level == "basico":
+            lines.append("La aproximacion de Michaelis-Menten asume que el complejo ES llega rapido a un estado cuasi-estacionario; eso solo es razonable cuando hay mucho menos enzima que sustrato (E0<<S0).")
+
+    else:
+        lines.append(f"Resultado de enzyme_kinetics_tool en modo '{mode}' (sin template narrativo especifico para este modo todavia).")
+        keys = list(result.keys())[:8]
+        lines.append(f"Campos principales: {', '.join(keys)}.")
+
+    return "\n".join(lines)
+
+
+def _explain_bacterial_growth(result, level):
+    mode = result.get("mode", "?")
+    lines = []
+
+    if mode == "baranyi_roberts":
+        p = result.get("params", {})
+        lines.append(f"Curva de crecimiento bacteriano, modelo Baranyi-Roberts: mu_max={p.get('mu_max')}, y_max={p.get('y_max')}, h0={p.get('h0')}, t_max={p.get('t_max')}.")
+        lines.append(f"  - Valor final (ln N/N0): {_fmt(result.get('final_y'))}.")
+        lag = result.get("estimated_lag_time")
+        if lag is not None:
+            lines.append(f"  - Tiempo de lag estimado: {_fmt(lag)}.")
+        if level == "basico":
+            lines.append("h0 controla el estado fisiologico inicial de la poblacion: h0 alto = poblacion ya 'adaptada', lag corto; h0 bajo = lag largo antes de crecer.")
+
+    elif mode == "gompertz":
+        p = result.get("params", {})
+        lines.append(f"Curva de crecimiento bacteriano, modelo Gompertz modificado (Zwietering 1990): mu_max={p.get('mu_max')}, asintota A={p.get('A')}, lag={p.get('lambda_lag')}, t_max={p.get('t_max')}.")
+        lines.append(f"  - Valor final (ln N/N0): {_fmt(result.get('final_y'))}.")
+
+    elif mode == "fit_growth_curve":
+        if not result.get("converged"):
+            lines.append(f"El ajuste de la curva Gompertz a los datos experimentales NO convergio: {result.get('error', 'sin detalle')}.")
+        else:
+            lines.append(f"Ajuste no lineal de curva Gompertz a datos experimentales: A={_fmt(result.get('A_fit'))}, mu_max={_fmt(result.get('mu_max_fit'))}, lag={_fmt(result.get('lambda_lag_fit'))}.")
+            r2 = result.get("r_squared")
+            lines.append(f"  - Bondad de ajuste (R2): {_fmt(r2)}.")
+            if level == "basico" and r2 is not None:
+                calidad = "muy bueno" if r2 > 0.9 else ("aceptable" if r2 > 0.7 else "pobre")
+                lines.append(f"  - R2={_fmt(r2)} es un ajuste {calidad} (1.0 = perfecto).")
+
+    else:
+        lines.append(f"Resultado de bacterial_growth_tool en modo '{mode}' (sin template narrativo especifico para este modo todavia).")
+        keys = [k for k in result.keys() if k not in ("t", "y_ln_N_N0", "fitted_values")][:8]
+        lines.append(f"Campos principales: {', '.join(keys)}.")
+
+    return "\n".join(lines)
+
+
+def _explain_enzyme_stochastic(result, level):
+    mode = result.get("mode", "?")
+    lines = []
+
+    if mode == "gillespie_michaelis_menten":
+        p = result.get("params", {})
+        lines.append(f"Simulacion estocastica exacta (Gillespie SSA) de una trayectoria: E0={p.get('E0')}, S0={p.get('S0')} moleculas, t_max={p.get('t_max')}.")
+        lines.append(f"  - Eventos de reaccion simulados: {result.get('n_reaction_events')}.")
+        lines.append(f"  - Estado final: S={_fmt(result.get('final_S'))}, P={_fmt(result.get('final_P'))} moleculas.")
+        if level == "basico":
+            lines.append("A diferencia del modelo ODE (numero continuo de moleculas), esto simula cada reaccion individual -- relevante cuando hay pocas moleculas y el ruido molecular importa.")
+
+    elif mode == "gillespie_ensemble":
+        p = result.get("params", {})
+        n_runs = p.get("n_runs")
+        p_mean = result.get("P_mean", [])
+        p_std = result.get("P_std", [])
+        lines.append(f"Ensamble de {n_runs} trayectorias estocasticas (Gillespie SSA): E0={p.get('E0')}, S0={p.get('S0')}, t_max={p.get('t_max')}.")
+        if p_mean:
+            lines.append(f"  - P(t) promedio al final: {_fmt(p_mean[-1])} +/- {_fmt(p_std[-1]) if p_std else '?'} (media +/- desvio sobre las {n_runs} corridas).")
+        if level == "basico":
+            lines.append("El desvio estandar entre corridas mide cuanto varia el resultado por el azar de las reacciones individuales -- desvio chico relativo a la media sugiere que el sistema se comporta casi deterministicamente.")
+
+    else:
+        lines.append(f"Resultado de enzyme_stochastic_tool en modo '{mode}' (sin template narrativo especifico para este modo todavia).")
+        keys = [k for k in result.keys() if k not in ("trajectory", "query_times", "P_mean", "P_std", "S_mean", "S_std")][:8]
+        lines.append(f"Campos principales: {', '.join(keys)}.")
+
+    return "\n".join(lines)
+
+
 _EXPLAINERS = {
     "compute_gradient_hessian": _explain_gradient_hessian,
     "compute_jacobian": _explain_jacobian,
@@ -351,6 +456,9 @@ _EXPLAINERS = {
     "compute_disaster_simulation": _explain_disaster_simulation,
     "compute_critical_infrastructure": _explain_critical_infrastructure,
     "compute_urban_planning": _explain_urban_planning,
+    "compute_enzyme_kinetics": _explain_enzyme_kinetics,
+    "compute_bacterial_growth_tool": _explain_bacterial_growth,
+    "compute_enzyme_stochastic": _explain_enzyme_stochastic,
 }
 
 
