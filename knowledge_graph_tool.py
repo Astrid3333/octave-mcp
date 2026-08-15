@@ -15,6 +15,7 @@ Integrar en server.py:
 """
 
 import re
+import unicodedata
 
 _STOPWORDS_ES = {
     "el", "la", "los", "las", "de", "del", "un", "una", "y", "o", "en", "con",
@@ -22,6 +23,8 @@ _STOPWORDS_ES = {
     "entre", "esta", "este", "estos", "estas", "sin", "mas", "tool", "herramienta",
     "via", "contra", "corre", "corriendo", "usa", "usar", "dado", "dada",
     "calcula", "calculo", "devuelve", "retorna",
+    # boilerplate de docstrings/suites de validacion, sin valor de dominio
+    "checks", "quien", "llama", "suite", "confidence_flag", "validado",
 }
 _STOPWORDS_EN = {
     "the", "a", "an", "of", "and", "or", "in", "with", "for", "that", "is",
@@ -30,10 +33,64 @@ _STOPWORDS_EN = {
 }
 _STOPWORDS = _STOPWORDS_ES | _STOPWORDS_EN
 
+# Pares de sufijos adjetivales masc/fem frecuentes en las descripciones
+# (ej. "bacteriano"/"bacteriana", "estocastico"/"estocastica"). Recortar
+# la vocal final colapsa ambas formas al mismo stem para el scoring.
+_GENDER_SUFFIXES = (
+    "ano", "ana", "ico", "ica", "ivo", "iva", "oso", "osa",
+    "ado", "ada", "ido", "ida", "ario", "aria", "orio", "oria",
+)
+
+
+def _strip_accents(s):
+    """Normaliza tildes (ej. 'bacteriologico' == 'bacteriologico') via NFD unicode."""
+    return "".join(c for c in unicodedata.normalize("NFD", s) if unicodedata.category(c) != "Mn")
+
+
+def _stem_es(word):
+    """
+    Stemming liviano y conservador (sin libreria externa, consistente con
+    el resto del proyecto): colapsa plural simple y variacion de genero
+    en sufijos adjetivales comunes, para que 'bacteriano' y 'bacteriana'
+    (o 'simulaciones' y 'simulacion') puntuen como el mismo termino en el
+    scoring lexico. No es un stemmer linguisticamente completo -- solo
+    cubre los patrones mas frecuentes en las descripciones de tools de
+    este repo. Guardado conservador via longitudes minimas para evitar
+    comerse palabras cortas por error.
+    """
+    w = word
+    if len(w) > 6 and w.endswith("ciones"):
+        w = w[:-3]  # "simulaciones" -> "simulacion"
+    elif len(w) > 5 and re.search(r"[aeiou]s$", w):
+        w = w[:-1]  # "bacterianas" -> "bacteriana", "modelos" -> "modelo"
+    elif len(w) > 6 and w.endswith("es"):
+        w = w[:-2]  # "arboles" -> "arbol"
+
+    for suf in _GENDER_SUFFIXES:
+        if len(w) > 7 and w.endswith(suf):
+            w = w[:-1]  # "bacteriano"/"bacteriana" -> "bacterian"
+            break
+
+    return w
+
 
 def _tokenize(text):
-    words = re.findall(r"[a-záéíóúñ0-9_]+", text.lower())
-    return [w for w in words if w not in _STOPWORDS and len(w) > 2]
+    text = _strip_accents(text.lower())
+    words = re.findall(r"[a-z0-9_]+", text)
+    return [_stem_es(w) for w in words if w not in _STOPWORDS and len(w) > 2]
+
+
+def _tokenize_with_originals(text):
+    """
+    Igual que _tokenize, pero devuelve pares (stem, palabra_original) en vez
+    de solo el stem. Usado por _mode_stats para poder mostrar una forma
+    legible (ej. 'analitico') en vez del stem pelado (ej. 'analitic').
+    """
+    text = _strip_accents(text.lower())
+    words = re.findall(r"[a-z0-9_]+", text)
+    return [
+        (_stem_es(w), w) for w in words if w not in _STOPWORDS and len(w) > 2
+    ]
 
 
 def _tool_text(schema):
@@ -119,15 +176,34 @@ def _mode_related(p, tools):
 
 def _mode_stats(p, tools):
     """Panorama rapido: cuantas tools hay, cuales son las palabras mas frecuentes
-    en las descripciones (proxy de 'areas' del catalogo, sin categorias a mano)."""
+    en las descripciones (proxy de 'areas' del catalogo, sin categorias a mano).
+    Cuenta por stem (para agrupar variantes de genero/numero) pero muestra la
+    forma original mas frecuente de cada stem, para que el output sea legible
+    (ej. 'analitico' en vez de 'analitic')."""
     from collections import Counter
-    counter = Counter()
+    stem_tool_counter = Counter()      # stem -> en cuantas tools aparece
+    stem_original_counter = Counter()  # (stem, palabra_original) -> frecuencia global
+
     for schema in tools:
-        counter.update(set(_tokenize(_tool_text(schema))))
-    top_terms = counter.most_common(p.get("top_k", 25))
+        pairs = _tokenize_with_originals(_tool_text(schema))
+        stems_in_tool = set(stem for stem, _ in pairs)
+        stem_tool_counter.update(stems_in_tool)
+        for stem, original in pairs:
+            stem_original_counter[(stem, original)] += 1
+
+    top_stems = stem_tool_counter.most_common(p.get("top_k", 25))
+
+    display_form = {}
+    for (stem, original), _ in stem_original_counter.most_common():
+        if stem not in display_form:
+            display_form[stem] = original
+
     return {
         "n_tools_totales": len(tools),
-        "terminos_mas_frecuentes": [{"termino": t, "n_tools": n} for t, n in top_terms],
+        "terminos_mas_frecuentes": [
+            {"termino": display_form.get(stem, stem), "n_tools": n}
+            for stem, n in top_stems
+        ],
     }
 
 
