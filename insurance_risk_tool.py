@@ -314,3 +314,22 @@ def compute_insurance_risk(mode, params=None):
 
     else:
         raise ValueError(f"Modo desconocido para insurance_risk_tool: {mode}")
+
+
+try:
+    from tool_registry import register_tool
+    register_tool(
+        name="insurance_risk_tool",
+        schema=INSURANCE_RISK_TOOL_SCHEMA,
+        handler=lambda args: compute_insurance_risk(args.get("mode"), args.get("params")),
+    )
+except ImportError:
+    pass
+
+
+if __name__ == "__main__":
+    import json
+    d = compute_insurance_risk("validate")
+    print(json.dumps(d, indent=2, ensure_ascii=False))
+    assert d["validation_passed"], "Validacion fallo, ver detalle arriba"
+    print("\nTodos los chequeos de insurance_risk_tool.py pasaron OK.")
