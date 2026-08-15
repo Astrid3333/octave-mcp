@@ -188,11 +188,23 @@ CONTROL_THEORY_TOOL_SCHEMA = {
 if __name__ == "__main__":
     r1 = compute_control_theory(mode="pid_step_response", num_plant=[1], den_plant=[1, 2, 1], Kp=4.0, Ki=2.0, Kd=0.5, T=15.0)
     print({k: v for k, v in r1.items() if k != "response_sample"})
+    assert r1["stable"] is True
+    assert abs(r1["steady_state_value"] - 1.0) < 1e-2  # tipo-1 (integrador en C(s)) -> error estacionario nulo ante escalon
+
     r2 = compute_control_theory(mode="routh_hurwitz", coefficients=[1, 5, 6])
     print(r2)
+    assert r2["stable"] is True and r2["sign_changes"] == 0  # raices -2, -3
+
     r3 = compute_control_theory(mode="routh_hurwitz", coefficients=[1, -1, 2])
     print(r3)
+    assert r3["stable"] is False and r3["sign_changes"] == 2  # par complejo conjugado 0.5+-1.322j, ambas raices en RHP
+
     r4 = compute_control_theory(mode="root_locus", num_open=[1], den_open=[1, 3, 2], k_min=0, k_max=10, n_k=50)
     print({k: v for k, v in r4.items() if k != "poles_per_k"})
+    assert r4["critical_gain_k_instability"] is None  # s^2+3s+(2+K): coefs siempre positivos para K>=0
+
     r5 = compute_control_theory(mode="ogy_control", r0=4.0, control_radius=0.1, max_perturbation=0.05, n_steps=300, seed=42)
     print({k: v for k, v in r5.items() if not k.startswith("trajectory")})
+    assert r5["control_effective"] is True  # seed=42 fija -> deterministico
+
+    print("\nTodas las validaciones de control_theory_tool corrieron sin excepciones.")
