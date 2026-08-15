@@ -217,8 +217,12 @@ GRADIENT_HESSIAN_TOOL_SCHEMA = {
                 "enum": [1, 2],
                 "default": 1,
             },
+            "mode": {
+                "type": "string",
+                "enum": ["validate"],
+                "description": "Si es 'validate', ejecuta el autochequeo interno (ignora expression/variables/order).",
+            },
         },
-        "required": ["expression", "variables"],
     },
 }
 
@@ -236,17 +240,72 @@ JACOBIAN_TOOL_SCHEMA = {
                 "type": "string",
                 "description": "Variables separadas por coma, ej: 'x,y'",
             },
+            "mode": {
+                "type": "string",
+                "enum": ["validate"],
+                "description": "Si es 'validate', ejecuta el autochequeo interno (ignora expressions/variables).",
+            },
         },
-        "required": ["expressions", "variables"],
     },
 }
 
 
-def compute_gradient_hessian(expression: str, variables: str, order: int = 1) -> dict:
+def _validate_gradient_hessian():
+    checks = []
+
+    r1 = auto_differentiate("x**2*y + y**3", "x,y", order=2)
+    checks.append({"name": "gradient x**2*y+y**3: grad_x == '2*x*y' exacto",
+                    "passed": r1["gradient"]["x"]["sympy"] == "2*x*y",
+                    "got": r1["gradient"]["x"]["sympy"]})
+    checks.append({"name": "gradient x**2*y+y**3: grad_y == 'x**2 + 3*y**2' exacto",
+                    "passed": r1["gradient"]["y"]["sympy"] == "x**2 + 3*y**2",
+                    "got": r1["gradient"]["y"]["sympy"]})
+    checks.append({"name": "hessian x**2*y+y**3: h[0][0]=='2*y', h[0][1]=='2*x', h[1][1]=='6*y' exacto",
+                    "passed": (r1["hessian"][0][0]["sympy"] == "2*y"
+                               and r1["hessian"][0][1]["sympy"] == "2*x"
+                               and r1["hessian"][1][1]["sympy"] == "6*y"),
+                    "got": {"h00": r1["hessian"][0][0]["sympy"], "h01": r1["hessian"][0][1]["sympy"],
+                            "h11": r1["hessian"][1][1]["sympy"]}})
+
+    r2 = auto_differentiate("sin(x) + x*y", "x,y", order=1)
+    checks.append({"name": "gradient sin(x)+x*y: grad_x == 'y + cos(x)' exacto",
+                    "passed": r2["gradient"]["x"]["sympy"] == "y + cos(x)",
+                    "got": r2["gradient"]["x"]["sympy"]})
+    checks.append({"name": "gradient sin(x)+x*y: grad_y == 'x' exacto",
+                    "passed": r2["gradient"]["y"]["sympy"] == "x",
+                    "got": r2["gradient"]["y"]["sympy"]})
+
+    return {"mode": "validate", "validation_passed": all(c["passed"] for c in checks), "checks": checks}
+
+
+def _validate_jacobian():
+    checks = []
+
+    r1 = auto_jacobian("x**2 - y; x*y - 1", "x,y")
+    checks.append({"name": "jacobian [x**2-y, x*y-1]: fila0 == [2*x, -1] exacto",
+                    "passed": (r1["jacobian"][0][0]["sympy"] == "2*x"
+                               and r1["jacobian"][0][1]["sympy"] == "-1"),
+                    "got": {"j00": r1["jacobian"][0][0]["sympy"], "j01": r1["jacobian"][0][1]["sympy"]}})
+    checks.append({"name": "jacobian [x**2-y, x*y-1]: fila1 == [y, x] exacto",
+                    "passed": (r1["jacobian"][1][0]["sympy"] == "y"
+                               and r1["jacobian"][1][1]["sympy"] == "x"),
+                    "got": {"j10": r1["jacobian"][1][0]["sympy"], "j11": r1["jacobian"][1][1]["sympy"]}})
+    checks.append({"name": "jacobian [x**2-y, x*y-1]: determinante == '2*x**2 + y' exacto",
+                    "passed": r1["determinant"]["sympy"] == "2*x**2 + y",
+                    "got": r1["determinant"]["sympy"]})
+
+    return {"mode": "validate", "validation_passed": all(c["passed"] for c in checks), "checks": checks}
+
+
+def compute_gradient_hessian(expression: str = None, variables: str = None, order: int = 1, mode: str = None) -> dict:
+    if mode == "validate":
+        return _validate_gradient_hessian()
     return auto_differentiate(expression, variables, order)
 
 
-def compute_jacobian(expressions: str, variables: str) -> dict:
+def compute_jacobian(expressions: str = None, variables: str = None, mode: str = None) -> dict:
+    if mode == "validate":
+        return _validate_jacobian()
     return auto_jacobian(expressions, variables)
 
 
