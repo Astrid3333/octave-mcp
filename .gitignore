@@ -10,3 +10,4 @@ wire_*.py
 datetime
 *.bak*
 octave-workspace
+health_check_output.json
