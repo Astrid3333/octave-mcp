@@ -231,7 +231,7 @@ _RUN_PIPELINE_SCHEMA = {
     ),
     "inputSchema": {
         "type": "object",
-        "properties": {"mode": {"type": "string"}, "params": {"type": "object"}},
+        "properties": {"mode": {"type": "string", "enum": ["execute", "validate"]}, "params": {"type": "object"}},
         "required": ["mode"],
     },
 }
