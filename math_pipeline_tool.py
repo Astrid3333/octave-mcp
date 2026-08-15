@@ -226,6 +226,7 @@ def _validate():
     return {
         "mode": "validate",
         "todos_correctos": all(checks.values()),
+        "validation_passed": all(checks.values()),
         "checks": checks,
         "pipeline_detail": run,
     }
