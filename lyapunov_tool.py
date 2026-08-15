@@ -98,7 +98,11 @@ def compute_lyapunov_exponent(
     d0: float = 1e-8,
     octave_bin: str = "octave",
     timeout_s: int = 60,
+    mode: str | None = None,
+    **kwargs,
 ) -> dict:
+    if mode == "validate":
+        return _validate_lyapunov(octave_bin=octave_bin, timeout_s=timeout_s)
     """
     Calcula el exponente de Lyapunov máximo (λ1) de un sistema dinámico.
 
@@ -231,6 +235,35 @@ def compute_lyapunov_exponent(
     }
 
 
+def _validate_lyapunov(octave_bin: str = "octave", timeout_s: int = 60):
+    """
+    Autochequeo con sistemas lineales de solucion analitica exacta:
+    y'=k*y -> lambda1==k. No usa presets caoticos porque su lambda1
+    "verdadero" depende de la sensibilidad numerica de la corrida y no
+    admite una tolerancia chica y estable.
+    """
+    checks = []
+    tol = 0.02  # generoso: RK4 + renormalizacion sobre sistema lineal exacto
+
+    r1 = compute_lyapunov_exponent(
+        system="custom", custom_equations="k*y(1)", custom_params={"k": 0.3},
+        y0=[1.0], dt=0.002, n_steps=5000, octave_bin=octave_bin, timeout_s=timeout_s,
+    )
+    ok1 = "lambda1" in r1 and abs(r1["lambda1"] - 0.3) < tol
+    checks.append({"name": "custom y'=0.3*y: lambda1 ~ 0.3 (crecimiento exponencial puro)",
+                    "passed": ok1, "got": r1.get("lambda1", r1.get("error"))})
+
+    r2 = compute_lyapunov_exponent(
+        system="custom", custom_equations="-k*y(1)", custom_params={"k": 0.5},
+        y0=[1.0], dt=0.002, n_steps=5000, octave_bin=octave_bin, timeout_s=timeout_s,
+    )
+    ok2 = "lambda1" in r2 and abs(r2["lambda1"] - (-0.5)) < tol
+    checks.append({"name": "custom y'=-0.5*y: lambda1 ~ -0.5 (decaimiento exponencial puro)",
+                    "passed": ok2, "got": r2.get("lambda1", r2.get("error"))})
+
+    return {"mode": "validate", "validation_passed": bool(all(c["passed"] for c in checks)), "checks": checks}
+
+
 # --- Schema para registro manual (patrón types.Tool / allowlist) ---
 LYAPUNOV_TOOL_SCHEMA = {
     "name": "compute_lyapunov_exponent",
@@ -256,6 +289,11 @@ LYAPUNOV_TOOL_SCHEMA = {
             "dt": {"type": "number"},
             "n_steps": {"type": "integer", "default": 20000},
             "d0": {"type": "number", "default": 1e-8},
+            "mode": {
+                "type": "string",
+                "enum": ["validate"],
+                "description": "Si es 'validate', ejecuta el autochequeo interno (sistemas lineales con lambda1 exacto conocido) e ignora el resto de los parametros.",
+            },
         },
         "required": [],
     },
