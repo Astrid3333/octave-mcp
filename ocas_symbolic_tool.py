@@ -150,3 +150,73 @@ if __name__ == "__main__":
     print(json.dumps(compute_ocas_symbolic("diophantine", "known"), indent=2, ensure_ascii=False))
     print(json.dumps(compute_ocas_symbolic("symbolic", "custom", expression="x^2", sub_mode="integrate"), indent=2, ensure_ascii=False))
     print(json.dumps(compute_ocas_symbolic("number_theory", "custom", operation="crt", moduli=[3, 5], residues=[2, 3]), indent=2, ensure_ascii=False))
+
+
+try:
+    from tool_registry import register_tool
+    register_tool(
+        name="ocas_symbolic",
+        schema=OCAS_SYMBOLIC_SCHEMA,
+        handler=lambda args: compute_ocas_symbolic(**args),
+    )
+except ImportError:
+    pass
+
+
+def _run_validation():
+    checks = []
+
+    r1 = compute_ocas_symbolic("symbolic", "known", sub_mode="differentiate")
+    checks.append({
+        "name": "symbolic_diff_known",
+        "passed": r1.get("derivative") == r1.get("known_reference", {}).get("esperado_diff"),
+        "got": r1,
+    })
+
+    r2 = compute_ocas_symbolic("number_theory", "known")
+    checks.append({
+        "name": "number_theory_known",
+        "passed": r2.get("isprime") == r2.get("known_reference", {}).get("esperado"),
+        "got": r2,
+    })
+
+    r3 = compute_ocas_symbolic("diophantine", "known")
+    a, b, x, y = r3.get("a"), r3.get("b"), r3.get("particular", [None, None])[0], r3.get("particular", [None, None])[1]
+    checks.append({
+        "name": "diophantine_known_bezout_identity",
+        "passed": (a is not None and b is not None and x is not None and y is not None
+                   and a * x + b * y == r3.get("c")),
+        "got": r3,
+    })
+
+    r4 = compute_ocas_symbolic("symbolic", "custom", expression="x^2", sub_mode="integrate")
+    checks.append({
+        "name": "symbolic_integrate_custom_no_error",
+        "passed": "error" not in r4 and "antiderivative" in r4,
+        "got": r4,
+    })
+
+    r5 = compute_ocas_symbolic("number_theory", "custom", operation="crt", moduli=[3, 5], residues=[2, 3])
+    checks.append({
+        "name": "crt_custom_residues_match",
+        "passed": (r5.get("r") is not None and r5.get("m") is not None
+                   and r5["r"] % 3 == 2 and r5["r"] % 5 == 3),
+        "got": r5,
+    })
+
+    r6 = compute_ocas_symbolic("modo_invalido")
+    checks.append({
+        "name": "invalid_mode_returns_error",
+        "passed": "error" in r6,
+        "got": r6,
+    })
+
+    return {"checks": checks, "validation_passed": all(c["passed"] for c in checks)}
+
+
+if __name__ == "__main__":
+    import json
+    d = _run_validation()
+    print(json.dumps(d, indent=2, ensure_ascii=False))
+    assert d["validation_passed"], "Validacion fallo, ver detalle arriba"
+    print("\nTodos los chequeos de ocas_symbolic_tool.py pasaron OK.")

@@ -247,3 +247,22 @@ if __name__ == "__main__":
     import json
     print(json.dumps(compute_math_pipeline("validate"), indent=2, ensure_ascii=False))
     print(json.dumps(compute_math_pipeline("list_tools"), indent=2, ensure_ascii=False))
+
+
+try:
+    from tool_registry import register_tool
+    register_tool(
+        name="compute_math_pipeline",
+        schema=MATH_PIPELINE_SCHEMA,
+        handler=lambda args: compute_math_pipeline(**args),
+    )
+except ImportError:
+    pass
+
+
+if __name__ == "__main__":
+    import json
+    d = compute_math_pipeline(mode="validate")
+    print(json.dumps(d, indent=2, ensure_ascii=False))
+    assert d.get("todos_correctos", False), "Validacion fallo, ver detalle arriba"
+    print("\nTodos los chequeos de math_pipeline_tool.py pasaron OK.")
