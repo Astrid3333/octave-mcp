@@ -393,10 +393,59 @@ def compute_numeric(mode, point, metric_preset=None, custom_metric=None, coords=
     raise ValueError(f"modo desconocido para backend numeric: {mode} (geodesic_equations solo existe en backend symbolic)")
 
 
+def _validate():
+    checks = []
+
+    # Check 1: curvatura escalar de la esfera 2D en dos radios, contra formula de libro R = 2/a^2
+    for a_val in [1.0, 2.0]:
+        r = compute_numeric("scalar_curvature", point=[1.2, 0.5], metric_preset="sphere_2d",
+                             params=["a"], param_values=[a_val], h=1e-4, tol=1e-6)
+        expected = 2.0 / a_val**2
+        err = abs(r["scalar_curvature"] - expected) / expected
+        checks.append({
+            "name": f"sphere_2d_scalar_curvature_a{a_val}",
+            "computed": r["scalar_curvature"], "expected": round(expected, 8), "rel_err": err,
+            "passed": err < 1e-3,
+        })
+
+    # Check 2: curvatura escalar del plano en polares, debe ser identicamente nula (metrica plana)
+    r2 = compute_numeric("scalar_curvature", point=[2.0, 0.3], metric_preset="polar_plane", h=1e-4, tol=1e-6)
+    checks.append({
+        "name": "polar_plane_flat",
+        "scalar_curvature": r2["scalar_curvature"],
+        "passed": abs(r2["scalar_curvature"]) < 1e-3,
+    })
+
+    # Check 3: geodesica en el ecuador de sphere_2d (a=1) -- mismo caso validado en el commit
+    # 85f006f: theta se mantiene constante y la norma g_munu*v^mu*v^nu se conserva.
+    r3 = compute_numeric("geodesic_integrate", point=[np.pi / 2, 0.0], metric_preset="sphere_2d",
+                          params=["a"], param_values=[1.0], velocity=[0.0, 1.0],
+                          tau_max=2 * np.pi, n_steps=400, h=1e-5)
+    theta_vals = [p[0] for p in r3["trajectory"]]
+    theta_drift_max = max(abs(t - np.pi / 2) for t in theta_vals)
+    phi_final = r3["trajectory"][-1][1]
+    checks.append({
+        "name": "sphere_2d_equator_geodesic",
+        "theta_drift_max": theta_drift_max,
+        "norm_drift_max": r3["norm_drift_max"],
+        "phi_final": round(phi_final, 6), "phi_expected": round(2 * np.pi, 6),
+        "passed": bool(theta_drift_max < 1e-4 and r3["norm_drift_max"] < 1e-4
+                       and abs(phi_final - 2 * np.pi) < 1e-3),
+    })
+
+    return {
+        "mode": "validate",
+        "checks": checks,
+        "validation_passed": all(c["passed"] for c in checks),
+    }
+
+
 def compute_tensor_calculus(mode, backend="symbolic", metric_preset=None, custom_metric=None,
                              coords=None, params=None, param_values=None, point=None,
                              simplify=True, h=1e-5, tol=1e-6,
                              velocity=None, tau_max=None, n_steps=None):
+    if mode == "validate":
+        return _validate()
     if backend == "symbolic":
         return compute_symbolic(mode, metric_preset=metric_preset, custom_metric=custom_metric,
                                  coords=coords, params=params, simplify=simplify)
@@ -423,7 +472,7 @@ TENSOR_CALCULUS_TOOL_SCHEMA = {
     "inputSchema": {
         "type": "object",
         "properties": {
-            "mode": {"type": "string", "enum": ["christoffel", "riemann", "ricci", "scalar_curvature", "geodesic_equations", "geodesic_integrate"]},
+            "mode": {"type": "string", "enum": ["christoffel", "riemann", "ricci", "scalar_curvature", "geodesic_equations", "geodesic_integrate", "validate"]},
             "backend": {"type": "string", "enum": ["symbolic", "numeric"], "default": "symbolic"},
             "metric_preset": {"type": "string", "enum": list(PRESETS.keys()), "description": "atajo: usa una metrica precargada"},
             "custom_metric": {"type": "array", "description": "matriz n x n de expresiones (strings) en funcion de coords/params, si no se usa metric_preset"},
