@@ -150,8 +150,47 @@ def compute_ogy_control(map_type="logistic", r0=4.0, control_radius=0.1, max_per
     }
 
 
+def _validate():
+    checks = []
+
+    # Check 1: lazo PID con integrador (Ki>0) ante planta 1/(s^2+2s+1) -> tipo-1,
+    # error estacionario nulo ante escalon (valor final = 1.0 exacto).
+    r1 = compute_pid_step_response(num_plant=[1], den_plant=[1, 2, 1], Kp=4.0, Ki=2.0, Kd=0.5, T=15.0)
+    err1 = abs(r1["steady_state_value"] - 1.0)
+    checks.append({
+        "name": "pid_type1_zero_steady_state_error",
+        "stable": r1["stable"], "steady_state_value": r1["steady_state_value"], "err": err1,
+        "passed": bool(r1["stable"] and err1 < 1e-2),
+    })
+
+    # Check 2: Routh-Hurwitz sobre s^2+5s+6 (raices -2,-3), estable, 0 cambios de signo.
+    r2 = compute_routh_hurwitz([1, 5, 6])
+    checks.append({
+        "name": "routh_hurwitz_stable_s2_5s_6",
+        "stable": r2["stable"], "sign_changes": r2["sign_changes"],
+        "passed": bool(r2["stable"] is True and r2["sign_changes"] == 0),
+    })
+
+    # Check 3: Routh-Hurwitz sobre s^2-s+2 (par complejo conjugado 0.5+-1.322j, RHP),
+    # inestable, 2 cambios de signo esperados.
+    r3 = compute_routh_hurwitz([1, -1, 2])
+    checks.append({
+        "name": "routh_hurwitz_unstable_s2_minus_s_2",
+        "stable": r3["stable"], "sign_changes": r3["sign_changes"],
+        "passed": bool(r3["stable"] is False and r3["sign_changes"] == 2),
+    })
+
+    return {
+        "mode": "validate",
+        "checks": checks,
+        "validation_passed": all(c["passed"] for c in checks),
+    }
+
+
 def compute_control_theory(mode, **kwargs):
     """Dispatcher unico para el tool MCP control_theory, segun 'mode'."""
+    if mode == "validate":
+        return _validate()
     fns = {
         "pid_step_response": compute_pid_step_response,
         "routh_hurwitz": compute_routh_hurwitz,
@@ -169,7 +208,7 @@ CONTROL_THEORY_TOOL_SCHEMA = {
     "inputSchema": {
         "type": "object",
         "properties": {
-            "mode": {"type": "string", "enum": ["pid_step_response", "routh_hurwitz", "root_locus", "ogy_control"]},
+            "mode": {"type": "string", "enum": ["pid_step_response", "routh_hurwitz", "root_locus", "ogy_control", "validate"]},
             "num_plant": {"type": "array"}, "den_plant": {"type": "array"},
             "Kp": {"type": "number"}, "Ki": {"type": "number"}, "Kd": {"type": "number"},
             "T": {"type": "number"}, "n_points": {"type": "integer"},
@@ -183,6 +222,16 @@ CONTROL_THEORY_TOOL_SCHEMA = {
         "required": ["mode"],
     },
 }
+
+
+import tool_registry
+
+
+def _handler(args):
+    return compute_control_theory(**args)
+
+
+tool_registry.register_tool("control_theory", CONTROL_THEORY_TOOL_SCHEMA, _handler)
 
 
 if __name__ == "__main__":
