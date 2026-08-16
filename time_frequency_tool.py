@@ -1,3 +1,4 @@
+import tool_registry
 import json
 import numpy as np
 from scipy.signal import hilbert
@@ -273,3 +274,10 @@ if __name__ == "__main__":
     print(json.dumps(d, indent=2, ensure_ascii=False))
     assert d["validation_passed"], "Validacion fallo"
     print("\nOK time_frequency_tool.py")
+
+
+def _handler(args):
+    return compute_time_frequency(args.get("mode"), args.get("params"))
+
+
+tool_registry.register_tool("time_frequency_tool", TIME_FREQUENCY_TOOL_SCHEMA, _handler)

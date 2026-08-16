@@ -1,3 +1,4 @@
+import tool_registry
 #!/usr/bin/env python3
 """
 tensor_calculus_tool.py
@@ -440,3 +441,10 @@ TENSOR_CALCULUS_TOOL_SCHEMA = {
         "required": ["mode"],
     },
 }
+
+
+def _handler(args):
+    return compute_tensor_calculus(**args)
+
+
+tool_registry.register_tool("tensor_calculus", TENSOR_CALCULUS_TOOL_SCHEMA, _handler)

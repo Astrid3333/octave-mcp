@@ -53,7 +53,7 @@ from budgeting_tool import compute_budgeting, BUDGETING_TOOL_SCHEMA
 from construction_scheduling_tool import compute_construction_scheduling, CONSTRUCTION_SCHEDULING_TOOL_SCHEMA
 from math_humanizer_tool import compute_math_humanizer, MATH_HUMANIZER_TOOL_SCHEMA
 from game_theory_tool import compute_game_theory, GAME_THEORY_TOOL_SCHEMA
-from tensor_calculus_tool import compute_tensor_calculus, TENSOR_CALCULUS_TOOL_SCHEMA
+import tensor_calculus_tool  # auto-registra via tool_registry, no requiere mas ediciones
 from population_genetics_tool import compute_population_genetics, POPULATION_GENETICS_TOOL_SCHEMA
 from network_science_tool import compute_network_science, NETWORK_SCIENCE_TOOL_SCHEMA
 from wavelet_tool import compute_wavelet, WAVELET_TOOL_SCHEMA
@@ -70,12 +70,12 @@ from mcdm_tool import compute_mcdm, MCDM_TOOL_SCHEMA
 from octave_syntax_tool import compute_octave_syntax, OCTAVE_SYNTAX_TOOL_SCHEMA
 from stochastic_processes_tool import compute_stochastic_processes, STOCHASTIC_PROCESSES_TOOL_SCHEMA
 from advanced_probability_tool import compute_advanced_probability, ADVANCED_PROBABILITY_TOOL_SCHEMA
-from filter_design_tool import compute_filter_design, FILTER_DESIGN_TOOL_SCHEMA
+import filter_design_tool  # auto-registra via tool_registry, no requiere mas ediciones
 from fractional_fourier_tool import compute_fractional_fourier, FRACTIONAL_FOURIER_TOOL_SCHEMA
 import wave_propagation_tool  # auto-registra via tool_registry, no requiere mas ediciones
-from dispersion_relation_tool import compute_dispersion_relation, DISPERSION_RELATION_TOOL_SCHEMA
-from audio_processing_tool import compute_audio_processing, AUDIO_PROCESSING_TOOL_SCHEMA
-from time_frequency_tool import compute_time_frequency, TIME_FREQUENCY_TOOL_SCHEMA
+import dispersion_relation_tool  # auto-registra via tool_registry, no requiere mas ediciones
+import audio_processing_tool  # auto-registra via tool_registry, no requiere mas ediciones
+import time_frequency_tool  # auto-registra via tool_registry, no requiere mas ediciones
 from information_theory_tool import compute_information_theory, INFORMATION_THEORY_TOOL_SCHEMA
 from control_theory_tool import compute_control_theory, CONTROL_THEORY_TOOL_SCHEMA
 from optimal_control_tool import compute_optimal_control, OPTIMAL_CONTROL_TOOL_SCHEMA
@@ -92,7 +92,7 @@ from thermal_conduction_tool import compute_thermal_conduction, THERMAL_CONDUCTI
 from thermal_advanced_tool import compute_thermal_advanced, THERMAL_ADVANCED_TOOL_SCHEMA
 from nonlinear_buckling_tool import compute_nonlinear_buckling, NONLINEAR_BUCKLING_TOOL_SCHEMA
 from forced_vibration_tool import compute_forced_vibration, FORCED_VIBRATION_TOOL_SCHEMA
-from spectral_analysis_tool import compute_spectral_analysis, SPECTRAL_ANALYSIS_TOOL_SCHEMA
+import spectral_analysis_tool  # auto-registra via tool_registry, no requiere mas ediciones
 from archaeoastronomy_tool import compute_archaeoastronomy, ARCHAEOASTRONOMY_TOOL_SCHEMA
 from quantum_information_tool import compute_quantum_information, QUANTUM_INFORMATION_TOOL_SCHEMA
 from octave_infra_tool import octave_run, octave_eval_expr, octave_run_script, octave_version
@@ -241,7 +241,6 @@ TOOLS = [
     CONSTRUCTION_SCHEDULING_TOOL_SCHEMA,
     MATH_HUMANIZER_TOOL_SCHEMA,
     GAME_THEORY_TOOL_SCHEMA,
-    TENSOR_CALCULUS_TOOL_SCHEMA,
     POPULATION_GENETICS_TOOL_SCHEMA,
     NETWORK_SCIENCE_TOOL_SCHEMA,
     WAVELET_TOOL_SCHEMA,
@@ -251,17 +250,12 @@ TOOLS = [
     ECONOMETRICS_TOOL_SCHEMA,
     ARCHAEOLOGICAL_SIMULATION_TOOL_SCHEMA,
     STATISTICAL_PHYSICS_TOOL_SCHEMA,
-    CFD_TOOL_SCHEMA,
     GLM_TOOL_SCHEMA,
     CLUSTERING_TOOL_SCHEMA,
     MCDM_TOOL_SCHEMA,
     OCTAVE_SYNTAX_TOOL_SCHEMA,
     STOCHASTIC_PROCESSES_TOOL_SCHEMA,
     ADVANCED_PROBABILITY_TOOL_SCHEMA,
-    FILTER_DESIGN_TOOL_SCHEMA,
-    DISPERSION_RELATION_TOOL_SCHEMA,
-    AUDIO_PROCESSING_TOOL_SCHEMA,
-    TIME_FREQUENCY_TOOL_SCHEMA,
     INFORMATION_THEORY_TOOL_SCHEMA,
     CONTROL_THEORY_TOOL_SCHEMA,
     OPTIMAL_CONTROL_TOOL_SCHEMA,
@@ -276,7 +270,6 @@ TOOLS = [
     THERMAL_ADVANCED_TOOL_SCHEMA,
     NONLINEAR_BUCKLING_TOOL_SCHEMA,
     FORCED_VIBRATION_TOOL_SCHEMA,
-    SPECTRAL_ANALYSIS_TOOL_SCHEMA,
     ARCHAEOASTRONOMY_TOOL_SCHEMA,
     QUANTUM_INFORMATION_TOOL_SCHEMA,
     {"name": "octave_run", "description": "Ejecuta codigo Octave. timeout en segundos (default 60).", "inputSchema": {"type": "object", "properties": {"code": {"type": "string"}, "timeout": {"type": "integer"}}, "required": ["code"]}},
@@ -569,13 +562,6 @@ if __name__ == "__main__":
                         "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
                     }
 
-                elif tool_name == "tensor_calculus":
-                    result = compute_tensor_calculus(**args)
-                    resp = {
-                        "jsonrpc": "2.0", "id": req_id,
-                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                    }
-
                 elif tool_name == "population_genetics":
                     result = compute_population_genetics(**args)
                     resp = {
@@ -683,19 +669,6 @@ if __name__ == "__main__":
                         "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
                     }
 
-                elif tool_name == "filter_design_tool":
-                    result = compute_filter_design(**args)
-                    resp = {
-                        "jsonrpc": "2.0", "id": req_id,
-                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                    }
-
-                elif tool_name == "dispersion_relation_tool":
-                    result = compute_dispersion_relation(args.get("mode"), args.get("params"))
-                    resp = {
-                        "jsonrpc": "2.0", "id": req_id,
-                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                    }
                 elif tool_name == "critical_infrastructure_tool":
                     result = compute_critical_infrastructure(args.get("mode"), args.get("params"))
                     resp = {
@@ -710,18 +683,6 @@ if __name__ == "__main__":
                     }
                 elif tool_name == "public_data_ingest_tool":
                     result = compute_public_data_ingest(args.get("mode"), args.get("params"))
-                    resp = {
-                        "jsonrpc": "2.0", "id": req_id,
-                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                    }
-                elif tool_name == "audio_processing_tool":
-                    result = compute_audio_processing(args.get("mode"), args.get("params"))
-                    resp = {
-                        "jsonrpc": "2.0", "id": req_id,
-                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                    }
-                elif tool_name == "time_frequency_tool":
-                    result = compute_time_frequency(args.get("mode"), args.get("params"))
                     resp = {
                         "jsonrpc": "2.0", "id": req_id,
                         "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
@@ -890,12 +851,6 @@ if __name__ == "__main__":
                     }
                 elif tool_name == "forced_vibration_tool":
                     result = compute_forced_vibration(args.get("mode"), args.get("params"))
-                    resp = {
-                        "jsonrpc": "2.0", "id": req_id,
-                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                    }
-                elif tool_name == "spectral_analysis_tool":
-                    result = compute_spectral_analysis(args.get("mode"), args.get("params"))
                     resp = {
                         "jsonrpc": "2.0", "id": req_id,
                         "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},

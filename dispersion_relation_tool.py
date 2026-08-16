@@ -1,3 +1,4 @@
+import tool_registry
 import json
 import numpy as np
 
@@ -252,3 +253,10 @@ if __name__ == "__main__":
     print(json.dumps(d, indent=2, ensure_ascii=False))
     assert d["validation_passed"], "Validacion fallo"
     print("\nOK dispersion_relation_tool.py")
+
+
+def _handler(args):
+    return compute_dispersion_relation(args.get("mode"), args.get("params"))
+
+
+tool_registry.register_tool("dispersion_relation_tool", DISPERSION_RELATION_TOOL_SCHEMA, _handler)

@@ -1,3 +1,4 @@
+import tool_registry
 import json
 import numpy as np
 from scipy.signal import hilbert
@@ -255,3 +256,10 @@ if __name__ == "__main__":
     print(json.dumps(d, indent=2, ensure_ascii=False))
     assert d["validation_passed"], "Validacion fallo"
     print("\nOK audio_processing_tool.py")
+
+
+def _handler(args):
+    return compute_audio_processing(args.get("mode"), args.get("params"))
+
+
+tool_registry.register_tool("audio_processing_tool", AUDIO_PROCESSING_TOOL_SCHEMA, _handler)

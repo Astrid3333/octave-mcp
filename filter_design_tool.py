@@ -1,3 +1,4 @@
+import tool_registry
 """
 filter_design_tool.py
 
@@ -298,3 +299,10 @@ if __name__ == "__main__":
     print(json.dumps(d, indent=2, ensure_ascii=False))
     assert d["validation_passed"], "Validacion fallo, ver detalle arriba"
     print("\nTodos los chequeos de filter_design_tool.py pasaron OK.")
+
+
+def _handler(args):
+    return compute_filter_design(**args)
+
+
+tool_registry.register_tool("filter_design_tool", FILTER_DESIGN_TOOL_SCHEMA, _handler)

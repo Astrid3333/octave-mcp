@@ -1,3 +1,4 @@
+import tool_registry
 """
 spectral_analysis_tool.py
 Analisis espectral tipo ABRAVIBE: FFT, funciones de transferencia (FRF) via
@@ -220,3 +221,10 @@ if __name__ == "__main__":
     import json
     r = compute_spectral_analysis("validate")
     print(json.dumps(r, indent=2, ensure_ascii=False))
+
+
+def _handler(args):
+    return compute_spectral_analysis(args.get("mode"), args.get("params"))
+
+
+tool_registry.register_tool("spectral_analysis_tool", SPECTRAL_ANALYSIS_TOOL_SCHEMA, _handler)
