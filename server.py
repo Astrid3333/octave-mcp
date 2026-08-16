@@ -11,6 +11,7 @@ import emergency_fund_tool  # auto-registra via tool_registry, no requiere mas e
 import personal_budget_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import statmech_partition_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import fem_electromagnetic_tool  # auto-registra via tool_registry, no requiere mas ediciones
+import cfd_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import savings_goal_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import investment_portfolio_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import tax_estimation_tool  # auto-registra via tool_registry, no requiere mas ediciones
