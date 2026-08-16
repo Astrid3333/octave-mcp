@@ -17,15 +17,23 @@ ningun nombre en octave-mcp ni en ningun otro repo de la cuenta):
     subconjunto de Octave: statements, bloques de control, expresiones,
     matrices, strings, comentarios). No depende de octave-cli.
 
-  - validate_code: valida un fragmento de codigo SIN ejecutarlo, via un
-    checker estructural en Python puro (balance de delimitadores +
-    emparejamiento de bloques con palabra clave, tipo if/endif,
-    for/endfor, while/endwhile, function/endfunction, switch/endswitch,
-    try/end_try_catch, do/until). Esta es intencionalmente la MISMA clase
-    de error que suele disparar un parse error real de Octave (parentesis
-    sin cerrar, 'end' faltante), por lo que sirve como pre-chequeo rapido
-    y portable (no requiere el binario octave instalado). Si el codigo
-    resulta invalido, la respuesta incluye grammar_hint con la gramatica
+  - validate_code: valida un fragmento de codigo combinando dos fuentes.
+    (1) un checker estructural en Python puro (balance de delimitadores +
+    emparejamiento de bloques con palabra clave, tipo if/endif, for/endfor,
+    while/endwhile, function/endfunction, switch/endswitch,
+    try/end_try_catch, do/until) -- no depende de octave-cli, siempre
+    disponible. (2) cuando use_real_check=True (default) y
+    octave_syntax_tool esta disponible en el mismo directorio con el
+    binario 'octave' instalado, el parser real de Octave (via source(),
+    sin ejecutar el codigo del usuario) para errores mas finos que el
+    checker estructural no puede detectar (typos de keywords, sintaxis
+    invalida dentro de una expresion que igual balancea sus delimitadores).
+    La integracion con octave_syntax_tool es opcional y defensiva: si el
+    modulo o el binario no estan disponibles, se degrada silenciosamente
+    al resultado del checker estructural solo (ver campo
+    real_check_status en la respuesta: "ok", "unavailable_no_module",
+    "unavailable_no_binary"). Si el codigo resulta invalido por cualquiera
+    de las dos fuentes, la respuesta incluye grammar_hint con la gramatica
     completa mas hint_focus con las reglas GBNF mas relevantes al tipo de
     error detectado.
 
@@ -50,6 +58,11 @@ intercambio.
 import os
 
 import tool_registry
+
+try:
+    from octave_syntax_tool import compute_syntax_check as _real_syntax_check
+except ImportError:
+    _real_syntax_check = None
 
 
 # ----------------------------------------------------------------------
@@ -278,6 +291,36 @@ def _check_blocks(code):
     return errors
 
 
+def _real_octave_check(code, timeout=10):
+    """Intenta usar el checker real de octave_syntax_tool (envuelve el
+    fragmento en una funcion y lo parsea via octave-cli real, sin
+    ejecutarlo), cuando esta disponible en el mismo directorio y el
+    binario 'octave' esta instalado. Devuelve (errors, status) donde
+    status in {"ok", "unavailable_no_module", "unavailable_no_binary",
+    "error"}. Nunca lanza excepcion: en cualquier caso no cubierto,
+    degrada a devolver sin errores adicionales y el status correspondiente,
+    para que validate_code siga funcionando con el checker liviano aunque
+    esta integracion no este disponible en el entorno."""
+    if _real_syntax_check is None:
+        return [], "unavailable_no_module"
+    try:
+        r = _real_syntax_check(code, timeout=timeout)
+    except Exception as e:
+        return [], f"error: {e}"
+
+    if r.get("valid") is None:
+        return [], "unavailable_no_binary"
+    if r.get("valid") is False:
+        err = {
+            "type": "octave_parse_error",
+            "message": r.get("error_message", "error de sintaxis detectado por octave-cli (octave_syntax_tool)"),
+        }
+        if "error_line" in r:
+            err["line"] = r["error_line"]
+        return [err], "ok"
+    return [], "ok"
+
+
 # Reglas GBNF mas relevantes segun el tipo de error detectado, para no
 # obligar al agente a releer la gramatica completa buscando que parte le
 # aplica.
@@ -287,6 +330,10 @@ _HINT_FOCUS_RULES = {
         "if-block", "for-block", "while-block", "do-until-block",
         "switch-block", "try-block", "function-block",
     ],
+    # un error de octave-cli real puede caer en cualquier parte del
+    # lenguaje; no se acota el foco, se deja que el agente use la
+    # gramatica completa junto con la linea/mensaje reportado por Octave.
+    "octave_parse_error": [],
 }
 
 
@@ -314,14 +361,21 @@ def _extract_hint_focus(errors):
     return focus
 
 
-def validate_code(code):
+def validate_code(code, use_real_check=True, timeout=10):
     errors = _check_delimiters(code) + _check_blocks(code)
+
+    real_status = "skipped"
+    if use_real_check:
+        real_errors, real_status = _real_octave_check(code, timeout=timeout)
+        errors += real_errors
+
     errors.sort(key=lambda e: (e.get("line", 0), e.get("column", 0)))
 
     result = {
         "mode": "validate_code",
         "validation_status": "INVALID" if errors else "VALID",
         "errors": errors,
+        "real_check_status": real_status,
     }
     if errors:
         grammar = compile_grammar()
@@ -331,8 +385,8 @@ def validate_code(code):
     return result
 
 
-def write_code(code, path):
-    validation = validate_code(code)
+def write_code(code, path, use_real_check=True, timeout=10):
+    validation = validate_code(code, use_real_check=use_real_check, timeout=timeout)
     if validation["validation_status"] == "INVALID":
         return {**validation, "mode": "write_code", "written": False, "path": path}
 
@@ -435,12 +489,45 @@ def _unterminated_block_check():
     }
 
 
+def _real_check_integration_robust():
+    """Chequeo de robustez: validate_code con use_real_check=True nunca
+    debe lanzar excepcion, sin importar si octave_syntax_tool o el
+    binario 'octave' estan presentes en el entorno -- y el resultado
+    estructural (errors, validation_status) debe seguir siendo correcto
+    por si solo, ya que el checker liviano no depende de esa integracion."""
+    valid_code = "x = 1;\nfor i = 1:10\n  x = x + i;\nendfor\n"
+    broken_code = "x = 1;\ny = (1 + 2;\n"
+
+    try:
+        r_valid = validate_code(valid_code, use_real_check=True)
+        r_broken = validate_code(broken_code, use_real_check=True)
+        crashed = False
+    except Exception as e:
+        r_valid = r_broken = None
+        crashed = True
+
+    ok = (
+        not crashed
+        and r_valid["validation_status"] == "VALID"
+        and r_broken["validation_status"] == "INVALID"
+        and "grammar_hint" in r_broken
+    )
+    return {
+        "name": "real_check_integration_never_crashes",
+        "crashed": crashed,
+        "real_check_status_on_valid": None if crashed else r_valid.get("real_check_status"),
+        "real_check_status_on_broken": None if crashed else r_broken.get("real_check_status"),
+        "passed": bool(ok),
+    }
+
+
 def validate():
     checks = [
         _grammar_self_check(),
         _valid_code_no_hint_check(),
         _unbalanced_paren_check(),
         _unterminated_block_check(),
+        _real_check_integration_robust(),
     ]
     return {
         "mode": "validate",
@@ -453,9 +540,17 @@ def compute_octave_grammar(mode="validate", **kwargs):
     if mode == "compile_grammar":
         return compile_grammar()
     elif mode == "validate_code":
-        return validate_code(kwargs["code"])
+        return validate_code(
+            kwargs["code"],
+            use_real_check=kwargs.get("use_real_check", True),
+            timeout=kwargs.get("timeout", 10),
+        )
     elif mode == "write_code":
-        return write_code(kwargs["code"], kwargs["path"])
+        return write_code(
+            kwargs["code"], kwargs["path"],
+            use_real_check=kwargs.get("use_real_check", True),
+            timeout=kwargs.get("timeout", 10),
+        )
     elif mode == "validate":
         return validate()
     else:
@@ -467,14 +562,20 @@ OCTAVE_GRAMMAR_TOOL_SCHEMA = {
     "description": (
         "Cierra el ciclo validacion->generacion corregida para codigo Octave: "
         "compile_grammar devuelve la gramatica GBNF del subconjunto de Octave "
-        "soportado; validate_code chequea un fragmento (balance de "
-        "delimitadores y de bloques if/for/while/function/switch/try) SIN "
-        "ejecutarlo y, si es invalido, incluye grammar_hint (la gramatica "
-        "GBNF completa) y grammar_hint_focus (las reglas mas relevantes al "
-        "error) en la MISMA respuesta -- sin necesidad de una llamada "
-        "separada a compile_grammar; write_code valida y solo escribe a "
-        "disco si el resultado es valido, devolviendo el mismo grammar_hint "
-        "si no lo es. mode=validate corre el autochequeo del tool."
+        "soportado; validate_code chequea un fragmento SIN ejecutarlo "
+        "combinando dos fuentes -- un checker estructural liviano en Python "
+        "puro (balance de delimitadores y de bloques if/for/while/function/ "
+        "switch/try) que no depende de octave-cli, y, cuando "
+        "octave_syntax_tool esta disponible en el entorno (use_real_check, "
+        "default true), el parser real de octave-cli via source() para "
+        "detectar errores mas finos (typos de keywords, sintaxis rota "
+        "dentro de expresiones). Si el resultado es invalido, la respuesta "
+        "incluye grammar_hint (la gramatica GBNF completa) y "
+        "grammar_hint_focus (las reglas mas relevantes al error) en la "
+        "MISMA respuesta -- sin necesidad de una llamada separada a "
+        "compile_grammar. write_code valida y solo escribe a disco si el "
+        "resultado es valido, devolviendo el mismo grammar_hint si no lo "
+        "es. mode=validate corre el autochequeo del tool."
     ),
     "inputSchema": {
         "type": "object",
@@ -485,6 +586,16 @@ OCTAVE_GRAMMAR_TOOL_SCHEMA = {
             },
             "code": {"type": "string", "description": "fragmento de codigo Octave (validate_code, write_code)"},
             "path": {"type": "string", "description": "ruta de destino (write_code)"},
+            "use_real_check": {
+                "type": "boolean",
+                "description": (
+                    "si es true (default), ademas del checker estructural liviano "
+                    "intenta usar octave_syntax_tool/octave-cli para errores mas "
+                    "finos; se degrada silenciosamente si no esta disponible en "
+                    "el entorno (ver campo real_check_status en la respuesta)"
+                ),
+            },
+            "timeout": {"type": "integer", "description": "timeout en segundos para el chequeo real via octave-cli (default 10)"},
         },
         "required": ["mode"],
     },
