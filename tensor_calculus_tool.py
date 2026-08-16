@@ -254,6 +254,52 @@ def _christoffel_at(g_func, point, n, h):
     return _christoffel_numeric(g_func, point, n, h=h)
 
 
+def _geodesic_rhs(g_func, n, h, state):
+    """state = [x_0..x_{n-1}, v_0..v_{n-1}]. Devuelve d(state)/dtau."""
+    x = state[:n]
+    v = state[n:]
+    Gamma = _christoffel_at(g_func, x, n, h)
+    dv = [0.0] * n
+    for lam in range(n):
+        s = 0.0
+        for mu in range(n):
+            for nu in range(n):
+                s += Gamma[lam, mu, nu] * v[mu] * v[nu]
+        dv[lam] = -s
+    return list(v) + dv
+
+
+def _integrate_geodesic_rk4(g_func, n, h, point, velocity, tau_max, n_steps):
+    """Integra d2x^lambda/dtau2 + Gamma^lambda_mu_nu xdot^mu xdot^nu = 0 via RK4,
+    reduciendo a sistema de primer orden [x, v]. Devuelve trayectoria, velocidades,
+    y norma g_munu v^mu v^nu en cada paso (constante en una geodesica real -- sirve
+    de chequeo de calidad de la integracion independiente del preset de metrica)."""
+    dtau = tau_max / n_steps
+    state = np.array(list(point) + list(velocity), dtype=float)
+
+    def norm_at(x, v):
+        g = _g_at(g_func, x, n)
+        return float(sum(g[i][j] * v[i] * v[j] for i in range(n) for j in range(n)))
+
+    trajectory = [list(point)]
+    velocities = [list(velocity)]
+    norms = [norm_at(point, velocity)]
+
+    for _ in range(n_steps):
+        k1 = np.array(_geodesic_rhs(g_func, n, h, list(state)))
+        k2 = np.array(_geodesic_rhs(g_func, n, h, list(state + dtau / 2 * k1)))
+        k3 = np.array(_geodesic_rhs(g_func, n, h, list(state + dtau / 2 * k2)))
+        k4 = np.array(_geodesic_rhs(g_func, n, h, list(state + dtau * k3)))
+        state = state + dtau / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
+        x_new = list(state[:n])
+        v_new = list(state[n:])
+        trajectory.append(x_new)
+        velocities.append(v_new)
+        norms.append(norm_at(x_new, v_new))
+
+    return trajectory, velocities, norms
+
+
 def _riemann_numeric(g_func, point, n, h=1e-4):
     dGamma = np.zeros((n, n, n, n))  # dGamma[k][rho][mu][nu] = d Gamma^rho_mu_nu / dx^k
     for k in range(n):
@@ -278,7 +324,8 @@ def _riemann_numeric(g_func, point, n, h=1e-4):
 
 
 def compute_numeric(mode, point, metric_preset=None, custom_metric=None, coords=None,
-                     params=None, param_values=None, h=1e-5, tol=1e-6):
+                     params=None, param_values=None, h=1e-5, tol=1e-6,
+                     velocity=None, tau_max=None, n_steps=None):
     g_func, n, coord_names = _lambdify_metric(metric_preset, custom_metric, coords, params, param_values)
     if len(point) != n:
         raise ValueError(f"point debe tener {n} componentes ({coord_names}), recibido {len(point)}")
@@ -295,6 +342,22 @@ def compute_numeric(mode, point, metric_preset=None, custom_metric=None, coords=
     if mode == "christoffel":
         Gamma = _christoffel_at(g_func, point, n, h)
         out["nonzero_christoffel_symbols"] = _nonzero_entries_3(Gamma.tolist(), n, tol=tol)
+        return out
+
+    if mode == "geodesic_integrate":
+        if velocity is None or tau_max is None:
+            raise ValueError("geodesic_integrate requiere 'velocity' (dx/dtau inicial) y 'tau_max'")
+        n_steps_ = n_steps or 200
+        trajectory, velocities, norms = _integrate_geodesic_rk4(
+            g_func, n, h, point, velocity, tau_max, n_steps_)
+        norm0 = norms[0]
+        norm_drift_max = max(abs(nv - norm0) for nv in norms)
+        out["trajectory"] = [[round(c, 8) for c in p] for p in trajectory]
+        out["velocities"] = [[round(c, 8) for c in v] for v in velocities]
+        out["norm_conserved_initial"] = round(norm0, 10)
+        out["norm_drift_max"] = norm_drift_max
+        out["n_steps"] = n_steps_
+        out["tau_max"] = tau_max
         return out
 
     Riemann, Gamma0 = _riemann_numeric(g_func, point, n, h=max(h, 1e-4))
@@ -331,7 +394,8 @@ def compute_numeric(mode, point, metric_preset=None, custom_metric=None, coords=
 
 def compute_tensor_calculus(mode, backend="symbolic", metric_preset=None, custom_metric=None,
                              coords=None, params=None, param_values=None, point=None,
-                             simplify=True, h=1e-5, tol=1e-6):
+                             simplify=True, h=1e-5, tol=1e-6,
+                             velocity=None, tau_max=None, n_steps=None):
     if backend == "symbolic":
         return compute_symbolic(mode, metric_preset=metric_preset, custom_metric=custom_metric,
                                  coords=coords, params=params, simplify=simplify)
@@ -339,7 +403,8 @@ def compute_tensor_calculus(mode, backend="symbolic", metric_preset=None, custom
         if point is None:
             raise ValueError("backend numeric requiere 'point' (lista de coordenadas donde evaluar)")
         return compute_numeric(mode, point, metric_preset=metric_preset, custom_metric=custom_metric,
-                                coords=coords, params=params, param_values=param_values, h=h, tol=tol)
+                                coords=coords, params=params, param_values=param_values, h=h, tol=tol,
+                                velocity=velocity, tau_max=tau_max, n_steps=n_steps)
     else:
         raise ValueError("backend debe ser 'symbolic' o 'numeric'")
 
@@ -357,7 +422,7 @@ TENSOR_CALCULUS_TOOL_SCHEMA = {
     "inputSchema": {
         "type": "object",
         "properties": {
-            "mode": {"type": "string", "enum": ["christoffel", "riemann", "ricci", "scalar_curvature", "geodesic_equations"]},
+            "mode": {"type": "string", "enum": ["christoffel", "riemann", "ricci", "scalar_curvature", "geodesic_equations", "geodesic_integrate"]},
             "backend": {"type": "string", "enum": ["symbolic", "numeric"], "default": "symbolic"},
             "metric_preset": {"type": "string", "enum": list(PRESETS.keys()), "description": "atajo: usa una metrica precargada"},
             "custom_metric": {"type": "array", "description": "matriz n x n de expresiones (strings) en funcion de coords/params, si no se usa metric_preset"},
@@ -368,6 +433,9 @@ TENSOR_CALCULUS_TOOL_SCHEMA = {
             "simplify": {"type": "boolean", "default": True, "description": "backend symbolic: simplificar cada componente (mas lento en Schwarzschild)"},
             "h": {"type": "number", "default": 1e-5, "description": "backend numeric: paso de diferencias finitas"},
             "tol": {"type": "number", "default": 1e-6, "description": "backend numeric: tolerancia para considerar una componente como cero (riemann/ricci acumulan mas ruido que christoffel por ser doble diferencia finita)"},
+            "velocity": {"type": "array", "description": "modo geodesic_integrate: velocidad inicial dx/dtau, mismo orden que coords"},
+            "tau_max": {"type": "number", "description": "modo geodesic_integrate: parametro afin final de la integracion"},
+            "n_steps": {"type": "integer", "default": 200, "description": "modo geodesic_integrate: pasos de RK4"},
         },
         "required": ["mode"],
     },
