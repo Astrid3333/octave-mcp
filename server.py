@@ -95,6 +95,9 @@ from forced_vibration_tool import compute_forced_vibration, FORCED_VIBRATION_TOO
 import spectral_analysis_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import gait_analysis_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import socket_topology_tool  # auto-registra via tool_registry, no requiere mas ediciones
+import tight_binding_graphene_tool  # auto-registra via tool_registry, no requiere mas ediciones
+import droop_kelp_tool  # auto-registra via tool_registry, no requiere mas ediciones
+import octave_grammar_tool  # auto-registra via tool_registry, no requiere mas ediciones
 from archaeoastronomy_tool import compute_archaeoastronomy, ARCHAEOASTRONOMY_TOOL_SCHEMA
 from quantum_information_tool import compute_quantum_information, QUANTUM_INFORMATION_TOOL_SCHEMA
 from octave_infra_tool import octave_run, octave_eval_expr, octave_run_script, octave_version
