@@ -14,3 +14,4 @@ health_check_output.json
 
 # Rust submotors
 submotors/*/target/
+.venv-pyscf/
