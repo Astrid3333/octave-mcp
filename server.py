@@ -93,6 +93,8 @@ from thermal_advanced_tool import compute_thermal_advanced, THERMAL_ADVANCED_TOO
 from nonlinear_buckling_tool import compute_nonlinear_buckling, NONLINEAR_BUCKLING_TOOL_SCHEMA
 from forced_vibration_tool import compute_forced_vibration, FORCED_VIBRATION_TOOL_SCHEMA
 import spectral_analysis_tool  # auto-registra via tool_registry, no requiere mas ediciones
+import gait_analysis_tool  # auto-registra via tool_registry, no requiere mas ediciones
+import socket_topology_tool  # auto-registra via tool_registry, no requiere mas ediciones
 from archaeoastronomy_tool import compute_archaeoastronomy, ARCHAEOASTRONOMY_TOOL_SCHEMA
 from quantum_information_tool import compute_quantum_information, QUANTUM_INFORMATION_TOOL_SCHEMA
 from octave_infra_tool import octave_run, octave_eval_expr, octave_run_script, octave_version
