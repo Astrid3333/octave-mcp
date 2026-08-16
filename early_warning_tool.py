@@ -286,3 +286,22 @@ def compute_early_warning(mode, params=None):
 if __name__ == "__main__":
     import json
     print(json.dumps(compute_early_warning("validate"), indent=2, ensure_ascii=False))
+
+EARLY_WARNING_TOOL_SCHEMA = {   'type': 'object',
+    'properties': {'mode': {'type': 'string'}, 'params': {'type': 'object'}},
+    'required': ['mode']}
+
+try:
+    from tool_registry import register_tool
+    register_tool(
+        name="early_warning_tool",
+        schema={
+        "name": "early_warning_tool",
+        "description": 'Analisis de series temporales para alertas tempranas: threshold_crossing (cruce de umbrales tipo semaforo con proyeccion de tiempo hasta el proximo umbral), trend_analysis (regresion lineal, pendiente y R2), rate_of_change_alert (tasa de cambio y deteccion de subidas/bajadas criticas), moving_average_anomaly (deteccion de anomalias contra media movil trailing).',
+        "inputSchema": EARLY_WARNING_TOOL_SCHEMA,
+    },
+        handler=lambda args: compute_early_warning(args.get("mode"), args.get("params")),
+    )
+except ImportError:
+    pass
+

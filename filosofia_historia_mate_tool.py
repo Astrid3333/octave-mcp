@@ -360,3 +360,20 @@ if __name__ == "__main__":
     print(compute_math_philosophy_history())
     print(compute_math_philosophy_history("sutras_vedicos"))
     print(compute_math_philosophy_history("topic_que_no_existe"))
+
+MATH_PHILOSOPHY_HISTORY_SCHEMA = {'type': 'object', 'properties': {'topic': {'type': 'string'}, 'params': {'type': 'object'}}}
+
+try:
+    from tool_registry import register_tool
+    register_tool(
+        name="math_philosophy_history",
+        schema={
+        "name": "math_philosophy_history",
+        "description": 'Referencia sobre filosofia e historia de la matematica (8 topics).',
+        "inputSchema": MATH_PHILOSOPHY_HISTORY_SCHEMA,
+    },
+        handler=lambda args: compute_math_philosophy_history(**args),
+    )
+except ImportError:
+    pass
+

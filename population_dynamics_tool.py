@@ -163,3 +163,14 @@ if __name__ == "__main__":
     import json
     print(json.dumps(compute_population_dynamics("lotka_volterra"), indent=2, ensure_ascii=False))
     print(json.dumps(compute_population_dynamics("logistic_growth"), indent=2, ensure_ascii=False))
+
+try:
+    from tool_registry import register_tool
+    register_tool(
+        name="population_dynamics",
+        schema={**POPULATION_DYNAMICS_SCHEMA, "name": "population_dynamics"},
+        handler=lambda args: compute_population_dynamics(**args),
+    )
+except ImportError:
+    pass
+

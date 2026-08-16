@@ -356,3 +356,31 @@ def compute_abstract_algebra(mode="validate", preset=None, n=None,
 if __name__ == "__main__":
     import json
     print(json.dumps(compute_abstract_algebra(mode="validate"), indent=2, ensure_ascii=False))
+
+ABSTRACT_ALGEBRA_SCHEMA = {   'type': 'object',
+    'properties': {   'mode': {'type': 'string'},
+                      'preset': {'type': 'string'},
+                      'n': {'type': 'integer'},
+                      'elementos': {'type': 'array'},
+                      'tabla': {'type': 'array'},
+                      'tabla_suma': {'type': 'array'},
+                      'tabla_mult': {'type': 'array'},
+                      'elementos_a': {'type': 'array'},
+                      'tabla_a': {'type': 'array'},
+                      'elementos_b': {'type': 'array'},
+                      'tabla_b': {'type': 'array'}}}
+
+try:
+    from tool_registry import register_tool
+    register_tool(
+        name="abstract_algebra",
+        schema={
+        "name": "abstract_algebra",
+        "description": 'Algebra abstracta sobre estructuras finitas chicas (orden <=8 para isomorfismo): cayley_table (genera tabla preset Zn_add, Zn_mult, Sn simetrico, Dn diedral), verify_group_axioms (cerradura/asociatividad/identidad/inverso, reporta si es abeliano), verify_ring_field_axioms (axiomas de anillo via grupo abeliano + distributividad, confirma cuerpo si hay inverso multiplicativo para todo no-cero), check_isomorphism (fuerza bruta sobre permutaciones -- respuesta negativa es definitiva para el orden dado, no una sospecha).',
+        "inputSchema": ABSTRACT_ALGEBRA_SCHEMA,
+    },
+        handler=lambda args: compute_abstract_algebra(**args),
+    )
+except ImportError:
+    pass
+

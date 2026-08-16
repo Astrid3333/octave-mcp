@@ -258,3 +258,14 @@ def _validate_statistics() -> dict:
         checks.append({"name": "linear_regression known_linear: R2 > 0.99", "passed": r2_ok, "got": r1["r_squared"]})
 
     return {"mode": "validate", "validation_passed": all(c["passed"] for c in checks), "checks": checks}
+
+try:
+    from tool_registry import register_tool
+    register_tool(
+        name="statistics",
+        schema={**STATISTICS_SCHEMA, "name": "statistics"},
+        handler=lambda args: compute_statistics(**args),
+    )
+except ImportError:
+    pass
+

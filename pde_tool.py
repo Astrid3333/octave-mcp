@@ -219,3 +219,14 @@ def _validate_pde() -> dict:
         checks.append({"name": "heat_equation known_first_mode: error vs analitica < 1e-3", "passed": err_ok, "got": err})
 
     return {"mode": "validate", "validation_passed": all(c["passed"] for c in checks), "checks": checks}
+
+try:
+    from tool_registry import register_tool
+    register_tool(
+        name="pde",
+        schema={**PDE_SCHEMA, "name": "pde"},
+        handler=lambda args: compute_pde(**args),
+    )
+except ImportError:
+    pass
+

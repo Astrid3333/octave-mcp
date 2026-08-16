@@ -353,3 +353,33 @@ PALEOGRAPHY_TOOL_SCHEMA = {
         "required": ["mode"],
     },
 }
+
+PALEOGRAPHY_SCHEMA = {   'type': 'object',
+    'properties': {   'mode': {'type': 'string'},
+                      'matriz': {'type': 'array'},
+                      'doc_ids': {'type': 'array'},
+                      'anios_conocidos': {'type': 'object'},
+                      'anios_ancla': {'type': 'array'},
+                      'rasgo_ancla': {'type': 'array'},
+                      'rasgo_predecir': {'type': 'array'},
+                      'ids_predecir': {'type': 'array'},
+                      'grado_polinomio': {'type': 'integer'},
+                      'rasgos_entrenamiento': {'type': 'array'},
+                      'clases_entrenamiento': {'type': 'array'},
+                      'rasgos_nuevos': {'type': 'array'},
+                      'ids_nuevos': {'type': 'array'}}}
+
+try:
+    from tool_registry import register_tool
+    register_tool(
+        name="paleography",
+        schema={
+        "name": "paleography",
+        "description": 'Tres motores cuantitativos de paleografia/codicologia sobre rasgos YA EXTRAIDOS (no hace OCR ni lee imagenes): seriation (analisis de correspondencia via SVD sobre matriz documentos x rasgos, ordena por el eje 1 y valida contra anios_conocidos con Spearman si se dan), feature_dating_regression (ajusta anio ~ rasgo sobre documentos ancla de fecha conocida y estima fecha de documentos sin fecha, con error estandar residual), letterform_classification (nearest-centroid sobre rasgos normalizados, clasifica letterforms en clases conocidas y marca casos ambiguos por margen chico). Ninguno da fechas/atribuciones definitivas.',
+        "inputSchema": PALEOGRAPHY_SCHEMA,
+    },
+        handler=lambda args: compute_paleography(**args),
+    )
+except ImportError:
+    pass
+

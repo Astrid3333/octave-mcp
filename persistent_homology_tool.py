@@ -242,3 +242,14 @@ if __name__ == "__main__":
     import json
     print(json.dumps(compute_persistent_homology("circle", n_points=20, max_edge_length=2.5), indent=2, ensure_ascii=False))
     print(json.dumps(compute_persistent_homology("two_clusters", n_points=20, max_edge_length=1.0), indent=2, ensure_ascii=False))
+
+try:
+    from tool_registry import register_tool
+    register_tool(
+        name="persistent_homology",
+        schema={**PERSISTENT_HOMOLOGY_SCHEMA, "name": "persistent_homology"},
+        handler=lambda args: compute_persistent_homology(**args),
+    )
+except ImportError:
+    pass
+

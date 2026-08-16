@@ -316,3 +316,22 @@ def compute_flood_modeling(mode, params=None):
 if __name__ == "__main__":
     import json
     print(json.dumps(compute_flood_modeling("validate"), indent=2, ensure_ascii=False))
+
+FLOOD_MODELING_TOOL_SCHEMA = {   'type': 'object',
+    'properties': {'mode': {'type': 'string'}, 'params': {'type': 'object'}},
+    'required': ['mode']}
+
+try:
+    from tool_registry import register_tool
+    register_tool(
+        name="flood_modeling_tool",
+        schema={
+        "name": "flood_modeling_tool",
+        "description": 'Modelado de crecidas para planificacion de drenajes: scs_triangular_hydrograph (hidrograma unitario triangular SCS), muskingum_routing (transito de crecidas por un tramo de cauce), manning_normal_depth (tirante normal y ancho de inundacion en seccion trapezoidal via ecuacion de Manning).',
+        "inputSchema": FLOOD_MODELING_TOOL_SCHEMA,
+    },
+        handler=lambda args: compute_flood_modeling(args.get("mode"), args.get("params")),
+    )
+except ImportError:
+    pass
+

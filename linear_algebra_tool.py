@@ -255,3 +255,14 @@ def _validate_linear_algebra() -> dict:
         checks.append({"name": "svd known_symmetric: error de reconstruccion < 1e-8", "passed": bool(r2.get("reconstruction_ok")), "got": err_recon})
 
     return {"mode": "validate", "validation_passed": all(c["passed"] for c in checks), "checks": checks}
+
+try:
+    from tool_registry import register_tool
+    register_tool(
+        name="linear_algebra",
+        schema={**LINEAR_ALGEBRA_SCHEMA, "name": "linear_algebra"},
+        handler=lambda args: compute_linear_algebra(**args),
+    )
+except ImportError:
+    pass
+

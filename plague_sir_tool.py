@@ -165,3 +165,25 @@ def compute_plague_sir(mode="validate", text_data=None, preset=None,
 if __name__ == "__main__":
     import json
     print(json.dumps(compute_plague_sir(mode="validate"), indent=2, ensure_ascii=False))
+
+PLAGUE_SIR_SCHEMA = {   'type': 'object',
+    'properties': {   'mode': {'type': 'string'},
+                      'text_data': {'type': 'string'},
+                      'preset': {'type': 'string'},
+                      'gamma': {'type': 'number'},
+                      'poblacion_estimada': {'type': 'number'}}}
+
+try:
+    from tool_registry import register_tool
+    register_tool(
+        name="plague_sir",
+        schema={
+        "name": "plague_sir",
+        "description": 'SIR inverso para brotes historicos de peste: parsea defunciones semanales de texto libre via regex, ajusta beta (tasa de contagio) con curve_fit manteniendo gamma fijo (parametro de literatura, no medido), integra SIR con RK4, y reporta R0=beta/gamma. Proxy cuantitativo cuando no hay fuente epidemiologica directa -- no corrige subregistro, migracion, ni estacionalidad. Modes: fit_beta (requiere te',
+        "inputSchema": PLAGUE_SIR_SCHEMA,
+    },
+        handler=lambda args: compute_plague_sir(**args),
+    )
+except ImportError:
+    pass
+

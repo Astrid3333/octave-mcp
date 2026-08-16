@@ -184,3 +184,28 @@ def compute_qm_potential_well(
             "omega=1: E_n analítico = n+0.5 (n=0,1,2,...)."
         ),
     }
+
+QM_POTENTIAL_WELL_SCHEMA = {   'type': 'object',
+    'properties': {   'preset': {'type': 'string'},
+                      'custom_potential': {'type': 'string'},
+                      'well_params': {'type': 'object'},
+                      'x_range': {'type': 'array'},
+                      'n_points': {'type': 'integer'},
+                      'mass': {'type': 'number'},
+                      'hbar': {'type': 'number'},
+                      'n_states': {'type': 'integer'}}}
+
+try:
+    from tool_registry import register_tool
+    register_tool(
+        name="qm_potential_well",
+        schema={
+        "name": "qm_potential_well",
+        "description": 'Resuelve la ecuacion de Schrodinger 1D independiente del tiempo por diferencias finitas. Presets: infinite_well, finite_well, harmonic_oscillator, o custom via custom_potential (expresion Octave en x).',
+        "inputSchema": QM_POTENTIAL_WELL_SCHEMA,
+    },
+        handler=lambda args: compute_qm_potential_well(**args),
+    )
+except ImportError:
+    pass
+

@@ -194,3 +194,26 @@ def compute_settlement_clusters(mode="validate", puntos_por_periodo=None,
 if __name__ == "__main__":
     import json
     print(json.dumps(compute_settlement_clusters(mode="validate"), indent=2, ensure_ascii=False))
+
+SETTLEMENT_CLUSTERS_SCHEMA = {   'type': 'object',
+    'properties': {   'mode': {'type': 'string'},
+                      'puntos_por_periodo': {'type': 'array'},
+                      'periodos': {'type': 'array'},
+                      'radio': {'type': 'number'},
+                      'radio_match': {'type': 'number'},
+                      'run_id': {'type': 'string'}}}
+
+try:
+    from tool_registry import register_tool
+    register_tool(
+        name="settlement_clusters",
+        schema={
+        "name": "settlement_clusters",
+        "description": 'Proxy arqueologico de barrios/clusters sociales: clusteriza coordenadas de hallazgos por distancia (union-find a radio fijo) en cada periodo/estrato, y rastrea clusters entre periodos consecutivos por proximidad de centroides -- detecta nacimiento y muerte de asentamientos. No hace inferencia cronologica, el orden de periodos lo define quien llama. Modes: analyze (requiere puntos_por_periodo y per',
+        "inputSchema": SETTLEMENT_CLUSTERS_SCHEMA,
+    },
+        handler=lambda args: compute_settlement_clusters(**args),
+    )
+except ImportError:
+    pass
+

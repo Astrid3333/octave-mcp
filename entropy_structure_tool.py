@@ -213,3 +213,14 @@ if __name__ == "__main__":
     print(json.dumps(compute_entropy_structure("random_iid"), indent=2, ensure_ascii=False))
     print(json.dumps(compute_entropy_structure("markov_structured"), indent=2, ensure_ascii=False))
     print(json.dumps(compute_entropy_structure("custom", sequence=["glifo_A","glifo_B","glifo_A","glifo_C"]*3), indent=2, ensure_ascii=False))
+
+try:
+    from tool_registry import register_tool
+    register_tool(
+        name="entropy_structure",
+        schema={**ENTROPY_STRUCTURE_SCHEMA, "name": "entropy_structure"},
+        handler=lambda args: compute_entropy_structure(**args),
+    )
+except ImportError:
+    pass
+

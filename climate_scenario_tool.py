@@ -437,3 +437,22 @@ def _run_validation():
 if __name__ == "__main__":
     import json
     print(json.dumps(_run_validation(), indent=2, ensure_ascii=False))
+
+CLIMATE_SCENARIO_TOOL_SCHEMA = {   'type': 'object',
+    'properties': {'mode': {'type': 'string'}, 'params': {'type': 'object'}},
+    'required': ['mode']}
+
+try:
+    from tool_registry import register_tool
+    register_tool(
+        name="climate_scenario_tool",
+        schema={
+        "name": "climate_scenario_tool",
+        "description": 'Analisis de escenarios climaticos: trend_analysis (regresion lineal, Mann-Kendall, changepoint CUSUM sobre series temporales), rcp_projection (proyeccion de temperatura/nivel del mar para un RCP y anio dado), list_rcp_scenarios (catalogo RCP2.6/4.5/6.0/8.5 con datos IPCC AR5), validate.',
+        "inputSchema": CLIMATE_SCENARIO_TOOL_SCHEMA,
+    },
+        handler=lambda args: compute_climate_scenario(args.get("mode"), args.get("params")),
+    )
+except ImportError:
+    pass
+

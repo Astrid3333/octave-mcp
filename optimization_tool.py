@@ -214,3 +214,14 @@ def _validate_optimization() -> dict:
         checks.append({"name": "linear_programming known_lp: glpk_status_ok (status==0, sin error de wrapper)", "passed": status_ok, "got": r.get("glpk_status")})
 
     return {"mode": "validate", "validation_passed": all(c["passed"] for c in checks), "checks": checks}
+
+try:
+    from tool_registry import register_tool
+    register_tool(
+        name="optimization",
+        schema={**OPTIMIZATION_SCHEMA, "name": "optimization"},
+        handler=lambda args: compute_optimization(**args),
+    )
+except ImportError:
+    pass
+

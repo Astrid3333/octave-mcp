@@ -166,3 +166,14 @@ printf("%.10f ", S');
 if __name__ == "__main__":
     import json
     print(json.dumps(compute_enzyme_kinetics("compare"), indent=2, ensure_ascii=False))
+
+try:
+    from tool_registry import register_tool
+    register_tool(
+        name="enzyme_kinetics",
+        schema={**ENZYME_KINETICS_SCHEMA, "name": "enzyme_kinetics"},
+        handler=lambda args: compute_enzyme_kinetics(**args),
+    )
+except ImportError:
+    pass
+

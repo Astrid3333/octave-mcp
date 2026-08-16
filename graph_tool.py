@@ -258,3 +258,26 @@ def compute_graph_algorithms(
         out["cycle_detection"] = _detect_cycle(nodes, edge_list, directed)
 
     return out
+
+GRAPH_ALGORITHMS_SCHEMA = {   'type': 'object',
+    'properties': {   'preset': {'type': 'string'},
+                      'edges': {'type': 'array'},
+                      'directed': {'type': 'boolean'},
+                      'operation': {'type': 'string'},
+                      'source': {'type': 'string'},
+                      'mode': {'type': 'string', 'enum': ['validate']}}}
+
+try:
+    from tool_registry import register_tool
+    register_tool(
+        name="graph_algorithms",
+        schema={
+        "name": "graph_algorithms",
+        "description": "Corre algoritmos clasicos de grafos: Dijkstra, MST (Kruskal), deteccion de ciclos. Presets: small_weighted, disconnected, with_cycle, o custom via 'edges' [[u,v,peso],...]. mode='validate' corre un check rapido contra valores exactos calculados a mano.",
+        "inputSchema": GRAPH_ALGORITHMS_SCHEMA,
+    },
+        handler=lambda args: compute_graph_algorithms(**args),
+    )
+except ImportError:
+    pass
+

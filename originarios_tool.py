@@ -213,3 +213,14 @@ def compute_originarios(preset, params=None):
         return compute_aymara_numeral(**params)
     else:
         return {"error": f"preset desconocido: {preset}"}
+
+try:
+    from tool_registry import register_tool
+    register_tool(
+        name="originarios",
+        schema={**ORIGINARIOS_SCHEMA, "name": "originarios"},
+        handler=lambda args: compute_originarios(**args),
+    )
+except ImportError:
+    pass
+

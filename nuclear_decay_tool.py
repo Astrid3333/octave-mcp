@@ -196,3 +196,26 @@ printf("%.10e ", out');
         "N": N_series,
         "activity": activity,
     }
+
+NUCLEAR_DECAY_CHAIN_SCHEMA = {   'type': 'object',
+    'properties': {   'preset': {'type': 'string'},
+                      'chain': {'type': 'array'},
+                      't_max': {'type': 'number'},
+                      'n_points': {'type': 'integer'},
+                      'stable_last': {'type': 'boolean'},
+                      'mode': {'type': 'string', 'enum': ['validate']}}}
+
+try:
+    from tool_registry import register_tool
+    register_tool(
+        name="nuclear_decay_chain",
+        schema={
+        "name": "nuclear_decay_chain",
+        "description": "Resuelve una cadena de decaimiento nuclear (Bateman) via ode45. Presets: cs137_ba137m, sr90_y90, o custom via 'chain'. stable_last=True no sigue la cadena mas alla del ultimo isotopo pero NUNCA anula su lambda (permite alcanzar equilibrio secular). mode='validate' corre un check rapido: decaimiento simple vs analitico + equilibrio secular.",
+        "inputSchema": NUCLEAR_DECAY_CHAIN_SCHEMA,
+    },
+        handler=lambda args: compute_nuclear_decay_chain(**args),
+    )
+except ImportError:
+    pass
+

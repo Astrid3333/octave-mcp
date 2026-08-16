@@ -423,3 +423,14 @@ def compute_disaster_simulation(mode, params=None):
 
     else:
         raise ValueError(f"Modo desconocido para disaster_simulation_tool: {mode}")
+
+try:
+    from tool_registry import register_tool
+    register_tool(
+        name="disaster_simulation_tool",
+        schema=DISASTER_SIMULATION_TOOL_SCHEMA,
+        handler=lambda args: compute_disaster_simulation(args.get("mode"), args.get("params")),
+    )
+except ImportError:
+    pass
+

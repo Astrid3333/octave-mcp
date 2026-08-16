@@ -239,3 +239,14 @@ def compute_levant(preset, params=None):
         return compute_canaanite_phoenician_numeral(**params)
     else:
         return {"error": f"preset desconocido: {preset}"}
+
+try:
+    from tool_registry import register_tool
+    register_tool(
+        name="levant",
+        schema={**LEVANT_SCHEMA, "name": "levant"},
+        handler=lambda args: compute_levant(**args),
+    )
+except ImportError:
+    pass
+

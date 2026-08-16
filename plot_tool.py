@@ -386,3 +386,25 @@ if __name__ == "__main__":
     print("base64 len:", len(p.get("image_base64", "")))
     from workspace_tool import delete_run
     delete_run("_plot_selftest")
+
+PLOT_WORKSPACE_RUN_SCHEMA = {   'type': 'object',
+    'properties': {   'run_id': {'type': 'string'},
+                      'plot_type': {'type': 'string'},
+                      'title': {'type': 'string'},
+                      'array_name': {'type': 'string'}},
+    'required': ['run_id']}
+
+try:
+    from tool_registry import register_tool
+    register_tool(
+        name="plot_workspace_run",
+        schema={
+        "name": "plot_workspace_run",
+        "description": 'Genera una visualizacion (PNG en base64 + guardado en disco) a partir de un run guardado en el workspace (ej: la trayectoria de un atractor guardada por compute_lyapunov con run_id). No recalcula nada, solo lee y grafica. plot_type: auto (infiere segun el tool de origen), attractor_3d, attractor_2d, line, scatter, heatmap.',
+        "inputSchema": PLOT_WORKSPACE_RUN_SCHEMA,
+    },
+        handler=lambda args: plot_run(**args),
+    )
+except ImportError:
+    pass
+

@@ -346,3 +346,69 @@ if __name__ == "__main__":
     print("describe:", describe_run(r["run_id"]))
     print("load:", load_run(r["run_id"]))
     print("delete:", delete_run(r["run_id"]))# (pegá el contenido de arriba)
+
+try:
+    from tool_registry import register_tool
+    register_tool(
+        name="workspace_save",
+        schema=WORKSPACE_SAVE_SCHEMA,
+        handler=lambda args: save_run(**args),
+    )
+except ImportError:
+    pass
+
+
+try:
+    from tool_registry import register_tool
+    register_tool(
+        name="workspace_load",
+        schema=WORKSPACE_LOAD_SCHEMA,
+        handler=lambda args: load_run(**args),
+    )
+except ImportError:
+    pass
+
+
+try:
+    from tool_registry import register_tool
+    register_tool(
+        name="workspace_list",
+        schema=WORKSPACE_LIST_SCHEMA,
+        handler=lambda args: list_runs(**args),
+    )
+except ImportError:
+    pass
+
+
+try:
+    from tool_registry import register_tool
+    register_tool(
+        name="workspace_describe",
+        schema=WORKSPACE_DESCRIBE_SCHEMA,
+        handler=lambda args: describe_run(**args),
+    )
+except ImportError:
+    pass
+
+
+try:
+    from tool_registry import register_tool
+    register_tool(
+        name="workspace_delete",
+        schema=WORKSPACE_DELETE_SCHEMA,
+        handler=lambda args: delete_run(**args),
+    )
+except ImportError:
+    pass
+
+
+try:
+    from tool_registry import register_tool
+    register_tool(
+        name="workspace_link",
+        schema=WORKSPACE_LINK_SCHEMA,
+        handler=lambda args: workspace_link(**args),
+    )
+except ImportError:
+    pass
+

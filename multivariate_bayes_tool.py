@@ -666,3 +666,31 @@ if __name__ == "__main__":
     assert r["validation"]["passed"]
 
     print("\nTodos los modos de multivariate_bayes_tool validados OK.")
+
+MULTIVARIATE_BAYES_TOOL_SCHEMA = {   'type': 'object',
+    'properties': {   'mode': {   'type': 'string',
+                                  'enum': [   'mvn_sample',
+                                              'mvt_sample',
+                                              'wishart_sample',
+                                              'hierarchical',
+                                              'hmc_regression',
+                                              'pca_biplot',
+                                              'pca_cv',
+                                              'factor_analysis']},
+                      'params': {'type': 'object'}},
+    'required': ['mode', 'params']}
+
+try:
+    from tool_registry import register_tool
+    register_tool(
+        name="multivariate_bayes_tool",
+        schema={
+        "name": "multivariate_bayes_tool",
+        "description": 'Estadistica bayesiana multivariada: normal/t multivariada, Wishart, modelo jerarquico (Gibbs), regresion via HMC, PCA con biplot y CV, y Factor Analysis via EM.',
+        "inputSchema": MULTIVARIATE_BAYES_TOOL_SCHEMA,
+    },
+        handler=lambda args: compute_multivariate_bayes(args.get("mode"), args.get("params")),
+    )
+except ImportError:
+    pass
+

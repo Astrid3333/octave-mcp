@@ -231,3 +231,29 @@ def compute_fractal_dimension(preset="sierpinski_triangle", points=None, n_point
         result["known_analytic_dimension"] = known_analytic
         result["relative_error"] = abs(D - known_analytic) / known_analytic
     return result
+
+FRACTAL_DIMENSION_SCHEMA = {   'type': 'object',
+    'properties': {   'preset': {'type': 'string'},
+                      'points': {'type': 'array'},
+                      'n_points': {'type': 'integer'},
+                      'order': {'type': 'integer'},
+                      'n_scales': {'type': 'integer'},
+                      'eps_min_frac': {'type': 'number'},
+                      'eps_max_frac': {'type': 'number'},
+                      'chen_lee_params': {'type': 'object'},
+                      'mode': {'type': 'string', 'enum': ['validate']}}}
+
+try:
+    from tool_registry import register_tool
+    register_tool(
+        name="fractal_dimension",
+        schema={
+        "name": "fractal_dimension",
+        "description": "Dimension fractal por box-counting. Presets: sierpinski_triangle, koch_curve, cantor_set (con dimension analitica de referencia), chen_lee_attractor (integra el sistema caotico en Octave), o custom via 'points'. mode='validate' corre un check rapido contra los 3 presets con dimension analitica conocida.",
+        "inputSchema": FRACTAL_DIMENSION_SCHEMA,
+    },
+        handler=lambda args: compute_fractal_dimension(**args),
+    )
+except ImportError:
+    pass
+

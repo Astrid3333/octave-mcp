@@ -168,3 +168,27 @@ def compute_cross_validation(system="chen_lee", params=None, t_max=2000, n_steps
 if __name__ == "__main__":
     import json
     print(json.dumps(compute_cross_validation(t_max=500, n_steps=50000), indent=2, ensure_ascii=False))
+
+CROSS_VALIDATION_SCHEMA = {   'type': 'object',
+    'properties': {   'system': {'type': 'string'},
+                      'params': {'type': 'object'},
+                      't_max': {'type': 'number'},
+                      'n_steps': {'type': 'integer'},
+                      'transient_frac': {'type': 'number'},
+                      'tolerance': {'type': 'number'},
+                      'mode': {'type': 'string', 'enum': ['validate']}}}
+
+try:
+    from tool_registry import register_tool
+    register_tool(
+        name="cross_validation",
+        schema={
+        "name": "cross_validation",
+        "description": "Valida un resultado de dimension fractal corriendo el mismo sistema dinamico con dos motores numericos independientes (Octave ode45 y scipy RK45). Devuelve ambas dimensiones, la diferencia relativa, y un flag cross_validated. Sistemas disponibles: chen_lee. mode='validate' corre un check rapido (resolucion reducida) contra el mismo mecanismo.",
+        "inputSchema": CROSS_VALIDATION_SCHEMA,
+    },
+        handler=lambda args: compute_cross_validation(**args),
+    )
+except ImportError:
+    pass
+

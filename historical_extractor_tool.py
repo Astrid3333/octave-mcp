@@ -228,3 +228,24 @@ def compute_historical_extractor(mode="validate", text_data=None, objetos=None,
 if __name__ == "__main__":
     import json
     print(json.dumps(compute_historical_extractor(mode="validate"), indent=2, ensure_ascii=False))
+
+HISTORICAL_EXTRACTOR_SCHEMA = {   'type': 'object',
+    'properties': {   'mode': {'type': 'string'},
+                      'text_data': {'type': 'string'},
+                      'objetos': {'type': 'array'},
+                      'objeto_salario': {'type': 'string'}}}
+
+try:
+    from tool_registry import register_tool
+    register_tool(
+        name="historical_extractor",
+        schema={
+        "name": "historical_extractor",
+        "description": 'Extrae MULTIPLES series (anio, valor) de un mismo texto historico via regex por oracion (no NLP), una serie por objeto/concepto mencionado (ej: trigo, cebada, jornal). Corre tendencia por regresion log-lineal en cada serie (reusa el motor de historian), calcula salario real indexado si se indica objeto_salario, y correlacion de Pearson entre series de precios que se solapan en anios. NO interpreta',
+        "inputSchema": HISTORICAL_EXTRACTOR_SCHEMA,
+    },
+        handler=lambda args: compute_historical_extractor(**args),
+    )
+except ImportError:
+    pass
+

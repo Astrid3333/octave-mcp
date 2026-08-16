@@ -544,3 +544,24 @@ if __name__ == "__main__":
     assert v["passed"]
 
     print("\nTodos los modos de advanced_stochastic_tool validados OK.")
+
+ADVANCED_STOCHASTIC_TOOL_SCHEMA = {   'type': 'object',
+    'properties': {   'mode': {   'type': 'string',
+                                  'enum': ['hmm', 'kalman', 'particle_filter', 'garch']},
+                      'params': {'type': 'object'}},
+    'required': ['mode', 'params']}
+
+try:
+    from tool_registry import register_tool
+    register_tool(
+        name="advanced_stochastic_tool",
+        schema={
+        "name": "advanced_stochastic_tool",
+        "description": 'Procesos estocasticos avanzados: HMM (forward-backward + Viterbi), filtro de Kalman, particle filter (bootstrap), y GARCH(1,1) por MLE.',
+        "inputSchema": ADVANCED_STOCHASTIC_TOOL_SCHEMA,
+    },
+        handler=lambda args: compute_advanced_stochastic(args.get("mode"), args.get("params")),
+    )
+except ImportError:
+    pass
+

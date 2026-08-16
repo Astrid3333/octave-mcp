@@ -437,3 +437,14 @@ def compute_ethnomath(preset, params=None):
         return compute_japanese_enri_pi(**params)
     else:
         return {"error": f"preset desconocido: {preset}"}
+
+try:
+    from tool_registry import register_tool
+    register_tool(
+        name="ethnomath",
+        schema={**ETHNOMATH_SCHEMA, "name": "ethnomath"},
+        handler=lambda args: compute_ethnomath(**args),
+    )
+except ImportError:
+    pass
+

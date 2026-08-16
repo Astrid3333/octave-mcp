@@ -367,3 +367,14 @@ def compute_ethnomath2(preset, params=None):
         return compute_southeast_asian_metonic(**params)
     else:
         return {"error": f"preset desconocido: {preset}"}
+
+try:
+    from tool_registry import register_tool
+    register_tool(
+        name="ethnomath2",
+        schema={**ETHNOMATH2_SCHEMA, "name": "ethnomath2"},
+        handler=lambda args: compute_ethnomath2(**args),
+    )
+except ImportError:
+    pass
+

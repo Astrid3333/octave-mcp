@@ -234,3 +234,22 @@ def compute_water_resource(mode, params=None):
 if __name__ == "__main__":
     import json
     print(json.dumps(compute_water_resource("validate"), indent=2, ensure_ascii=False))
+
+WATER_RESOURCE_TOOL_SCHEMA = {   'type': 'object',
+    'properties': {'mode': {'type': 'string'}, 'params': {'type': 'object'}},
+    'required': ['mode']}
+
+try:
+    from tool_registry import register_tool
+    register_tool(
+        name="water_resource_tool",
+        schema={
+        "name": "water_resource_tool",
+        "description": 'Hidrologia de cuencas para gestion de recursos hidricos: rational_method (caudal pico Qp=CIA/360), scs_curve_number (escorrentia directa por numero de curva SCS), time_of_concentration (formula de Kirpich), water_balance (balance de masa de embalse/cuenca con deteccion de deficit y desborde).',
+        "inputSchema": WATER_RESOURCE_TOOL_SCHEMA,
+    },
+        handler=lambda args: compute_water_resource(args.get("mode"), args.get("params")),
+    )
+except ImportError:
+    pass
+

@@ -267,3 +267,22 @@ def compute_ancient_calculator(preset, params=None):
         return compute_yupana_depasquale(**params)
     else:
         return {"error": f"preset desconocido: {preset}"}
+
+ANCIENT_CALCULATOR_SCHEMA = {   'type': 'object',
+    'properties': {'preset': {'type': 'string'}, 'params': {'type': 'object'}},
+    'required': ['preset']}
+
+try:
+    from tool_registry import register_tool
+    register_tool(
+        name="ancient_calculator",
+        schema={
+        "name": "ancient_calculator",
+        "description": 'Simula calculadoras historicas reales operando sus cuentas/fichas: suanpan, soroban, roman_hand_abacus, yupana_depasquale (hipotesis en disputa academica, ver advertencia en la respuesta).',
+        "inputSchema": ANCIENT_CALCULATOR_SCHEMA,
+    },
+        handler=lambda args: compute_ancient_calculator(**args),
+    )
+except ImportError:
+    pass
+

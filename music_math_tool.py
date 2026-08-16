@@ -294,3 +294,14 @@ if __name__ == "__main__":
     import json
     print(json.dumps(compute_music_math("pythagorean_comma"), indent=2, ensure_ascii=False))
     print(json.dumps(compute_music_math("ternary_scale", n_power=2), indent=2, ensure_ascii=False))
+
+try:
+    from tool_registry import register_tool
+    register_tool(
+        name="music_math",
+        schema={**MUSIC_MATH_SCHEMA, "name": "music_math"},
+        handler=lambda args: compute_music_math(**args),
+    )
+except ImportError:
+    pass
+

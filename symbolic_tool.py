@@ -206,3 +206,14 @@ def _validate_symbolic() -> dict:
         checks.append({"name": "solve known_solve: raices == {2, 3} exacto", "passed": solve_ok, "got": r2.get("solutions")})
 
     return {"mode": "validate", "validation_passed": all(c["passed"] for c in checks), "checks": checks}
+
+try:
+    from tool_registry import register_tool
+    register_tool(
+        name="symbolic",
+        schema={**SYMBOLIC_SCHEMA, "name": "symbolic"},
+        handler=lambda args: compute_symbolic(**args),
+    )
+except ImportError:
+    pass
+

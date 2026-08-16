@@ -196,3 +196,14 @@ if __name__ == "__main__":
     import json
     print(json.dumps(compute_braid_group("verify_braid_relation"), indent=2, ensure_ascii=False))
     print(json.dumps(compute_braid_group("apply_braid_sequence", sequence="1,2,1,2,1"), indent=2, ensure_ascii=False))
+
+try:
+    from tool_registry import register_tool
+    register_tool(
+        name="braid_group",
+        schema={**BRAID_GROUP_SCHEMA, "name": "braid_group"},
+        handler=lambda args: compute_braid_group(**args),
+    )
+except ImportError:
+    pass
+

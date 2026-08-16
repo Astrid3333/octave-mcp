@@ -429,3 +429,24 @@ def compute_historian(mode="validate", analysis_type="inflation", text_data=None
 if __name__ == "__main__":
     import json
     print(json.dumps(compute_historian(mode="validate"), indent=2, ensure_ascii=False))
+
+HISTORIAN_SCHEMA = {   'type': 'object',
+    'properties': {   'mode': {'type': 'string'},
+                      'analysis_type': {'type': 'string'},
+                      'text_data': {'type': 'string'},
+                      'preset': {'type': 'string'}}}
+
+try:
+    from tool_registry import register_tool
+    register_tool(
+        name="historian",
+        schema={
+        "name": "historian",
+        "description": 'Orquestador de analisis historico: parsea numeros de texto libre via regex (sin NLP complejo), arma arrays de numpy, y ajusta el motor correspondiente segun analysis_type -- inflation/demographics (regresion log-lineal: tasa anual %, R2), trade_network (centralidad de red: fuerza entrante + autovector, identifica el hub), units_entropy (entropia de Shannon sobre unidades historicas de medida -- in',
+        "inputSchema": HISTORIAN_SCHEMA,
+    },
+        handler=lambda args: compute_historian(**args),
+    )
+except ImportError:
+    pass
+

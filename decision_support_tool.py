@@ -249,3 +249,22 @@ def compute_decision_support(mode, params=None):
 if __name__ == "__main__":
     import json
     print(json.dumps(compute_decision_support("validate"), indent=2, ensure_ascii=False))
+
+DECISION_SUPPORT_TOOL_SCHEMA = {   'type': 'object',
+    'properties': {'mode': {'type': 'string'}, 'params': {'type': 'object'}},
+    'required': ['mode']}
+
+try:
+    from tool_registry import register_tool
+    register_tool(
+        name="decision_support_tool",
+        schema={
+        "name": "decision_support_tool",
+        "description": 'Sistemas de apoyo a decisiones multicriterio para priorizacion de inversiones publicas: ahp (Proceso Analitico Jerarquico de Saaty, pesos via autovector principal y ratio de consistencia CR), topsis (ordenamiento de alternativas por cercania a la solucion ideal, con criterios de beneficio/costo y pesos configurables).',
+        "inputSchema": DECISION_SUPPORT_TOOL_SCHEMA,
+    },
+        handler=lambda args: compute_decision_support(args.get("mode"), args.get("params")),
+    )
+except ImportError:
+    pass
+

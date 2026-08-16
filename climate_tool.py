@@ -343,3 +343,29 @@ if __name__ == "__main__":
         print(f"--- {m} ---")
         print(json.dumps(v, indent=2, ensure_ascii=False))
         print()
+
+CLIMATE_TOOL_SCHEMA = {   'type': 'object',
+    'properties': {   'mode': {   'type': 'string',
+                                  'enum': [   'energy_balance_ebm',
+                                              'newton_cooling_trend',
+                                              'carbon_cycle_box',
+                                              'bifurcation_snowball']},
+                      'params': {   'type': 'object',
+                                    'description': 'Parametros especificos del modo (opcional, '
+                                                   'cada modo trae defaults razonables).'}},
+    'required': ['mode']}
+
+try:
+    from tool_registry import register_tool
+    register_tool(
+        name="climate_tool",
+        schema={
+        "name": "climate_tool",
+        "description": 'Fisica climatica especifica con validacion analitica. Modos: energy_balance_ebm (balance de energia 0-D, punto de equilibrio T_eq), newton_cooling_trend (relajacion exponencial dT/dt=-k(T-Ta), proyeccion de series cortas), carbon_cycle_box (modelo de cajas atmosfera-oceano-tierra, conservacion de masa), bifurcation_snowball (histeresis albedo-temperatura tipo Budyko-Sellers, Snowball Earth).',
+        "inputSchema": CLIMATE_TOOL_SCHEMA,
+    },
+        handler=lambda args: compute_climate(args.get("mode"), args.get("params")),
+    )
+except ImportError:
+    pass
+
