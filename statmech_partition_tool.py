@@ -124,6 +124,68 @@ def _validate():
     return {"validate": True, "all_passed": all(c["ok"] for c in checks), "checks": checks}
 
 
+def _linspace(a, b, n):
+    if n <= 1:
+        return [a]
+    step = (b - a) / (n - 1)
+    return [a + i * step for i in range(n)]
+
+
+def _temperature_sweep(params):
+    """
+    Barrido de T para uno de los tres sistemas, reusando las mismas
+    funciones puntuales ya validadas (no reimplementa la fisica).
+    Escala log por defecto -- T baja es donde mas resolucion hace
+    falta. Si se pasa run_id, guarda T/U/F/S/Cv en el workspace
+    (via workspace_tool.save_run) para graficar con plot_tool.
+    """
+    system = params.get("system", "two_level_system")
+    T_min = params.get("T_min", 0.01)
+    T_max = params.get("T_max", 10.0)
+    n_points = params.get("n_points", 50)
+    log_scale = params.get("log_scale", True)
+    run_id = params.get("run_id")
+
+    if T_min <= 0:
+        raise ValueError("T_min debe ser > 0 (T=0 es singular para S y F)")
+    if T_max <= T_min:
+        raise ValueError("T_max debe ser > T_min")
+
+    dispatch = {
+        "two_level_system": _two_level,
+        "quantum_harmonic_oscillator": _qho,
+        "ideal_gas_translational": _ideal_gas,
+    }
+    if system not in dispatch:
+        raise ValueError(f"system debe ser uno de {list(dispatch.keys())}")
+    fn = dispatch[system]
+
+    Ts = ([math.exp(x) for x in _linspace(math.log(T_min), math.log(T_max), n_points)]
+          if log_scale else _linspace(T_min, T_max, n_points))
+
+    U, F, S, Cv, Z = [], [], [], [], []
+    for T in Ts:
+        p = dict(params)
+        p["T"] = T
+        r = fn(p)
+        U.append(r["U"]); F.append(r["F"]); S.append(r["S"]); Cv.append(r["Cv"])
+        Z.append(r.get("Z1", r.get("Z")))
+
+    result = {"system": system, "T": Ts, "U": U, "F": F, "S": S, "Cv": Cv, "Z": Z, "n_points": n_points}
+
+    if run_id:
+        try:
+            from workspace_tool import save_run
+            save_run(run_id, {"T": Ts, "U": U, "F": F, "S": S, "Cv": Cv},
+                      {"tool": "statmech_partition_tool", "mode": "temperature_sweep", "system": system})
+            result["workspace_saved"] = True
+        except Exception as e:
+            result["workspace_saved"] = False
+            result["workspace_save_error"] = str(e)
+
+    return result
+
+
 def compute_statmech_partition(mode, params=None):
     params = params or {}
     if mode == "two_level_system":
@@ -132,6 +194,8 @@ def compute_statmech_partition(mode, params=None):
         return _qho(params)
     elif mode == "ideal_gas_translational":
         return _ideal_gas(params)
+    elif mode == "temperature_sweep":
+        return _temperature_sweep(params)
     elif mode == "validate":
         return _validate()
     else:
@@ -150,8 +214,7 @@ STATMECH_PARTITION_SCHEMA = {
                 "two_level_system",
                 "quantum_harmonic_oscillator",
                 "ideal_gas_translational",
-                "validate",
-            ],
+                "validate", "temperature_sweep"],
             "default": "two_level_system",
         },
         "T": {
