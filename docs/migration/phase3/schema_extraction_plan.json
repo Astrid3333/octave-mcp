@@ -1,0 +1,1347 @@
+{
+  "plan": [
+    {
+      "tool_name": "natural_hazard_risk_tool",
+      "module": "natural_hazard_risk_tool",
+      "func_name": "compute_natural_hazard_risk",
+      "schema_const_name": "NATURAL_HAZARD_RISK_TOOL_SCHEMA",
+      "description": "Modelado de riesgo multifactorial (R=H*E*V/A) para gestion publica de desastres naturales: risk_index (indice de riesgo puntual con clasificacion en bandas), risk_grid (mapa de calor de riesgo sobre grilla), gumbel_return_period (periodo de retorno empirico T=(n+1)/m), gumbel_fit (ajuste de distribucion de Gumbel por momentos y estimacion de magnitud de diseno o periodo de retorno).",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string"
+          },
+          "params": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "mode"
+        ]
+      }
+    },
+    {
+      "tool_name": "decision_support_tool",
+      "module": "decision_support_tool",
+      "func_name": "compute_decision_support",
+      "schema_const_name": "DECISION_SUPPORT_TOOL_SCHEMA",
+      "description": "Sistemas de apoyo a decisiones multicriterio para priorizacion de inversiones publicas: ahp (Proceso Analitico Jerarquico de Saaty, pesos via autovector principal y ratio de consistencia CR), topsis (ordenamiento de alternativas por cercania a la solucion ideal, con criterios de beneficio/costo y pesos configurables).",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string"
+          },
+          "params": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "mode"
+        ]
+      }
+    },
+    {
+      "tool_name": "water_resource_tool",
+      "module": "water_resource_tool",
+      "func_name": "compute_water_resource",
+      "schema_const_name": "WATER_RESOURCE_TOOL_SCHEMA",
+      "description": "Hidrologia de cuencas para gestion de recursos hidricos: rational_method (caudal pico Qp=CIA/360), scs_curve_number (escorrentia directa por numero de curva SCS), time_of_concentration (formula de Kirpich), water_balance (balance de masa de embalse/cuenca con deteccion de deficit y desborde).",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string"
+          },
+          "params": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "mode"
+        ]
+      }
+    },
+    {
+      "tool_name": "flood_modeling_tool",
+      "module": "flood_modeling_tool",
+      "func_name": "compute_flood_modeling",
+      "schema_const_name": "FLOOD_MODELING_TOOL_SCHEMA",
+      "description": "Modelado de crecidas para planificacion de drenajes: scs_triangular_hydrograph (hidrograma unitario triangular SCS), muskingum_routing (transito de crecidas por un tramo de cauce), manning_normal_depth (tirante normal y ancho de inundacion en seccion trapezoidal via ecuacion de Manning).",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string"
+          },
+          "params": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "mode"
+        ]
+      }
+    },
+    {
+      "tool_name": "climate_scenario_tool",
+      "module": "climate_scenario_tool",
+      "func_name": "compute_climate_scenario",
+      "schema_const_name": "CLIMATE_SCENARIO_TOOL_SCHEMA",
+      "description": "Analisis de escenarios climaticos: trend_analysis (regresion lineal, Mann-Kendall, changepoint CUSUM sobre series temporales), rcp_projection (proyeccion de temperatura/nivel del mar para un RCP y anio dado), list_rcp_scenarios (catalogo RCP2.6/4.5/6.0/8.5 con datos IPCC AR5), validate.",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string"
+          },
+          "params": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "mode"
+        ]
+      }
+    },
+    {
+      "tool_name": "early_warning_tool",
+      "module": "early_warning_tool",
+      "func_name": "compute_early_warning",
+      "schema_const_name": "EARLY_WARNING_TOOL_SCHEMA",
+      "description": "Analisis de series temporales para alertas tempranas: threshold_crossing (cruce de umbrales tipo semaforo con proyeccion de tiempo hasta el proximo umbral), trend_analysis (regresion lineal, pendiente y R2), rate_of_change_alert (tasa de cambio y deteccion de subidas/bajadas criticas), moving_average_anomaly (deteccion de anomalias contra media movil trailing).",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string"
+          },
+          "params": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "mode"
+        ]
+      }
+    },
+    {
+      "tool_name": "disaster_simulation_tool",
+      "module": "disaster_simulation_tool",
+      "func_name": "compute_disaster_simulation",
+      "schema_const_name": "DISASTER_SIMULATION_TOOL_SCHEMA",
+      "description": "Simulacion Monte Carlo de desastres (modelo actuarial frecuencia-severidad Poisson-LogNormal) para gestion publica de riesgos: monte_carlo_losses (distribucion de perdida agregada anual dado lambda de frecuencia y mu/sigma de severidad lognormal, con VaR y CVaR/Tail-VaR a percentiles configurables), return_period_loss (perdida esperada para periodos de retorno dados, estimador empirico de Weibull T=(n+1)/m, consistente con natural_hazard_risk_tool.gumbel_return_period), exceedance_curve (curva de probabilidad de excedencia anual -EP curve- para una lista de umbrales de perdida), multi_hazard_combine (combina dos peligros independientes o correlacionados via copula gaussiana en una perdida agregada conjunta), validate (suite de 10 checks). Motor generico: no trae catalogo de parametros por tipo de peligro (lambda/mu/sigma los provee quien llama), confidence_flag 'alta' para toda la mecanica estadistica.",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string"
+          },
+          "params": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "mode"
+        ]
+      }
+    },
+    {
+      "tool_name": "graph_algorithms",
+      "module": "graph_tool",
+      "func_name": "compute_graph_algorithms",
+      "schema_const_name": "GRAPH_ALGORITHMS_SCHEMA",
+      "description": "Corre algoritmos clasicos de grafos: Dijkstra, MST (Kruskal), deteccion de ciclos. Presets: small_weighted, disconnected, with_cycle, o custom via 'edges' [[u,v,peso],...]. mode='validate' corre un check rapido contra valores exactos calculados a mano.",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "preset": {
+            "type": "string"
+          },
+          "edges": {
+            "type": "array"
+          },
+          "directed": {
+            "type": "boolean"
+          },
+          "operation": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "validate"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "tool_name": "qm_potential_well",
+      "module": "qm_tool",
+      "func_name": "compute_qm_potential_well",
+      "schema_const_name": "QM_POTENTIAL_WELL_SCHEMA",
+      "description": "Resuelve la ecuacion de Schrodinger 1D independiente del tiempo por diferencias finitas. Presets: infinite_well, finite_well, harmonic_oscillator, o custom via custom_potential (expresion Octave en x).",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "preset": {
+            "type": "string"
+          },
+          "custom_potential": {
+            "type": "string"
+          },
+          "well_params": {
+            "type": "object"
+          },
+          "x_range": {
+            "type": "array"
+          },
+          "n_points": {
+            "type": "integer"
+          },
+          "mass": {
+            "type": "number"
+          },
+          "hbar": {
+            "type": "number"
+          },
+          "n_states": {
+            "type": "integer"
+          }
+        }
+      }
+    },
+    {
+      "tool_name": "nuclear_decay_chain",
+      "module": "nuclear_decay_tool",
+      "func_name": "compute_nuclear_decay_chain",
+      "schema_const_name": "NUCLEAR_DECAY_CHAIN_SCHEMA",
+      "description": "Resuelve una cadena de decaimiento nuclear (Bateman) via ode45. Presets: cs137_ba137m, sr90_y90, o custom via 'chain'. stable_last=True no sigue la cadena mas alla del ultimo isotopo pero NUNCA anula su lambda (permite alcanzar equilibrio secular). mode='validate' corre un check rapido: decaimiento simple vs analitico + equilibrio secular.",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "preset": {
+            "type": "string"
+          },
+          "chain": {
+            "type": "array"
+          },
+          "t_max": {
+            "type": "number"
+          },
+          "n_points": {
+            "type": "integer"
+          },
+          "stable_last": {
+            "type": "boolean"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "validate"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "tool_name": "fractal_dimension",
+      "module": "fractal_dimension_tool",
+      "func_name": "compute_fractal_dimension",
+      "schema_const_name": "FRACTAL_DIMENSION_SCHEMA",
+      "description": "Dimension fractal por box-counting. Presets: sierpinski_triangle, koch_curve, cantor_set (con dimension analitica de referencia), chen_lee_attractor (integra el sistema caotico en Octave), o custom via 'points'. mode='validate' corre un check rapido contra los 3 presets con dimension analitica conocida.",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "preset": {
+            "type": "string"
+          },
+          "points": {
+            "type": "array"
+          },
+          "n_points": {
+            "type": "integer"
+          },
+          "order": {
+            "type": "integer"
+          },
+          "n_scales": {
+            "type": "integer"
+          },
+          "eps_min_frac": {
+            "type": "number"
+          },
+          "eps_max_frac": {
+            "type": "number"
+          },
+          "chen_lee_params": {
+            "type": "object"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "validate"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "tool_name": "ethnomath",
+      "module": "ethnomath_tool",
+      "func_name": "compute_ethnomath",
+      "schema_const_name": "ETHNOMATH_SCHEMA",
+      "description": "Algoritmos matematicos historicos: maya_long_count, chinese_remainder, vedic_multiply, quipu_encode, greek_archimedes_pi, japanese_enri_pi.",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "preset": {
+            "type": "string"
+          },
+          "params": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "preset"
+        ]
+      }
+    },
+    {
+      "tool_name": "ethnomath2",
+      "module": "ethnomath2_tool",
+      "func_name": "compute_ethnomath2",
+      "schema_const_name": "ETHNOMATH2_SCHEMA",
+      "description": "Segunda tanda de algoritmos matematicos historicos: egyptian_duplation, persian_khwarizmi, persian_alkashi_sin1, russian_peasant, ottoman_taqi_al_din, norse_rune_calendar, southeast_asian_metonic.",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "preset": {
+            "type": "string"
+          },
+          "params": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "preset"
+        ]
+      }
+    },
+    {
+      "tool_name": "ancient_calculator",
+      "module": "ancient_calculators_tool",
+      "func_name": "compute_ancient_calculator",
+      "schema_const_name": "ANCIENT_CALCULATOR_SCHEMA",
+      "description": "Simula calculadoras historicas reales operando sus cuentas/fichas: suanpan, soroban, roman_hand_abacus, yupana_depasquale (hipotesis en disputa academica, ver advertencia en la respuesta).",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "preset": {
+            "type": "string"
+          },
+          "params": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "preset"
+        ]
+      }
+    },
+    {
+      "tool_name": "math_philosophy_history",
+      "module": "filosofia_historia_mate_tool",
+      "func_name": "compute_math_philosophy_history",
+      "schema_const_name": "MATH_PHILOSOPHY_HISTORY_SCHEMA",
+      "description": "Referencia sobre filosofia e historia de la matematica (8 topics).",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "topic": {
+            "type": "string"
+          },
+          "params": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    {
+      "tool_name": "levant",
+      "module": "levant_tool",
+      "func_name": "compute_levant",
+      "schema_const_name": "LEVANT_SCHEMA",
+      "description": "Matematica cananea y de Juda/Israel: hebrew_molad (conjuncion lunar media, ciclo metonico de 19 anios), hebrew_gematria (valor numerico de palabras hebreas y su inverso), canaanite_phoenician_numeral (sistema aditivo 1/10/20/100).",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "preset": {
+            "type": "string"
+          },
+          "params": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "preset"
+        ]
+      }
+    },
+    {
+      "tool_name": "originarios",
+      "module": "originarios_tool",
+      "func_name": "compute_originarios",
+      "schema_const_name": "ORIGINARIOS_SCHEMA",
+      "description": "Numeracion de pueblos originarios: mapuche_numeral (rakin, decimal aditivo-multiplicativo) y aymara_numeral (decimal con sufijo -ni, mas nota sobre vestigio quinario).",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "preset": {
+            "type": "string"
+          },
+          "params": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "preset"
+        ]
+      }
+    },
+    {
+      "tool_name": "cross_validation",
+      "module": "cross_validation_tool",
+      "func_name": "compute_cross_validation",
+      "schema_const_name": "CROSS_VALIDATION_SCHEMA",
+      "description": "Valida un resultado de dimension fractal corriendo el mismo sistema dinamico con dos motores numericos independientes (Octave ode45 y scipy RK45). Devuelve ambas dimensiones, la diferencia relativa, y un flag cross_validated. Sistemas disponibles: chen_lee. mode='validate' corre un check rapido (resolucion reducida) contra el mismo mecanismo.",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "system": {
+            "type": "string"
+          },
+          "params": {
+            "type": "object"
+          },
+          "t_max": {
+            "type": "number"
+          },
+          "n_steps": {
+            "type": "integer"
+          },
+          "transient_frac": {
+            "type": "number"
+          },
+          "tolerance": {
+            "type": "number"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "validate"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "tool_name": "entropy_structure",
+      "module": "entropy_structure_tool",
+      "func_name": "compute_entropy_structure",
+      "schema_const_name": "ENTROPY_STRUCTURE_SCHEMA",
+      "description": "Calcula entropia de orden 0 y entropia condicional de orden 1 sobre una secuencia de simbolos, para evaluar evidencia de estructura combinatoria (compatible con codificacion tipo-lenguaje) vs. conteo simple/tally marks. Presets sinteticos validados (random_iid, markov_structured) o custom via 'sequence' con datos reales (khipu, yupana, corpus sin descifrar, etc).",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "preset": {
+            "type": "string",
+            "enum": [
+              "random_iid",
+              "markov_structured",
+              "custom",
+              "validate"
+            ]
+          },
+          "sequence": {
+            "type": "array"
+          },
+          "alphabet_size": {
+            "type": "integer"
+          },
+          "n_symbols": {
+            "type": "integer"
+          },
+          "seed": {
+            "type": "integer"
+          }
+        }
+      }
+    },
+    {
+      "tool_name": "music_math",
+      "module": "music_math_tool",
+      "func_name": "compute_music_math",
+      "schema_const_name": "MUSIC_MATH_SCHEMA",
+      "description": "Calculos de matematica musical: pythagorean_comma, temperament_comparison, harmonic_series, ternary_scale (division de la octava en 3^n pasos, conexion con TritOS), spectral_analysis (FFT real via Octave sobre una senal).",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "preset": {
+            "type": "string"
+          },
+          "f0": {
+            "type": "number"
+          },
+          "n_harmonics": {
+            "type": "integer"
+          },
+          "n_power": {
+            "type": "integer"
+          },
+          "signal": {
+            "type": "array"
+          },
+          "fs": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    {
+      "tool_name": "linear_algebra",
+      "module": "linear_algebra_tool",
+      "func_name": "compute_linear_algebra",
+      "schema_const_name": "LINEAR_ALGEBRA_SCHEMA",
+      "description": "Algebra lineal via Octave: eigen (autovalores/autovectores), svd (descomposicion en valores singulares + verificacion), pca (componentes principales, varianza explicada), matrix_analysis (rango, condicion, determinante, inversa). Prerrequisito de persistent_homology_tool.",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "eigen",
+              "svd",
+              "pca",
+              "matrix_analysis",
+              "validate"
+            ]
+          },
+          "preset": {
+            "type": "string"
+          },
+          "matrix": {
+            "type": "array"
+          },
+          "data": {
+            "type": "array"
+          }
+        }
+      }
+    },
+    {
+      "tool_name": "persistent_homology",
+      "module": "persistent_homology_tool",
+      "func_name": "compute_persistent_homology",
+      "schema_const_name": "PERSISTENT_HOMOLOGY_SCHEMA",
+      "description": "Homologia persistente (H0, H1) sobre una nube de puntos via complejo de Vietoris-Rips y reduccion de matriz de borde. Presets sinteticos validados (circle, two_clusters, random_noise) o custom via 'points' para datos reales -- por ejemplo nubes reconstruidas de un embedding de Takens (conexion directa con TritOS). Si se indica run_id, guarda points/h0_diagram/h1_diagram en el workspace para grafic",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "preset": {
+            "type": "string"
+          },
+          "points": {
+            "type": "array"
+          },
+          "max_edge_length": {
+            "type": "number"
+          },
+          "max_dim": {
+            "type": "integer"
+          },
+          "n_points": {
+            "type": "integer"
+          },
+          "seed": {
+            "type": "integer"
+          },
+          "run_id": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "tool_name": "statistics",
+      "module": "statistics_tool",
+      "func_name": "compute_statistics",
+      "schema_const_name": "STATISTICS_SCHEMA",
+      "description": "Estadistica e inferencia via Octave: linear_regression (minimos cuadrados), correlation (Pearson r), t_test (una muestra, t-stat + p-value via betainc), bayesian_beta_binomial (actualizacion conjugada Beta-Binomial). Pensado para analisis de riesgo (QGIS).",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "linear_regression",
+              "correlation",
+              "t_test",
+              "bayesian_beta_binomial",
+              "validate"
+            ]
+          },
+          "preset": {
+            "type": "string"
+          },
+          "x": {
+            "type": "array"
+          },
+          "y": {
+            "type": "array"
+          },
+          "sample": {
+            "type": "array"
+          },
+          "mu0": {
+            "type": "number"
+          },
+          "prior_a": {
+            "type": "number"
+          },
+          "prior_b": {
+            "type": "number"
+          },
+          "successes": {
+            "type": "integer"
+          },
+          "trials": {
+            "type": "integer"
+          }
+        }
+      }
+    },
+    {
+      "tool_name": "symbolic",
+      "module": "symbolic_tool",
+      "func_name": "compute_symbolic",
+      "schema_const_name": "SYMBOLIC_SCHEMA",
+      "description": "Algebra simbolica via sympy: simplify, solve (resolver ecuaciones), differentiate (derivada), integrate (indefinida o definida con limites), taylor_series. Puente necesario porque Octave es 100% numerico.",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "simplify",
+              "solve",
+              "differentiate",
+              "integrate",
+              "taylor_series",
+              "validate"
+            ]
+          },
+          "preset": {
+            "type": "string"
+          },
+          "expression": {
+            "type": "string"
+          },
+          "variable": {
+            "type": "string"
+          },
+          "lower_limit": {
+            "type": "string"
+          },
+          "upper_limit": {
+            "type": "string"
+          },
+          "point": {
+            "type": "string"
+          },
+          "order": {
+            "type": "integer"
+          }
+        }
+      }
+    },
+    {
+      "tool_name": "optimization",
+      "module": "optimization_tool",
+      "func_name": "compute_optimization",
+      "schema_const_name": "OPTIMIZATION_SCHEMA",
+      "description": "Optimizacion: linear_programming (via glpk nativo de Octave), gradient_descent (gradiente EXACTO simbolico via sympy, no diferencias finitas). Presets validados contra optimos conocidos.",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "linear_programming",
+              "gradient_descent",
+              "validate"
+            ]
+          },
+          "preset": {
+            "type": "string"
+          },
+          "sense": {
+            "type": "string"
+          },
+          "c": {
+            "type": "array"
+          },
+          "A_ub": {
+            "type": "array"
+          },
+          "b_ub": {
+            "type": "array"
+          },
+          "expression": {
+            "type": "string"
+          },
+          "start": {
+            "type": "array"
+          },
+          "learning_rate": {
+            "type": "number"
+          },
+          "n_iterations": {
+            "type": "integer"
+          }
+        }
+      }
+    },
+    {
+      "tool_name": "pde",
+      "module": "pde_tool",
+      "func_name": "compute_pde",
+      "schema_const_name": "PDE_SCHEMA",
+      "description": "Ecuaciones en derivadas parciales via diferencias finitas explicitas en Octave: heat_equation (u_t=alpha*u_xx), wave_equation (u_tt=c^2*u_xx). Validado contra solucion analitica del primer modo normal. Extension de stiff_ode_tool hacia EDPs -- relevante para propagacion termica LIG.",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "heat_equation",
+              "wave_equation",
+              "validate"
+            ]
+          },
+          "preset": {
+            "type": "string"
+          },
+          "L": {
+            "type": "number"
+          },
+          "coefficient": {
+            "type": "number"
+          },
+          "n_points": {
+            "type": "integer"
+          },
+          "t_final": {
+            "type": "number"
+          },
+          "initial_profile": {
+            "type": "array"
+          }
+        }
+      }
+    },
+    {
+      "tool_name": "braid_group",
+      "module": "braid_group_tool",
+      "func_name": "compute_braid_group",
+      "schema_const_name": "BRAID_GROUP_SCHEMA",
+      "description": "Grupos de trenzas y anyones de Fibonacci: verify_braid_relation (unitariedad + relacion de Yang-Baxter), apply_braid_sequence (aplica una secuencia de trenzas a un estado inicial, preserva la norma). Basado en Bonesteel et al 2005. Conexion con computacion cuantica topologica y con persistent_homology_tool / linear_algebra_tool.",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "verify_braid_relation",
+              "apply_braid_sequence",
+              "validate"
+            ]
+          },
+          "sequence": {
+            "type": "string"
+          },
+          "initial_state": {
+            "type": "array"
+          }
+        }
+      }
+    },
+    {
+      "tool_name": "population_dynamics",
+      "module": "population_dynamics_tool",
+      "func_name": "compute_population_dynamics",
+      "schema_const_name": "POPULATION_DYNAMICS_SCHEMA",
+      "description": "Dinamica de poblaciones: lotka_volterra (depredador-presa), logistic_growth (capacidad de carga). Relevante para cultivo de kelp en infraestructura de longline existente.",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "lotka_volterra",
+              "logistic_growth",
+              "validate"
+            ]
+          },
+          "a": {
+            "type": "number"
+          },
+          "b": {
+            "type": "number"
+          },
+          "c": {
+            "type": "number"
+          },
+          "d": {
+            "type": "number"
+          },
+          "x0": {
+            "type": "number"
+          },
+          "y0": {
+            "type": "number"
+          },
+          "r": {
+            "type": "number"
+          },
+          "K": {
+            "type": "number"
+          },
+          "t_max": {
+            "type": "number"
+          },
+          "n_points": {
+            "type": "integer"
+          }
+        }
+      }
+    },
+    {
+      "tool_name": "enzyme_kinetics",
+      "module": "enzyme_kinetics_tool",
+      "func_name": "compute_enzyme_kinetics",
+      "schema_const_name": "ENZYME_KINETICS_SCHEMA",
+      "description": "Cinetica enzimatica: full_kinetics (E+S<->ES->E+P completo), michaelis_menten (aproximacion QSSA), compare (valida cuando la aproximacion es correcta, E0<<S0).",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "full_kinetics",
+              "michaelis_menten",
+              "compare",
+              "validate"
+            ]
+          },
+          "k1": {
+            "type": "number"
+          },
+          "km1": {
+            "type": "number"
+          },
+          "k2": {
+            "type": "number"
+          },
+          "E0": {
+            "type": "number"
+          },
+          "S0": {
+            "type": "number"
+          },
+          "t_max": {
+            "type": "number"
+          },
+          "n_points": {
+            "type": "integer"
+          }
+        }
+      }
+    },
+    {
+      "tool_name": "historian",
+      "module": "historian_tool",
+      "func_name": "compute_historian",
+      "schema_const_name": "HISTORIAN_SCHEMA",
+      "description": "Orquestador de analisis historico: parsea numeros de texto libre via regex (sin NLP complejo), arma arrays de numpy, y ajusta el motor correspondiente segun analysis_type -- inflation/demographics (regresion log-lineal: tasa anual %, R2), trade_network (centralidad de red: fuerza entrante + autovector, identifica el hub), units_entropy (entropia de Shannon sobre unidades historicas de medida -- in",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string"
+          },
+          "analysis_type": {
+            "type": "string"
+          },
+          "text_data": {
+            "type": "string"
+          },
+          "preset": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "tool_name": "antibiotic_diffusion",
+      "module": "antibiotic_diffusion",
+      "func_name": "compute_antibiotic_diffusion",
+      "schema_const_name": "ANTIBIOTIC_DIFFUSION_SCHEMA",
+      "description": "Bioensayo de difusion en disco tipo Kirby-Bauer: difusion radial 2D exacta (Carslaw & Jaeger, disco de concentracion uniforme C0 en agar homogeneo) mas la aproximacion clasica de fuente puntual de Cooper. Liberacion instantanea, sin degradacion ni consumo bacteriano -- estimacion de ordenes de magnitud, no reemplaza ensayo real. Modes: zone_prediction (radio/diametro de halo a un C0 y tiempo de in",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string"
+          },
+          "C0": {
+            "type": "number"
+          },
+          "a": {
+            "type": "number"
+          },
+          "D": {
+            "type": "number"
+          },
+          "MIC": {
+            "type": "number"
+          },
+          "t": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    {
+      "tool_name": "plague_sir",
+      "module": "plague_sir_tool",
+      "func_name": "compute_plague_sir",
+      "schema_const_name": "PLAGUE_SIR_SCHEMA",
+      "description": "SIR inverso para brotes historicos de peste: parsea defunciones semanales de texto libre via regex, ajusta beta (tasa de contagio) con curve_fit manteniendo gamma fijo (parametro de literatura, no medido), integra SIR con RK4, y reporta R0=beta/gamma. Proxy cuantitativo cuando no hay fuente epidemiologica directa -- no corrige subregistro, migracion, ni estacionalidad. Modes: fit_beta (requiere te",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string"
+          },
+          "text_data": {
+            "type": "string"
+          },
+          "preset": {
+            "type": "string"
+          },
+          "gamma": {
+            "type": "number"
+          },
+          "poblacion_estimada": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    {
+      "tool_name": "settlement_clusters",
+      "module": "settlement_clusters_tool",
+      "func_name": "compute_settlement_clusters",
+      "schema_const_name": "SETTLEMENT_CLUSTERS_SCHEMA",
+      "description": "Proxy arqueologico de barrios/clusters sociales: clusteriza coordenadas de hallazgos por distancia (union-find a radio fijo) en cada periodo/estrato, y rastrea clusters entre periodos consecutivos por proximidad de centroides -- detecta nacimiento y muerte de asentamientos. No hace inferencia cronologica, el orden de periodos lo define quien llama. Modes: analyze (requiere puntos_por_periodo y per",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string"
+          },
+          "puntos_por_periodo": {
+            "type": "array"
+          },
+          "periodos": {
+            "type": "array"
+          },
+          "radio": {
+            "type": "number"
+          },
+          "radio_match": {
+            "type": "number"
+          },
+          "run_id": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "tool_name": "historical_extractor",
+      "module": "historical_extractor_tool",
+      "func_name": "compute_historical_extractor",
+      "schema_const_name": "HISTORICAL_EXTRACTOR_SCHEMA",
+      "description": "Extrae MULTIPLES series (anio, valor) de un mismo texto historico via regex por oracion (no NLP), una serie por objeto/concepto mencionado (ej: trigo, cebada, jornal). Corre tendencia por regresion log-lineal en cada serie (reusa el motor de historian), calcula salario real indexado si se indica objeto_salario, y correlacion de Pearson entre series de precios que se solapan en anios. NO interpreta",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string"
+          },
+          "text_data": {
+            "type": "string"
+          },
+          "objetos": {
+            "type": "array"
+          },
+          "objeto_salario": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "tool_name": "paleography",
+      "module": "paleography_tool",
+      "func_name": "compute_paleography",
+      "schema_const_name": "PALEOGRAPHY_SCHEMA",
+      "description": "Tres motores cuantitativos de paleografia/codicologia sobre rasgos YA EXTRAIDOS (no hace OCR ni lee imagenes): seriation (analisis de correspondencia via SVD sobre matriz documentos x rasgos, ordena por el eje 1 y valida contra anios_conocidos con Spearman si se dan), feature_dating_regression (ajusta anio ~ rasgo sobre documentos ancla de fecha conocida y estima fecha de documentos sin fecha, con error estandar residual), letterform_classification (nearest-centroid sobre rasgos normalizados, clasifica letterforms en clases conocidas y marca casos ambiguos por margen chico). Ninguno da fechas/atribuciones definitivas.",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string"
+          },
+          "matriz": {
+            "type": "array"
+          },
+          "doc_ids": {
+            "type": "array"
+          },
+          "anios_conocidos": {
+            "type": "object"
+          },
+          "anios_ancla": {
+            "type": "array"
+          },
+          "rasgo_ancla": {
+            "type": "array"
+          },
+          "rasgo_predecir": {
+            "type": "array"
+          },
+          "ids_predecir": {
+            "type": "array"
+          },
+          "grado_polinomio": {
+            "type": "integer"
+          },
+          "rasgos_entrenamiento": {
+            "type": "array"
+          },
+          "clases_entrenamiento": {
+            "type": "array"
+          },
+          "rasgos_nuevos": {
+            "type": "array"
+          },
+          "ids_nuevos": {
+            "type": "array"
+          }
+        }
+      }
+    },
+    {
+      "tool_name": "abstract_algebra",
+      "module": "abstract_algebra_tool",
+      "func_name": "compute_abstract_algebra",
+      "schema_const_name": "ABSTRACT_ALGEBRA_SCHEMA",
+      "description": "Algebra abstracta sobre estructuras finitas chicas (orden <=8 para isomorfismo): cayley_table (genera tabla preset Zn_add, Zn_mult, Sn simetrico, Dn diedral), verify_group_axioms (cerradura/asociatividad/identidad/inverso, reporta si es abeliano), verify_ring_field_axioms (axiomas de anillo via grupo abeliano + distributividad, confirma cuerpo si hay inverso multiplicativo para todo no-cero), check_isomorphism (fuerza bruta sobre permutaciones -- respuesta negativa es definitiva para el orden dado, no una sospecha).",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string"
+          },
+          "preset": {
+            "type": "string"
+          },
+          "n": {
+            "type": "integer"
+          },
+          "elementos": {
+            "type": "array"
+          },
+          "tabla": {
+            "type": "array"
+          },
+          "tabla_suma": {
+            "type": "array"
+          },
+          "tabla_mult": {
+            "type": "array"
+          },
+          "elementos_a": {
+            "type": "array"
+          },
+          "tabla_a": {
+            "type": "array"
+          },
+          "elementos_b": {
+            "type": "array"
+          },
+          "tabla_b": {
+            "type": "array"
+          }
+        }
+      }
+    },
+    {
+      "tool_name": "workspace_save",
+      "module": "workspace_tool",
+      "func_name": "save_run",
+      "schema_const_name": "WORKSPACE_SAVE_SCHEMA",
+      "description": "Guarda arrays/resultados de un analisis bajo un run_id para reutilizarlos despues (ej: en plot_tool) sin recalcular. Si run_id se omite, se autogenera.",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "run_id": {
+            "type": "string"
+          },
+          "data": {
+            "type": "object"
+          },
+          "meta": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    {
+      "tool_name": "workspace_load",
+      "module": "workspace_tool",
+      "func_name": "load_run",
+      "schema_const_name": "WORKSPACE_LOAD_SCHEMA",
+      "description": "Carga un run guardado previamente por run_id. Si keys se omite, devuelve todos los arrays (cuidado con trayectorias muy largas: usar workspace_describe primero).",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "run_id": {
+            "type": "string"
+          },
+          "keys": {
+            "type": "array"
+          }
+        },
+        "required": [
+          "run_id"
+        ]
+      }
+    },
+    {
+      "tool_name": "workspace_list",
+      "module": "workspace_tool",
+      "func_name": "list_runs",
+      "schema_const_name": "WORKSPACE_LIST_SCHEMA",
+      "description": "Lista todos los runs guardados en el workspace, opcionalmente filtrados por tool de origen (ej: 'compute_lyapunov_exponent').",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "filter_tool": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "tool_name": "workspace_describe",
+      "module": "workspace_tool",
+      "func_name": "describe_run",
+      "schema_const_name": "WORKSPACE_DESCRIBE_SCHEMA",
+      "description": "Muestra shapes/dtypes de un run sin cargar los arrays completos a memoria (util para trayectorias largas antes de graficar).",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "run_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id"
+        ]
+      }
+    },
+    {
+      "tool_name": "workspace_delete",
+      "module": "workspace_tool",
+      "func_name": "delete_run",
+      "schema_const_name": "WORKSPACE_DELETE_SCHEMA",
+      "description": "Borra un run del workspace (libera espacio en disco).",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "run_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id"
+        ]
+      }
+    },
+    {
+      "tool_name": "workspace_link",
+      "module": "workspace_tool",
+      "func_name": "workspace_link",
+      "schema_const_name": "WORKSPACE_LINK_SCHEMA",
+      "description": "Crea/resuelve/lista/borra alias legibles para run_ids del workspace (ej: alias 'ultimo_sismo' -> run_id real). mode: create|resolve|list|delete.",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "create",
+              "resolve",
+              "list",
+              "delete"
+            ]
+          },
+          "alias": {
+            "type": "string"
+          },
+          "run_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "mode"
+        ]
+      }
+    },
+    {
+      "tool_name": "plot_workspace_run",
+      "module": "plot_tool",
+      "func_name": "plot_run",
+      "schema_const_name": "PLOT_WORKSPACE_RUN_SCHEMA",
+      "description": "Genera una visualizacion (PNG en base64 + guardado en disco) a partir de un run guardado en el workspace (ej: la trayectoria de un atractor guardada por compute_lyapunov con run_id). No recalcula nada, solo lee y grafica. plot_type: auto (infiere segun el tool de origen), attractor_3d, attractor_2d, line, scatter, heatmap.",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "run_id": {
+            "type": "string"
+          },
+          "plot_type": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "array_name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id"
+        ]
+      }
+    },
+    {
+      "tool_name": "climate_tool",
+      "module": "climate_tool",
+      "func_name": "compute_climate",
+      "schema_const_name": "CLIMATE_TOOL_SCHEMA",
+      "description": "Fisica climatica especifica con validacion analitica. Modos: energy_balance_ebm (balance de energia 0-D, punto de equilibrio T_eq), newton_cooling_trend (relajacion exponencial dT/dt=-k(T-Ta), proyeccion de series cortas), carbon_cycle_box (modelo de cajas atmosfera-oceano-tierra, conservacion de masa), bifurcation_snowball (histeresis albedo-temperatura tipo Budyko-Sellers, Snowball Earth).",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "energy_balance_ebm",
+              "newton_cooling_trend",
+              "carbon_cycle_box",
+              "bifurcation_snowball"
+            ]
+          },
+          "params": {
+            "type": "object",
+            "description": "Parametros especificos del modo (opcional, cada modo trae defaults razonables)."
+          }
+        },
+        "required": [
+          "mode"
+        ]
+      }
+    },
+    {
+      "tool_name": "advanced_stochastic_tool",
+      "module": "advanced_stochastic_tool",
+      "func_name": "compute_advanced_stochastic",
+      "schema_const_name": "ADVANCED_STOCHASTIC_TOOL_SCHEMA",
+      "description": "Procesos estocasticos avanzados: HMM (forward-backward + Viterbi), filtro de Kalman, particle filter (bootstrap), y GARCH(1,1) por MLE.",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "hmm",
+              "kalman",
+              "particle_filter",
+              "garch"
+            ]
+          },
+          "params": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "mode",
+          "params"
+        ]
+      }
+    },
+    {
+      "tool_name": "multivariate_bayes_tool",
+      "module": "multivariate_bayes_tool",
+      "func_name": "compute_multivariate_bayes",
+      "schema_const_name": "MULTIVARIATE_BAYES_TOOL_SCHEMA",
+      "description": "Estadistica bayesiana multivariada: normal/t multivariada, Wishart, modelo jerarquico (Gibbs), regresion via HMC, PCA con biplot y CV, y Factor Analysis via EM.",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "mvn_sample",
+              "mvt_sample",
+              "wishart_sample",
+              "hierarchical",
+              "hmc_regression",
+              "pca_biplot",
+              "pca_cv",
+              "factor_analysis"
+            ]
+          },
+          "params": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "mode",
+          "params"
+        ]
+      }
+    }
+  ],
+  "still_conflict": []
+}

@@ -1,0 +1,1359 @@
+
+======================================================================
+DRIFT: disaster_simulation_tool  (disaster_simulation_tool.py / DISASTER_SIMULATION_TOOL_SCHEMA)
+======================================================================
+--- TOOLS[] (lo que el cliente MCP ve hoy)
++++ DISASTER_SIMULATION_TOOL_SCHEMA (constante interna del modulo)
+@@ -1,14 +1,18 @@
+ {
+-  "properties": {
+-    "mode": {
+-      "type": "string"
++  "description": "Simulacion Monte Carlo de desastres (modelo actuarial frecuencia-severidad Poisson-LogNormal) para gestion publica de riesgos: monte_carlo_losses (distribucion de perdida agregada anual dado lambda de frecuencia y mu/sigma de severidad lognormal, con VaR y CVaR/Tail-VaR a percentiles configurables), return_period_loss (perdida esperada para periodos de retorno dados, estimador empirico de Weibull T=(n+1)/m, consistente con natural_hazard_risk_tool.gumbel_return_period), exceedance_curve (curva de probabilidad de excedencia anual -EP curve- para una lista de umbrales de perdida), multi_hazard_combine (combina dos peligros independientes o correlacionados via copula gaussiana en una perdida agregada conjunta), validate (suite de 10 checks). Motor generico: no trae catalogo de parametros por tipo de peligro (lambda/mu/sigma los provee quien llama), confidence_flag 'alta' para toda la mecanica estadistica.",
++  "inputSchema": {
++    "properties": {
++      "mode": {
++        "type": "string"
++      },
++      "params": {
++        "type": "object"
++      }
+     },
+-    "params": {
+-      "type": "object"
+-    }
++    "required": [
++      "mode"
++    ],
++    "type": "object"
+   },
+-  "required": [
+-    "mode"
+-  ],
+-  "type": "object"
++  "name": "disaster_simulation_tool"
+ }
+
+======================================================================
+DRIFT: ethnomath  (ethnomath_tool.py / ETHNOMATH_SCHEMA)
+======================================================================
+--- TOOLS[] (lo que el cliente MCP ve hoy)
++++ ETHNOMATH_SCHEMA (constante interna del modulo)
+@@ -1,14 +1,27 @@
+ {
+-  "properties": {
+-    "params": {
+-      "type": "object"
++  "description": "Ejecuta algoritmos matematicos historicos reconstruidos de culturas no occidentales. Presets: maya_long_count (conversor vigesimal mixto 18-20 <-> dia juliano/Tzolkin/Haab), chinese_remainder (algoritmo constructivo de Sunzi/Qin Jiushao para sistemas de congruencias), vedic_multiply (sutras Urdhva-Tiryagbhyam y Nikhilam), quipu_encode (codificacion decimal por nudos inca, encode/decode), greek_archimedes_pi (metodo de exhaucion por poligonos inscritos y circunscritos), japanese_enri_pi (enri de Seki Takakazu, mismo principio con aceleracion tipo Richardson).",
++  "inputSchema": {
++    "properties": {
++      "params": {
++        "description": "Parametros especificos del preset, ver docstrings",
++        "type": "object"
++      },
++      "preset": {
++        "enum": [
++          "maya_long_count",
++          "chinese_remainder",
++          "vedic_multiply",
++          "quipu_encode",
++          "greek_archimedes_pi",
++          "japanese_enri_pi"
++        ],
++        "type": "string"
++      }
+     },
+-    "preset": {
+-      "type": "string"
+-    }
++    "required": [
++      "preset"
++    ],
++    "type": "object"
+   },
+-  "required": [
+-    "preset"
+-  ],
+-  "type": "object"
++  "name": "compute_ethnomath"
+ }
+
+======================================================================
+DRIFT: ethnomath2  (ethnomath2_tool.py / ETHNOMATH2_SCHEMA)
+======================================================================
+--- TOOLS[] (lo que el cliente MCP ve hoy)
++++ ETHNOMATH2_SCHEMA (constante interna del modulo)
+@@ -1,14 +1,27 @@
+ {
+-  "properties": {
+-    "params": {
+-      "type": "object"
++  "description": "Segunda tanda de algoritmos matematicos historicos: egyptian_duplation (multiplicacion Ahmes + fracciones egipcias), persian_khwarizmi (restauracion geometrica de cuadraticas, 3 casos), persian_alkashi_sin1 (iteracion de Al-Kashi para sin 1 grado), russian_peasant (multiplicacion campesina), ottoman_taqi_al_din (conversor sexagesimal-decimal + tabla trig), norse_rune_calendar (numero aureo del primstav), southeast_asian_metonic (mes intercalar aproximado, calendarios tipo Chula Sakarat).",
++  "inputSchema": {
++    "properties": {
++      "params": {
++        "type": "object"
++      },
++      "preset": {
++        "enum": [
++          "egyptian_duplation",
++          "persian_khwarizmi",
++          "persian_alkashi_sin1",
++          "russian_peasant",
++          "ottoman_taqi_al_din",
++          "norse_rune_calendar",
++          "southeast_asian_metonic"
++        ],
++        "type": "string"
++      }
+     },
+-    "preset": {
+-      "type": "string"
+-    }
++    "required": [
++      "preset"
++    ],
++    "type": "object"
+   },
+-  "required": [
+-    "preset"
+-  ],
+-  "type": "object"
++  "name": "compute_ethnomath2"
+ }
+
+======================================================================
+DRIFT: levant  (levant_tool.py / LEVANT_SCHEMA)
+======================================================================
+--- TOOLS[] (lo que el cliente MCP ve hoy)
++++ LEVANT_SCHEMA (constante interna del modulo)
+@@ -1,14 +1,23 @@
+ {
+-  "properties": {
+-    "params": {
+-      "type": "object"
++  "description": "Algoritmos matematicos cananeos y de Juda/Israel. Presets: hebrew_molad (conjuncion lunar media de Tishrei, algoritmo fijo de Hillel II, ciclo metonico de 19 anios), hebrew_gematria (valor numerico de palabras hebreas y su inverso, con la excepcion 15/16), canaanite_phoenician_numeral (sistema aditivo fenicio 1/10/20/100).",
++  "inputSchema": {
++    "properties": {
++      "params": {
++        "type": "object"
++      },
++      "preset": {
++        "enum": [
++          "hebrew_molad",
++          "hebrew_gematria",
++          "canaanite_phoenician_numeral"
++        ],
++        "type": "string"
++      }
+     },
+-    "preset": {
+-      "type": "string"
+-    }
++    "required": [
++      "preset"
++    ],
++    "type": "object"
+   },
+-  "required": [
+-    "preset"
+-  ],
+-  "type": "object"
++  "name": "compute_levant"
+ }
+
+======================================================================
+DRIFT: originarios  (originarios_tool.py / ORIGINARIOS_SCHEMA)
+======================================================================
+--- TOOLS[] (lo que el cliente MCP ve hoy)
++++ ORIGINARIOS_SCHEMA (constante interna del modulo)
+@@ -1,14 +1,22 @@
+ {
+-  "properties": {
+-    "params": {
+-      "type": "object"
++  "description": "Sistemas de numeracion de pueblos originarios: mapuche_numeral (rakin, decimal aditivo-multiplicativo oral) y aymara_numeral (decimal con sufijo -ni, mas nota sobre el vestigio quinario en paqallqu/kimsaqallqu).",
++  "inputSchema": {
++    "properties": {
++      "params": {
++        "type": "object"
++      },
++      "preset": {
++        "enum": [
++          "mapuche_numeral",
++          "aymara_numeral"
++        ],
++        "type": "string"
++      }
+     },
+-    "preset": {
+-      "type": "string"
+-    }
++    "required": [
++      "preset"
++    ],
++    "type": "object"
+   },
+-  "required": [
+-    "preset"
+-  ],
+-  "type": "object"
++  "name": "compute_originarios"
+ }
+
+======================================================================
+DRIFT: entropy_structure  (entropy_structure_tool.py / ENTROPY_STRUCTURE_SCHEMA)
+======================================================================
+--- TOOLS[] (lo que el cliente MCP ve hoy)
++++ ENTROPY_STRUCTURE_SCHEMA (constante interna del modulo)
+@@ -1,26 +1,37 @@
+ {
+-  "properties": {
+-    "alphabet_size": {
+-      "type": "integer"
++  "description": "Calcula entropia de orden 0 y entropia condicional de orden 1 sobre una secuencia de simbolos, para evaluar evidencia de estructura combinatoria (compatible con codificacion tipo-lenguaje) vs. ausencia de estructura (compatible con conteo/tally marks). Presets sinteticos (random_iid, markov_structured) para validar el metodo contra casos de estructura conocida, o 'custom' via 'sequence' para datos reales.",
++  "inputSchema": {
++    "properties": {
++      "alphabet_size": {
++        "default": 5,
++        "description": "Para presets sinteticos",
++        "type": "integer"
++      },
++      "n_symbols": {
++        "default": 5000,
++        "description": "Para presets sinteticos",
++        "type": "integer"
++      },
++      "preset": {
++        "default": "random_iid",
++        "enum": [
++          "random_iid",
++          "markov_structured",
++          "custom",
++          "validate"
++        ],
++        "type": "string"
++      },
++      "seed": {
++        "default": 1,
++        "type": "integer"
++      },
++      "sequence": {
++        "description": "Solo si preset='custom'. Lista de simbolos (strings o numeros).",
++        "type": "array"
++      }
+     },
+-    "n_symbols": {
+-      "type": "integer"
+-    },
+-    "preset": {
+-      "enum": [
+-        "random_iid",
+-        "markov_structured",
+-        "custom",
+-        "validate"
+-      ],
+-      "type": "string"
+-    },
+-    "seed": {
+-      "type": "integer"
+-    },
+-    "sequence": {
+-      "type": "array"
+-    }
++    "type": "object"
+   },
+-  "type": "object"
++  "name": "compute_entropy_structure"
+ }
+
+======================================================================
+DRIFT: music_math  (music_math_tool.py / MUSIC_MATH_SCHEMA)
+======================================================================
+--- TOOLS[] (lo que el cliente MCP ve hoy)
++++ MUSIC_MATH_SCHEMA (constante interna del modulo)
+@@ -1,23 +1,51 @@
+ {
+-  "properties": {
+-    "f0": {
+-      "type": "number"
++  "description": "Calculos de matematica musical: pythagorean_comma (coma pitagorica exacta), temperament_comparison (justo vs 12-TET en cents), harmonic_series (armonicos de una fundamental y su desviacion vs 12-TET), ternary_scale (division de la octava en 3^n pasos, conexion con sistemas ternarios), spectral_analysis (FFT real via Octave sobre una senal, deteccion de armonicos y aspereza Plomp-Levelt simplificada).",
++  "inputSchema": {
++    "properties": {
++      "f0": {
++        "default": 220.0,
++        "description": "Frecuencia fundamental en Hz",
++        "type": "number"
++      },
++      "fs": {
++        "default": 44100,
++        "description": "Frecuencia de muestreo para spectral_analysis",
++        "type": "number"
++      },
++      "mode": {
++        "description": "Alias de 'preset' solo para mode='validate' (asi lo detecta run_all_validations.py).",
++        "enum": [
++          "validate"
++        ],
++        "type": "string"
++      },
++      "n_harmonics": {
++        "default": 8,
++        "type": "integer"
++      },
++      "n_power": {
++        "default": 2,
++        "description": "Para ternary_scale: divide en 3^n_power pasos",
++        "type": "integer"
++      },
++      "preset": {
++        "default": "pythagorean_comma",
++        "enum": [
++          "pythagorean_comma",
++          "temperament_comparison",
++          "harmonic_series",
++          "ternary_scale",
++          "spectral_analysis",
++          "validate"
++        ],
++        "type": "string"
++      },
++      "signal": {
++        "description": "Solo si preset='spectral_analysis': muestras de audio",
++        "type": "array"
++      }
+     },
+-    "fs": {
+-      "type": "number"
+-    },
+-    "n_harmonics": {
+-      "type": "integer"
+-    },
+-    "n_power": {
+-      "type": "integer"
+-    },
+-    "preset": {
+-      "type": "string"
+-    },
+-    "signal": {
+-      "type": "array"
+-    }
++    "type": "object"
+   },
+-  "type": "object"
++  "name": "compute_music_math"
+ }
+
+======================================================================
+DRIFT: linear_algebra  (linear_algebra_tool.py / LINEAR_ALGEBRA_SCHEMA)
+======================================================================
+--- TOOLS[] (lo que el cliente MCP ve hoy)
++++ LINEAR_ALGEBRA_SCHEMA (constante interna del modulo)
+@@ -1,24 +1,39 @@
+ {
+-  "properties": {
+-    "data": {
+-      "type": "array"
++  "description": "Algebra lineal via Octave: eigen (autovalores/autovectores), svd (descomposicion en valores singulares + verificacion de reconstruccion), pca (componentes principales sobre matriz de datos, varianza explicada), matrix_analysis (rango, numero de condicion, determinante, inversa si existe). Presets validados con resultado analitico conocido, o 'custom' via 'matrix'/'data'.",
++  "inputSchema": {
++    "properties": {
++      "data": {
++        "description": "Matriz de datos (filas=observaciones, columnas=variables), solo si preset='custom' y mode='pca'",
++        "type": "array"
++      },
++      "matrix": {
++        "description": "Matriz 2D, solo si preset='custom' y mode in [eigen,svd,matrix_analysis]",
++        "type": "array"
++      },
++      "mode": {
++        "default": "eigen",
++        "enum": [
++          "eigen",
++          "svd",
++          "pca",
++          "matrix_analysis",
++          "validate"
++        ],
++        "type": "string"
++      },
++      "preset": {
++        "default": "known_symmetric",
++        "enum": [
++          "known_symmetric",
++          "known_svd",
++          "known_pca_dominant",
++          "singular_matrix",
++          "custom"
++        ],
++        "type": "string"
++      }
+     },
+-    "matrix": {
+-      "type": "array"
+-    },
+-    "mode": {
+-      "enum": [
+-        "eigen",
+-        "svd",
+-        "pca",
+-        "matrix_analysis",
+-        "validate"
+-      ],
+-      "type": "string"
+-    },
+-    "preset": {
+-      "type": "string"
+-    }
++    "type": "object"
+   },
+-  "type": "object"
++  "name": "compute_linear_algebra"
+ }
+
+======================================================================
+DRIFT: persistent_homology  (persistent_homology_tool.py / PERSISTENT_HOMOLOGY_SCHEMA)
+======================================================================
+--- TOOLS[] (lo que el cliente MCP ve hoy)
++++ PERSISTENT_HOMOLOGY_SCHEMA (constante interna del modulo)
+@@ -1,26 +1,46 @@
+ {
+-  "properties": {
+-    "max_dim": {
+-      "type": "integer"
++  "description": "Homologia persistente (H0, H1) sobre una nube de puntos via complejo de Vietoris-Rips y reduccion de matriz de borde. Presets sinteticos validados: 'circle' (un lazo H1 persistente con nacimiento/muerte analiticos conocidos), 'two_clusters' (dos componentes H0 esenciales, sin H1), 'random_noise' (baseline sin estructura topologica significativa). 'custom' via 'points' para datos reales -- por ejemplo nubes reconstruidas de un embedding de Takens.",
++  "inputSchema": {
++    "properties": {
++      "max_dim": {
++        "default": 2,
++        "description": "Dimension maxima de simplices: 2 = puntos+aristas+triangulos (permite H0 y H1)",
++        "type": "integer"
++      },
++      "max_edge_length": {
++        "default": null,
++        "description": "Umbral maximo de distancia para la filtracion. Si None, se calcula automaticamente",
++        "type": "number"
++      },
++      "n_points": {
++        "default": 20,
++        "description": "Para presets sinteticos",
++        "type": "integer"
++      },
++      "points": {
++        "description": "Lista de puntos (cada uno una lista de coordenadas), solo si preset='custom'",
++        "type": "array"
++      },
++      "preset": {
++        "default": "circle",
++        "enum": [
++          "circle",
++          "two_clusters",
++          "random_noise",
++          "custom"
++        ],
++        "type": "string"
++      },
++      "run_id": {
++        "description": "Si se indica, guarda points/h0_diagram/h1_diagram en el workspace para graficar despues con plot_tool.",
++        "type": "string"
++      },
++      "seed": {
++        "default": 1,
++        "type": "integer"
++      }
+     },
+-    "max_edge_length": {
+-      "type": "number"
+-    },
+-    "n_points": {
+-      "type": "integer"
+-    },
+-    "points": {
+-      "type": "array"
+-    },
+-    "preset": {
+-      "type": "string"
+-    },
+-    "run_id": {
+-      "type": "string"
+-    },
+-    "seed": {
+-      "type": "integer"
+-    }
++    "type": "object"
+   },
+-  "type": "object"
++  "name": "compute_persistent_homology"
+ }
+
+======================================================================
+DRIFT: statistics  (statistics_tool.py / STATISTICS_SCHEMA)
+======================================================================
+--- TOOLS[] (lo que el cliente MCP ve hoy)
++++ STATISTICS_SCHEMA (constante interna del modulo)
+@@ -1,42 +1,68 @@
+ {
+-  "properties": {
+-    "mode": {
+-      "enum": [
+-        "linear_regression",
+-        "correlation",
+-        "t_test",
+-        "bayesian_beta_binomial",
+-        "validate"
+-      ],
+-      "type": "string"
++  "description": "Estadistica e inferencia via Octave: linear_regression (minimos cuadrados, pendiente/intercepto/R2), correlation (Pearson r), t_test (una muestra, t-stat + p-value via betainc), bayesian_beta_binomial (actualizacion conjugada de una tasa de exito, prior Beta(a,b) + datos binomiales -> posterior). Presets sinteticos validados o 'custom' via 'x'/'y'/'sample'.",
++  "inputSchema": {
++    "properties": {
++      "mode": {
++        "default": "linear_regression",
++        "enum": [
++          "linear_regression",
++          "correlation",
++          "t_test",
++          "bayesian_beta_binomial",
++          "validate"
++        ],
++        "type": "string"
++      },
++      "mu0": {
++        "default": 5.0,
++        "description": "Media hipotetica H0, para t_test",
++        "type": "number"
++      },
++      "preset": {
++        "default": "known_linear",
++        "enum": [
++          "known_linear",
++          "known_correlation",
++          "known_ttest",
++          "known_bayesian",
++          "custom"
++        ],
++        "type": "string"
++      },
++      "prior_a": {
++        "default": 1.0,
++        "description": "Para bayesian_beta_binomial",
++        "type": "number"
++      },
++      "prior_b": {
++        "default": 1.0,
++        "description": "Para bayesian_beta_binomial",
++        "type": "number"
++      },
++      "sample": {
++        "description": "mode='t_test'. IMPORTANTE: tambien hay que pasar preset='custom' explicitamente -- si se omite, el preset conocido ignora este dato sin avisar.",
++        "type": "array"
++      },
++      "successes": {
++        "default": 7,
++        "description": "Para bayesian_beta_binomial",
++        "type": "integer"
++      },
++      "trials": {
++        "default": 10,
++        "description": "Para bayesian_beta_binomial",
++        "type": "integer"
++      },
++      "x": {
++        "description": "mode in [linear_regression, correlation]. IMPORTANTE: tambien hay que pasar preset='custom' explicitamente -- si se omite, el preset conocido ignora este dato sin avisar.",
++        "type": "array"
++      },
++      "y": {
++        "description": "mode in [linear_regression, correlation]. IMPORTANTE: tambien hay que pasar preset='custom' explicitamente -- si se omite, el preset conocido ignora este dato sin avisar.",
++        "type": "array"
++      }
+     },
+-    "mu0": {
+-      "type": "number"
+-    },
+-    "preset": {
+-      "type": "string"
+-    },
+-    "prior_a": {
+-      "type": "number"
+-    },
+-    "prior_b": {
+-      "type": "number"
+-    },
+-    "sample": {
+-      "type": "array"
+-    },
+-    "successes": {
+-      "type": "integer"
+-    },
+-    "trials": {
+-      "type": "integer"
+-    },
+-    "x": {
+-      "type": "array"
+-    },
+-    "y": {
+-      "type": "array"
+-    }
++    "type": "object"
+   },
+-  "type": "object"
++  "name": "compute_statistics"
+ }
+
+======================================================================
+DRIFT: symbolic  (symbolic_tool.py / SYMBOLIC_SCHEMA)
+======================================================================
+--- TOOLS[] (lo que el cliente MCP ve hoy)
++++ SYMBOLIC_SCHEMA (constante interna del modulo)
+@@ -1,37 +1,59 @@
+ {
+-  "properties": {
+-    "expression": {
+-      "type": "string"
++  "description": "Algebra simbolica via sympy: simplify (simplificacion de expresiones), solve (resolver ecuaciones = 0), differentiate (derivada simbolica), integrate (integral indefinida o definida si se dan limites), taylor_series (serie de Taylor alrededor de un punto). Presets validados con resultado analitico conocido, o 'custom' via 'expression' (string, ej: 'x**2 - 5*x + 6').",
++  "inputSchema": {
++    "properties": {
++      "expression": {
++        "description": "Expresion en variable 'x' (y opcionalmente 'y'). IMPORTANTE: tambien hay que pasar preset='custom' explicitamente -- si se omite, el preset conocido por defecto ignora esta expresion sin avisar. Ej: 'sin(x)*x**2'",
++        "type": "string"
++      },
++      "lower_limit": {
++        "description": "Para integrate: limite inferior (si se da, calcula integral definida)",
++        "type": "string"
++      },
++      "mode": {
++        "default": "simplify",
++        "enum": [
++          "simplify",
++          "solve",
++          "differentiate",
++          "integrate",
++          "taylor_series",
++          "validate"
++        ],
++        "type": "string"
++      },
++      "order": {
++        "default": 5,
++        "description": "Para taylor_series: orden de la serie",
++        "type": "integer"
++      },
++      "point": {
++        "default": "0",
++        "description": "Para taylor_series: punto de expansion",
++        "type": "string"
++      },
++      "preset": {
++        "default": "known_simplify",
++        "enum": [
++          "known_simplify",
++          "known_solve",
++          "known_derivative",
++          "known_integral",
++          "known_taylor",
++          "custom"
++        ],
++        "type": "string"
++      },
++      "upper_limit": {
++        "description": "Para integrate: limite superior",
++        "type": "string"
++      },
++      "variable": {
++        "default": "x",
++        "type": "string"
++      }
+     },
+-    "lower_limit": {
+-      "type": "string"
+-    },
+-    "mode": {
+-      "enum": [
+-        "simplify",
+-        "solve",
+-        "differentiate",
+-        "integrate",
+-        "taylor_series",
+-        "validate"
+-      ],
+-      "type": "string"
+-    },
+-    "order": {
+-      "type": "integer"
+-    },
+-    "point": {
+-      "type": "string"
+-    },
+-    "preset": {
+-      "type": "string"
+-    },
+-    "upper_limit": {
+-      "type": "string"
+-    },
+-    "variable": {
+-      "type": "string"
+-    }
++    "type": "object"
+   },
+-  "type": "object"
++  "name": "compute_symbolic"
+ }
+
+======================================================================
+DRIFT: optimization  (optimization_tool.py / OPTIMIZATION_SCHEMA)
+======================================================================
+--- TOOLS[] (lo que el cliente MCP ve hoy)
++++ OPTIMIZATION_SCHEMA (constante interna del modulo)
+@@ -1,40 +1,64 @@
+ {
+-  "properties": {
+-    "A_ub": {
+-      "type": "array"
++  "description": "Optimizacion: linear_programming (maximizar/minimizar c'x sujeto a Ax<=b, x>=0, via glpk nativo de Octave), gradient_descent (minimizar una funcion via descenso de gradiente con gradiente EXACTO simbolico, no aproximado). Presets validados contra optimos conocidos, o 'custom' via los parametros correspondientes.",
++  "inputSchema": {
++    "properties": {
++      "A_ub": {
++        "description": "Matriz de restricciones <=, custom LP",
++        "type": "array"
++      },
++      "b_ub": {
++        "description": "RHS de restricciones <=, custom LP",
++        "type": "array"
++      },
++      "c": {
++        "description": "Coeficientes objetivo, solo si preset='custom' y mode='linear_programming'",
++        "type": "array"
++      },
++      "expression": {
++        "description": "Funcion objetivo en x,y (string), custom gradient_descent",
++        "type": "string"
++      },
++      "learning_rate": {
++        "default": 0.1,
++        "type": "number"
++      },
++      "mode": {
++        "default": "linear_programming",
++        "enum": [
++          "linear_programming",
++          "gradient_descent",
++          "validate"
++        ],
++        "type": "string"
++      },
++      "n_iterations": {
++        "default": 200,
++        "type": "integer"
++      },
++      "preset": {
++        "default": "known_lp",
++        "enum": [
++          "known_lp",
++          "known_gradient_descent",
++          "custom"
++        ],
++        "type": "string"
++      },
++      "sense": {
++        "default": "max",
++        "description": "Para linear_programming",
++        "enum": [
++          "max",
++          "min"
++        ],
++        "type": "string"
++      },
++      "start": {
++        "description": "Punto inicial [x0,y0], custom gradient_descent",
++        "type": "array"
++      }
+     },
+-    "b_ub": {
+-      "type": "array"
+-    },
+-    "c": {
+-      "type": "array"
+-    },
+-    "expression": {
+-      "type": "string"
+-    },
+-    "learning_rate": {
+-      "type": "number"
+-    },
+-    "mode": {
+-      "enum": [
+-        "linear_programming",
+-        "gradient_descent",
+-        "validate"
+-      ],
+-      "type": "string"
+-    },
+-    "n_iterations": {
+-      "type": "integer"
+-    },
+-    "preset": {
+-      "type": "string"
+-    },
+-    "sense": {
+-      "type": "string"
+-    },
+-    "start": {
+-      "type": "array"
+-    }
++    "type": "object"
+   },
+-  "type": "object"
++  "name": "compute_optimization"
+ }
+
+======================================================================
+DRIFT: pde  (pde_tool.py / PDE_SCHEMA)
+======================================================================
+--- TOOLS[] (lo que el cliente MCP ve hoy)
++++ PDE_SCHEMA (constante interna del modulo)
+@@ -1,31 +1,50 @@
+ {
+-  "properties": {
+-    "L": {
+-      "type": "number"
++  "description": "Ecuaciones en derivadas parciales via diferencias finitas explicitas en Octave: heat_equation (u_t=alpha*u_xx) y wave_equation (u_tt=c^2*u_xx) en 1D, bordes Dirichlet=0. Preset 'known_first_mode' compara contra solucion analitica exacta del primer modo normal (condicion inicial sin(pi*x/L)). 'custom' acepta perfil inicial arbitrario via 'initial_profile'.",
++  "inputSchema": {
++    "properties": {
++      "L": {
++        "default": 1.0,
++        "description": "Longitud del dominio",
++        "type": "number"
++      },
++      "coefficient": {
++        "default": 0.01,
++        "description": "alpha (calor) o c (onda)",
++        "type": "number"
++      },
++      "initial_profile": {
++        "description": "Perfil inicial u(x,0), solo si preset='custom'. Longitud debe ser n_points",
++        "type": "array"
++      },
++      "mode": {
++        "default": "heat_equation",
++        "enum": [
++          "heat_equation",
++          "wave_equation",
++          "validate"
++        ],
++        "type": "string"
++      },
++      "n_points": {
++        "default": 50,
++        "description": "Puntos en el eje espacial",
++        "type": "integer"
++      },
++      "preset": {
++        "default": "known_first_mode",
++        "enum": [
++          "known_first_mode",
++          "custom"
++        ],
++        "type": "string"
++      },
++      "t_final": {
++        "default": null,
++        "description": "Tiempo final. Si None, se elige automaticamente",
++        "type": "number"
++      }
+     },
+-    "coefficient": {
+-      "type": "number"
+-    },
+-    "initial_profile": {
+-      "type": "array"
+-    },
+-    "mode": {
+-      "enum": [
+-        "heat_equation",
+-        "wave_equation",
+-        "validate"
+-      ],
+-      "type": "string"
+-    },
+-    "n_points": {
+-      "type": "integer"
+-    },
+-    "preset": {
+-      "type": "string"
+-    },
+-    "t_final": {
+-      "type": "number"
+-    }
++    "type": "object"
+   },
+-  "type": "object"
++  "name": "compute_pde"
+ }
+
+======================================================================
+DRIFT: braid_group  (braid_group_tool.py / BRAID_GROUP_SCHEMA)
+======================================================================
+--- TOOLS[] (lo que el cliente MCP ve hoy)
++++ BRAID_GROUP_SCHEMA (constante interna del modulo)
+@@ -1,19 +1,27 @@
+ {
+-  "properties": {
+-    "initial_state": {
+-      "type": "array"
++  "description": "Grupos de trenzas y anyones de Fibonacci: verify_braid_relation (valida unitariedad de sigma1/sigma2 y la relacion de Yang-Baxter sigma1*sigma2*sigma1=sigma2*sigma1*sigma2), apply_braid_sequence (aplica una secuencia de generadores de trenza a un estado inicial en el espacio de fusion 2D, ej: '1,2,1,2' para sigma1 sigma2 sigma1 sigma2). Basado en Bonesteel et al. 2005 / Freedman-Kitaev.",
++  "inputSchema": {
++    "properties": {
++      "initial_state": {
++        "description": "Estado inicial [re0,im0,re1,im1] en el espacio de fusion 2D. Default: [1,0,0,0] (canal '1' puro)",
++        "type": "array"
++      },
++      "mode": {
++        "default": "verify_braid_relation",
++        "enum": [
++          "verify_braid_relation",
++          "apply_braid_sequence",
++          "validate"
++        ],
++        "type": "string"
++      },
++      "sequence": {
++        "default": "1,2,1",
++        "description": "Para apply_braid_sequence: secuencia de generadores separados por coma, ej '1,2,1,2,1'",
++        "type": "string"
++      }
+     },
+-    "mode": {
+-      "enum": [
+-        "verify_braid_relation",
+-        "apply_braid_sequence",
+-        "validate"
+-      ],
+-      "type": "string"
+-    },
+-    "sequence": {
+-      "type": "string"
+-    }
++    "type": "object"
+   },
+-  "type": "object"
++  "name": "compute_braid_group"
+ }
+
+======================================================================
+DRIFT: population_dynamics  (population_dynamics_tool.py / POPULATION_DYNAMICS_SCHEMA)
+======================================================================
+--- TOOLS[] (lo que el cliente MCP ve hoy)
++++ POPULATION_DYNAMICS_SCHEMA (constante interna del modulo)
+@@ -1,43 +1,67 @@
+ {
+-  "properties": {
+-    "K": {
+-      "type": "number"
++  "description": "Dinamica de poblaciones via Octave: lotka_volterra (depredador-presa, parametros a,b,c,d), logistic_growth (crecimiento con capacidad de carga K, comparado contra solucion analitica exacta). Relevante para modelar competencia/capacidad de carga en cultivo de especies (ej. kelp en infraestructura de longline).",
++  "inputSchema": {
++    "properties": {
++      "K": {
++        "default": 100.0,
++        "description": "logistic: capacidad de carga",
++        "type": "number"
++      },
++      "a": {
++        "default": 1.0,
++        "description": "LV: tasa crecimiento presa",
++        "type": "number"
++      },
++      "b": {
++        "default": 0.1,
++        "description": "LV: tasa depredacion",
++        "type": "number"
++      },
++      "c": {
++        "default": 1.5,
++        "description": "LV: tasa muerte depredador",
++        "type": "number"
++      },
++      "d": {
++        "default": 0.075,
++        "description": "LV: tasa conversion presa->depredador",
++        "type": "number"
++      },
++      "mode": {
++        "default": "lotka_volterra",
++        "enum": [
++          "lotka_volterra",
++          "logistic_growth",
++          "validate"
++        ],
++        "type": "string"
++      },
++      "n_points": {
++        "default": 50,
++        "description": "puntos de salida en la trayectoria",
++        "type": "integer"
++      },
++      "r": {
++        "default": 0.5,
++        "description": "logistic: tasa de crecimiento intrinseca",
++        "type": "number"
++      },
++      "t_max": {
++        "default": 50.0,
++        "type": "number"
++      },
++      "x0": {
++        "default": 10.0,
++        "description": "poblacion inicial presa/especie",
++        "type": "number"
++      },
++      "y0": {
++        "default": 5.0,
++        "description": "LV: poblacion inicial depredador",
++        "type": "number"
++      }
+     },
+-    "a": {
+-      "type": "number"
+-    },
+-    "b": {
+-      "type": "number"
+-    },
+-    "c": {
+-      "type": "number"
+-    },
+-    "d": {
+-      "type": "number"
+-    },
+-    "mode": {
+-      "enum": [
+-        "lotka_volterra",
+-        "logistic_growth",
+-        "validate"
+-      ],
+-      "type": "string"
+-    },
+-    "n_points": {
+-      "type": "integer"
+-    },
+-    "r": {
+-      "type": "number"
+-    },
+-    "t_max": {
+-      "type": "number"
+-    },
+-    "x0": {
+-      "type": "number"
+-    },
+-    "y0": {
+-      "type": "number"
+-    }
++    "type": "object"
+   },
+-  "type": "object"
++  "name": "compute_population_dynamics"
+ }
+
+======================================================================
+DRIFT: enzyme_kinetics  (enzyme_kinetics_tool.py / ENZYME_KINETICS_SCHEMA)
+======================================================================
+--- TOOLS[] (lo que el cliente MCP ve hoy)
++++ ENZYME_KINETICS_SCHEMA (constante interna del modulo)
+@@ -1,35 +1,52 @@
+ {
+-  "properties": {
+-    "E0": {
+-      "type": "number"
++  "description": "Cinetica enzimatica via Octave: full_kinetics (cinetica completa E+S<->ES->E+P, 3 especies), michaelis_menten (aproximacion QSSA v=Vmax*S/(Km+S)), compare (corre ambos y reporta el error de la aproximacion -- valida solo cuando [E]<<[S]).",
++  "inputSchema": {
++    "properties": {
++      "E0": {
++        "default": 1.0,
++        "description": "concentracion inicial de enzima",
++        "type": "number"
++      },
++      "S0": {
++        "default": 100.0,
++        "description": "concentracion inicial de sustrato",
++        "type": "number"
++      },
++      "k1": {
++        "default": 100.0,
++        "description": "tasa de asociacion E+S->ES",
++        "type": "number"
++      },
++      "k2": {
++        "default": 5.0,
++        "description": "tasa de catalisis ES->E+P",
++        "type": "number"
++      },
++      "km1": {
++        "default": 10.0,
++        "description": "tasa de disociacion ES->E+S",
++        "type": "number"
++      },
++      "mode": {
++        "default": "compare",
++        "enum": [
++          "full_kinetics",
++          "michaelis_menten",
++          "compare",
++          "validate"
++        ],
++        "type": "string"
++      },
++      "n_points": {
++        "default": 50,
++        "type": "integer"
++      },
++      "t_max": {
++        "default": 5.0,
++        "type": "number"
++      }
+     },
+-    "S0": {
+-      "type": "number"
+-    },
+-    "k1": {
+-      "type": "number"
+-    },
+-    "k2": {
+-      "type": "number"
+-    },
+-    "km1": {
+-      "type": "number"
+-    },
+-    "mode": {
+-      "enum": [
+-        "full_kinetics",
+-        "michaelis_menten",
+-        "compare",
+-        "validate"
+-      ],
+-      "type": "string"
+-    },
+-    "n_points": {
+-      "type": "integer"
+-    },
+-    "t_max": {
+-      "type": "number"
+-    }
++    "type": "object"
+   },
+-  "type": "object"
++  "name": "compute_enzyme_kinetics"
+ }
+
+======================================================================
+DRIFT: workspace_save  (workspace_tool.py / WORKSPACE_SAVE_SCHEMA)
+======================================================================
+--- TOOLS[] (lo que el cliente MCP ve hoy)
++++ WORKSPACE_SAVE_SCHEMA (constante interna del modulo)
+@@ -1,14 +1,24 @@
+ {
+-  "properties": {
+-    "data": {
+-      "type": "object"
++  "description": "Guarda arrays/resultados de un análisis bajo un run_id para reutilizarlos después (ej: en plot_tool) sin recalcular.",
++  "inputSchema": {
++    "properties": {
++      "data": {
++        "description": "Dict de arrays/escalares a guardar.",
++        "type": "object"
++      },
++      "meta": {
++        "description": "Metadata libre: tool de origen, params usados, etc.",
++        "type": "object"
++      },
++      "run_id": {
++        "description": "Identificador único. Si se omite, se autogenera.",
++        "type": "string"
++      }
+     },
+-    "meta": {
+-      "type": "object"
+-    },
+-    "run_id": {
+-      "type": "string"
+-    }
++    "required": [
++      "data"
++    ],
++    "type": "object"
+   },
+-  "type": "object"
++  "name": "workspace_save"
+ }
+
+======================================================================
+DRIFT: workspace_load  (workspace_tool.py / WORKSPACE_LOAD_SCHEMA)
+======================================================================
+--- TOOLS[] (lo que el cliente MCP ve hoy)
++++ WORKSPACE_LOAD_SCHEMA (constante interna del modulo)
+@@ -1,14 +1,22 @@
+ {
+-  "properties": {
+-    "keys": {
+-      "type": "array"
++  "description": "Carga un run guardado previamente por run_id.",
++  "inputSchema": {
++    "properties": {
++      "keys": {
++        "description": "Subconjunto de arrays a cargar (opcional).",
++        "items": {
++          "type": "string"
++        },
++        "type": "array"
++      },
++      "run_id": {
++        "type": "string"
++      }
+     },
+-    "run_id": {
+-      "type": "string"
+-    }
++    "required": [
++      "run_id"
++    ],
++    "type": "object"
+   },
+-  "required": [
+-    "run_id"
+-  ],
+-  "type": "object"
++  "name": "workspace_load"
+ }
+
+======================================================================
+DRIFT: workspace_list  (workspace_tool.py / WORKSPACE_LIST_SCHEMA)
+======================================================================
+--- TOOLS[] (lo que el cliente MCP ve hoy)
++++ WORKSPACE_LIST_SCHEMA (constante interna del modulo)
+@@ -1,8 +1,13 @@
+ {
+-  "properties": {
+-    "filter_tool": {
+-      "type": "string"
+-    }
++  "description": "Lista todos los runs guardados en el workspace, opcionalmente filtrados por tool de origen.",
++  "inputSchema": {
++    "properties": {
++      "filter_tool": {
++        "type": "string"
++      }
++    },
++    "required": [],
++    "type": "object"
+   },
+-  "type": "object"
++  "name": "workspace_list"
+ }
+
+======================================================================
+DRIFT: workspace_describe  (workspace_tool.py / WORKSPACE_DESCRIBE_SCHEMA)
+======================================================================
+--- TOOLS[] (lo que el cliente MCP ve hoy)
++++ WORKSPACE_DESCRIBE_SCHEMA (constante interna del modulo)
+@@ -1,11 +1,15 @@
+ {
+-  "properties": {
+-    "run_id": {
+-      "type": "string"
+-    }
++  "description": "Muestra shapes/dtypes de un run sin cargar los arrays completos (útil para trayectorias largas antes de graficar).",
++  "inputSchema": {
++    "properties": {
++      "run_id": {
++        "type": "string"
++      }
++    },
++    "required": [
++      "run_id"
++    ],
++    "type": "object"
+   },
+-  "required": [
+-    "run_id"
+-  ],
+-  "type": "object"
++  "name": "workspace_describe"
+ }
+
+======================================================================
+DRIFT: workspace_delete  (workspace_tool.py / WORKSPACE_DELETE_SCHEMA)
+======================================================================
+--- TOOLS[] (lo que el cliente MCP ve hoy)
++++ WORKSPACE_DELETE_SCHEMA (constante interna del modulo)
+@@ -1,11 +1,15 @@
+ {
+-  "properties": {
+-    "run_id": {
+-      "type": "string"
+-    }
++  "description": "Borra un run del workspace.",
++  "inputSchema": {
++    "properties": {
++      "run_id": {
++        "type": "string"
++      }
++    },
++    "required": [
++      "run_id"
++    ],
++    "type": "object"
+   },
+-  "required": [
+-    "run_id"
+-  ],
+-  "type": "object"
++  "name": "workspace_delete"
+ }
+
+======================================================================
+DRIFT: workspace_link  (workspace_tool.py / WORKSPACE_LINK_SCHEMA)
+======================================================================
+--- TOOLS[] (lo que el cliente MCP ve hoy)
++++ WORKSPACE_LINK_SCHEMA (constante interna del modulo)
+@@ -1,23 +1,27 @@
+ {
+-  "properties": {
+-    "alias": {
+-      "type": "string"
++  "description": "Crea/resuelve/lista/borra alias legibles para run_ids del workspace (ej: alias 'ultimo_sismo' -> run_id real).",
++  "inputSchema": {
++    "properties": {
++      "alias": {
++        "type": "string"
++      },
++      "mode": {
++        "enum": [
++          "create",
++          "resolve",
++          "list",
++          "delete"
++        ],
++        "type": "string"
++      },
++      "run_id": {
++        "type": "string"
++      }
+     },
+-    "mode": {
+-      "enum": [
+-        "create",
+-        "resolve",
+-        "list",
+-        "delete"
+-      ],
+-      "type": "string"
+-    },
+-    "run_id": {
+-      "type": "string"
+-    }
++    "required": [
++      "mode"
++    ],
++    "type": "object"
+   },
+-  "required": [
+-    "mode"
+-  ],
+-  "type": "object"
++  "name": "workspace_link"
+ }

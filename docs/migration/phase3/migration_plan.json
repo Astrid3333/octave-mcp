@@ -1,0 +1,876 @@
+{
+  "plan": [
+    {
+      "tool_name": "compute_lyapunov_exponent",
+      "module": "lyapunov_tool",
+      "func_name": "compute_lyapunov_exponent",
+      "schema_const": "LYAPUNOV_TOOL_SCHEMA",
+      "handler_style": "kwargs"
+    },
+    {
+      "tool_name": "integrate_stiff_ode",
+      "module": "stiff_ode_tool",
+      "func_name": "integrate_stiff_ode",
+      "schema_const": "STIFF_ODE_TOOL_SCHEMA",
+      "handler_style": "kwargs"
+    },
+    {
+      "tool_name": "compute_bifurcation_diagram",
+      "module": "bifurcation_tool",
+      "func_name": "compute_bifurcation_diagram",
+      "schema_const": "BIFURCATION_TOOL_SCHEMA",
+      "handler_style": "kwargs"
+    },
+    {
+      "tool_name": "compute_hilbert_transform",
+      "module": "hilbert_tool",
+      "func_name": "compute_hilbert_transform",
+      "schema_const": "HILBERT_TOOL_SCHEMA",
+      "handler_style": "kwargs"
+    },
+    {
+      "tool_name": "math_error_analyzer",
+      "module": "math_error_analyzer_tool",
+      "func_name": "compute_math_error_analysis",
+      "schema_const": "MATH_ERROR_ANALYZER_TOOL_SCHEMA",
+      "handler_style": "kwargs"
+    },
+    {
+      "tool_name": "math_benchmark",
+      "module": "math_benchmark_tool",
+      "func_name": "compute_math_benchmark",
+      "schema_const": "MATH_BENCHMARK_TOOL_SCHEMA",
+      "handler_style": "kwargs"
+    },
+    {
+      "tool_name": "math_interpolation",
+      "module": "math_interpolation_tool",
+      "func_name": "compute_math_interpolation",
+      "schema_const": "MATH_INTERPOLATION_TOOL_SCHEMA",
+      "handler_style": "kwargs"
+    },
+    {
+      "tool_name": "math_interpreter",
+      "module": "math_interpreter_tool",
+      "func_name": "interpret_math_query",
+      "schema_const": "MATH_INTERPRETER_TOOL_SCHEMA",
+      "handler_style": "kwargs"
+    },
+    {
+      "tool_name": "math_visualization",
+      "module": "math_visualization_tool",
+      "func_name": "compute_math_visualization",
+      "schema_const": "MATH_VISUALIZATION_TOOL_SCHEMA",
+      "handler_style": "kwargs"
+    },
+    {
+      "tool_name": "math_explainer",
+      "module": "math_explainer_tool",
+      "func_name": "interpret_and_explain",
+      "schema_const": "MATH_EXPLAINER_TOOL_SCHEMA",
+      "handler_style": "kwargs"
+    },
+    {
+      "tool_name": "machine_learning_math",
+      "module": "machine_learning_math_tool",
+      "func_name": "compute_machine_learning_math",
+      "schema_const": "MACHINE_LEARNING_TOOL_SCHEMA",
+      "handler_style": "kwargs"
+    },
+    {
+      "tool_name": "financial_math",
+      "module": "financial_math_tool",
+      "func_name": "compute_financial_math",
+      "schema_const": "FINANCIAL_MATH_TOOL_SCHEMA",
+      "handler_style": "kwargs"
+    },
+    {
+      "tool_name": "quantity_takeoff",
+      "module": "quantity_takeoff_tool",
+      "func_name": "compute_quantity_takeoff",
+      "schema_const": "QUANTITY_TAKEOFF_TOOL_SCHEMA",
+      "handler_style": "kwargs"
+    },
+    {
+      "tool_name": "structural_analysis",
+      "module": "structural_analysis_tool",
+      "func_name": "compute_structural_analysis",
+      "schema_const": "STRUCTURAL_ANALYSIS_TOOL_SCHEMA",
+      "handler_style": "kwargs"
+    },
+    {
+      "tool_name": "earthworks",
+      "module": "earthworks_tool",
+      "func_name": "compute_earthworks",
+      "schema_const": "EARTHWORKS_TOOL_SCHEMA",
+      "handler_style": "kwargs"
+    },
+    {
+      "tool_name": "budgeting_tool",
+      "module": "budgeting_tool",
+      "func_name": "compute_budgeting",
+      "schema_const": "BUDGETING_TOOL_SCHEMA",
+      "handler_style": "kwargs"
+    },
+    {
+      "tool_name": "construction_scheduling_tool",
+      "module": "construction_scheduling_tool",
+      "func_name": "compute_construction_scheduling",
+      "schema_const": "CONSTRUCTION_SCHEDULING_TOOL_SCHEMA",
+      "handler_style": "kwargs"
+    },
+    {
+      "tool_name": "math_humanizer_tool",
+      "module": "math_humanizer_tool",
+      "func_name": "compute_math_humanizer",
+      "schema_const": "MATH_HUMANIZER_TOOL_SCHEMA",
+      "handler_style": "kwargs"
+    },
+    {
+      "tool_name": "game_theory",
+      "module": "game_theory_tool",
+      "func_name": "compute_game_theory",
+      "schema_const": "GAME_THEORY_TOOL_SCHEMA",
+      "handler_style": "kwargs"
+    },
+    {
+      "tool_name": "tensor_calculus",
+      "module": "tensor_calculus_tool",
+      "func_name": "compute_tensor_calculus",
+      "schema_const": "TENSOR_CALCULUS_TOOL_SCHEMA",
+      "handler_style": "kwargs"
+    },
+    {
+      "tool_name": "population_genetics",
+      "module": "population_genetics_tool",
+      "func_name": "compute_population_genetics",
+      "schema_const": "POPULATION_GENETICS_TOOL_SCHEMA",
+      "handler_style": "kwargs"
+    },
+    {
+      "tool_name": "network_science",
+      "module": "network_science_tool",
+      "func_name": "compute_network_science",
+      "schema_const": "NETWORK_SCIENCE_TOOL_SCHEMA",
+      "handler_style": "kwargs"
+    },
+    {
+      "tool_name": "wavelet",
+      "module": "wavelet_tool",
+      "func_name": "compute_wavelet",
+      "schema_const": "WAVELET_TOOL_SCHEMA",
+      "handler_style": "kwargs"
+    },
+    {
+      "tool_name": "percolation_theory",
+      "module": "percolation_theory_tool",
+      "func_name": "compute_percolation_theory",
+      "schema_const": "PERCOLATION_THEORY_TOOL_SCHEMA",
+      "handler_style": "kwargs"
+    },
+    {
+      "tool_name": "reaction_diffusion",
+      "module": "reaction_diffusion_tool",
+      "func_name": "compute_reaction_diffusion",
+      "schema_const": "REACTION_DIFFUSION_TOOL_SCHEMA",
+      "handler_style": "kwargs"
+    },
+    {
+      "tool_name": "chemometrics_tool",
+      "module": "chemometrics_tool",
+      "func_name": "compute_chemometrics",
+      "schema_const": "CHEMOMETRICS_TOOL_SCHEMA",
+      "handler_style": "kwargs"
+    },
+    {
+      "tool_name": "econometrics_tool",
+      "module": "econometrics_tool",
+      "func_name": "compute_econometrics",
+      "schema_const": "ECONOMETRICS_TOOL_SCHEMA",
+      "handler_style": "kwargs"
+    },
+    {
+      "tool_name": "archaeological_simulation",
+      "module": "archaeological_simulation_tool",
+      "func_name": "compute_archaeological_simulation",
+      "schema_const": "ARCHAEOLOGICAL_SIMULATION_TOOL_SCHEMA",
+      "handler_style": "kwargs"
+    },
+    {
+      "tool_name": "cfd_tool",
+      "module": "cfd_tool",
+      "func_name": "compute_cfd",
+      "schema_const": "CFD_TOOL_SCHEMA",
+      "handler_style": "kwargs"
+    },
+    {
+      "tool_name": "glm_tool",
+      "module": "glm_tool",
+      "func_name": "compute_glm",
+      "schema_const": "GLM_TOOL_SCHEMA",
+      "handler_style": "kwargs"
+    },
+    {
+      "tool_name": "mcdm",
+      "module": "mcdm_tool",
+      "func_name": "compute_mcdm",
+      "schema_const": "MCDM_TOOL_SCHEMA",
+      "handler_style": "kwargs"
+    },
+    {
+      "tool_name": "octave_syntax",
+      "module": "octave_syntax_tool",
+      "func_name": "compute_octave_syntax",
+      "schema_const": "OCTAVE_SYNTAX_TOOL_SCHEMA",
+      "handler_style": "kwargs"
+    },
+    {
+      "tool_name": "stochastic_processes",
+      "module": "stochastic_processes_tool",
+      "func_name": "compute_stochastic_processes",
+      "schema_const": "STOCHASTIC_PROCESSES_TOOL_SCHEMA",
+      "handler_style": "kwargs"
+    },
+    {
+      "tool_name": "advanced_probability_tool",
+      "module": "advanced_probability_tool",
+      "func_name": "compute_advanced_probability",
+      "schema_const": "ADVANCED_PROBABILITY_TOOL_SCHEMA",
+      "handler_style": "kwargs"
+    },
+    {
+      "tool_name": "filter_design_tool",
+      "module": "filter_design_tool",
+      "func_name": "compute_filter_design",
+      "schema_const": "FILTER_DESIGN_TOOL_SCHEMA",
+      "handler_style": "kwargs"
+    },
+    {
+      "tool_name": "dispersion_relation_tool",
+      "module": "dispersion_relation_tool",
+      "func_name": "compute_dispersion_relation",
+      "schema_const": "DISPERSION_RELATION_TOOL_SCHEMA",
+      "handler_style": "mode_params"
+    },
+    {
+      "tool_name": "critical_infrastructure_tool",
+      "module": "critical_infrastructure_tool",
+      "func_name": "compute_critical_infrastructure",
+      "schema_const": "CRITICAL_INFRASTRUCTURE_TOOL_SCHEMA",
+      "handler_style": "mode_params"
+    },
+    {
+      "tool_name": "urban_planning_tool",
+      "module": "urban_planning_tool",
+      "func_name": "compute_urban_planning",
+      "schema_const": "URBAN_PLANNING_TOOL_SCHEMA",
+      "handler_style": "mode_params"
+    },
+    {
+      "tool_name": "public_data_ingest_tool",
+      "module": "public_data_ingest_tool",
+      "func_name": "compute_public_data_ingest",
+      "schema_const": "PUBLIC_DATA_INGEST_TOOL_SCHEMA",
+      "handler_style": "mode_params"
+    },
+    {
+      "tool_name": "audio_processing_tool",
+      "module": "audio_processing_tool",
+      "func_name": "compute_audio_processing",
+      "schema_const": "AUDIO_PROCESSING_TOOL_SCHEMA",
+      "handler_style": "mode_params"
+    },
+    {
+      "tool_name": "time_frequency_tool",
+      "module": "time_frequency_tool",
+      "func_name": "compute_time_frequency",
+      "schema_const": "TIME_FREQUENCY_TOOL_SCHEMA",
+      "handler_style": "mode_params"
+    },
+    {
+      "tool_name": "information_theory",
+      "module": "information_theory_tool",
+      "func_name": "compute_information_theory",
+      "schema_const": "INFORMATION_THEORY_TOOL_SCHEMA",
+      "handler_style": "kwargs"
+    },
+    {
+      "tool_name": "control_theory",
+      "module": "control_theory_tool",
+      "func_name": "compute_control_theory",
+      "schema_const": "CONTROL_THEORY_TOOL_SCHEMA",
+      "handler_style": "kwargs"
+    },
+    {
+      "tool_name": "optimal_control",
+      "module": "optimal_control_tool",
+      "func_name": "compute_optimal_control",
+      "schema_const": "OPTIMAL_CONTROL_TOOL_SCHEMA",
+      "handler_style": "kwargs"
+    },
+    {
+      "tool_name": "spatial_statistics",
+      "module": "spatial_statistics_tool",
+      "func_name": "compute_spatial_statistics",
+      "schema_const": "SPATIAL_STATISTICS_TOOL_SCHEMA",
+      "handler_style": "kwargs"
+    },
+    {
+      "tool_name": "text_analysis_math",
+      "module": "text_analysis_math_tool",
+      "func_name": "compute_text_analysis_math",
+      "schema_const": "TEXT_ANALYSIS_MATH_TOOL_SCHEMA",
+      "handler_style": "kwargs"
+    },
+    {
+      "tool_name": "archaeoastronomy",
+      "module": "archaeoastronomy_tool",
+      "func_name": "compute_archaeoastronomy",
+      "schema_const": "ARCHAEOASTRONOMY_TOOL_SCHEMA",
+      "handler_style": "kwargs"
+    },
+    {
+      "tool_name": "quantum_information",
+      "module": "quantum_information_tool",
+      "func_name": "compute_quantum_information",
+      "schema_const": "QUANTUM_INFORMATION_TOOL_SCHEMA",
+      "handler_style": "kwargs"
+    },
+    {
+      "tool_name": "number_theory",
+      "module": "number_theory_tool",
+      "func_name": "compute_number_theory",
+      "schema_const": "NUMBER_THEORY_SCHEMA",
+      "handler_style": "kwargs"
+    },
+    {
+      "tool_name": "multibody_dynamics_tool",
+      "module": "multibody_dynamics_tool",
+      "func_name": "compute_multibody_dynamics",
+      "schema_const": "MULTIBODY_DYNAMICS_TOOL_SCHEMA",
+      "handler_style": "kwargs"
+    },
+    {
+      "tool_name": "finite_element_tool",
+      "module": "finite_element_tool",
+      "func_name": "compute_finite_element",
+      "schema_const": "FINITE_ELEMENT_TOOL_SCHEMA",
+      "handler_style": "kwargs"
+    },
+    {
+      "tool_name": "fem_advanced_tool",
+      "module": "fem_advanced_tool",
+      "func_name": "compute_fem_advanced",
+      "schema_const": "FEM_ADVANCED_TOOL_SCHEMA",
+      "handler_style": "kwargs"
+    },
+    {
+      "tool_name": "plane_stress_tool",
+      "module": "plane_stress_tool",
+      "func_name": "compute_plane_stress",
+      "schema_const": "PLANE_STRESS_TOOL_SCHEMA",
+      "handler_style": "mode_params"
+    },
+    {
+      "tool_name": "thermal_structural_tool",
+      "module": "thermal_structural_tool",
+      "func_name": "compute_thermal_structural",
+      "schema_const": "THERMAL_STRUCTURAL_TOOL_SCHEMA",
+      "handler_style": "mode_params"
+    },
+    {
+      "tool_name": "thermal_conduction_tool",
+      "module": "thermal_conduction_tool",
+      "func_name": "compute_thermal_conduction",
+      "schema_const": "THERMAL_CONDUCTION_TOOL_SCHEMA",
+      "handler_style": "mode_params"
+    },
+    {
+      "tool_name": "thermal_advanced_tool",
+      "module": "thermal_advanced_tool",
+      "func_name": "compute_thermal_advanced",
+      "schema_const": "THERMAL_ADVANCED_TOOL_SCHEMA",
+      "handler_style": "mode_params"
+    },
+    {
+      "tool_name": "nonlinear_buckling_tool",
+      "module": "nonlinear_buckling_tool",
+      "func_name": "compute_nonlinear_buckling",
+      "schema_const": "NONLINEAR_BUCKLING_TOOL_SCHEMA",
+      "handler_style": "mode_params"
+    },
+    {
+      "tool_name": "forced_vibration_tool",
+      "module": "forced_vibration_tool",
+      "func_name": "compute_forced_vibration",
+      "schema_const": "FORCED_VIBRATION_TOOL_SCHEMA",
+      "handler_style": "mode_params"
+    },
+    {
+      "tool_name": "spectral_analysis_tool",
+      "module": "spectral_analysis_tool",
+      "func_name": "compute_spectral_analysis",
+      "schema_const": "SPECTRAL_ANALYSIS_TOOL_SCHEMA",
+      "handler_style": "mode_params"
+    },
+    {
+      "tool_name": "genome_signal_analysis",
+      "module": "genome_signal_analysis_tool",
+      "func_name": "compute_genome_signal_analysis",
+      "schema_const": "GENOME_SIGNAL_ANALYSIS_SCHEMA",
+      "handler_style": "kwargs"
+    },
+    {
+      "tool_name": "sdf_tool",
+      "module": "sdf_tool",
+      "func_name": "compute_sdf_tool",
+      "schema_const": "SDF_TOOL_SCHEMA",
+      "handler_style": "mode_params"
+    },
+    {
+      "tool_name": "lscm_tool",
+      "module": "lscm_tool",
+      "func_name": "compute_lscm_tool",
+      "schema_const": "LSCM_TOOL_SCHEMA",
+      "handler_style": "mode_params"
+    },
+    {
+      "tool_name": "mesh_pde_tool",
+      "module": "mesh_pde_tool",
+      "func_name": "compute_mesh_pde_tool",
+      "schema_const": "MESH_PDE_TOOL_SCHEMA",
+      "handler_style": "mode_params"
+    },
+    {
+      "tool_name": "quantum_astro_tool",
+      "module": "quantum_astro_tool",
+      "func_name": "compute_quantum_astro_tool",
+      "schema_const": "QUANTUM_ASTRO_TOOL_SCHEMA",
+      "handler_style": "kwargs"
+    },
+    {
+      "tool_name": "semiclassical_cosmology_tool",
+      "module": "semiclassical_cosmology_tool",
+      "func_name": "compute_semiclassical_cosmology_tool",
+      "schema_const": "SEMICLASSICAL_COSMOLOGY_TOOL_SCHEMA",
+      "handler_style": "kwargs"
+    },
+    {
+      "tool_name": "cosmological_mcmc_tool",
+      "module": "cosmological_mcmc_tool",
+      "func_name": "compute_cosmological_mcmc_tool",
+      "schema_const": "COSMOLOGICAL_MCMC_TOOL_SCHEMA",
+      "handler_style": "kwargs"
+    },
+    {
+      "tool_name": "quantum_cosmology_tool",
+      "module": "quantum_cosmology_tool",
+      "func_name": "compute_quantum_cosmology_tool",
+      "schema_const": "QUANTUM_COSMOLOGY_TOOL_SCHEMA",
+      "handler_style": "kwargs"
+    },
+    {
+      "tool_name": "distmesh_tool",
+      "module": "distmesh_tool",
+      "func_name": "compute_distmesh",
+      "schema_const": "DISTMESH_TOOL_SCHEMA",
+      "handler_style": "kwargs"
+    },
+    {
+      "tool_name": "acoustics_tool",
+      "module": "acoustics_tool",
+      "func_name": "compute_acoustics_tool",
+      "schema_const": "ACOUSTICS_TOOL_SCHEMA",
+      "handler_style": "mode_params"
+    },
+    {
+      "tool_name": "polarization_mapping",
+      "module": "polarization_mapping_tool",
+      "func_name": "compute_polarization_mapping",
+      "schema_const": "POLARIZATION_MAPPING_SCHEMA",
+      "handler_style": "kwargs"
+    },
+    {
+      "tool_name": "circuit_tool",
+      "module": "circuit_tool",
+      "func_name": "compute_circuit_tool",
+      "schema_const": "CIRCUIT_TOOL_SCHEMA",
+      "handler_style": "mode_params"
+    },
+    {
+      "tool_name": "topology_optimization_tool",
+      "module": "topology_optimization_tool",
+      "func_name": "compute_topology_optimization_tool",
+      "schema_const": "TOPOLOGY_OPTIMIZATION_TOOL_SCHEMA",
+      "handler_style": "mode_params"
+    },
+    {
+      "tool_name": "geometric_algebra_protein",
+      "module": "geometric_algebra_protein_tool",
+      "func_name": "compute_geometric_algebra_protein",
+      "schema_const": "GEOMETRIC_ALGEBRA_PROTEIN_SCHEMA",
+      "handler_style": "kwargs"
+    },
+    {
+      "tool_name": "optical_sequence_id",
+      "module": "optical_sequence_id_tool",
+      "func_name": "compute_optical_sequence_id",
+      "schema_const": "OPTICAL_SEQUENCE_ID_SCHEMA",
+      "handler_style": "kwargs"
+    },
+    {
+      "tool_name": "infrasound_tool",
+      "module": "infrasound_tool",
+      "func_name": "compute_infrasound_tool",
+      "schema_const": "INFRASOUND_TOOL_SCHEMA",
+      "handler_style": "kwargs"
+    },
+    {
+      "tool_name": "bacterial_growth_tool",
+      "module": "bacterial_growth_tool",
+      "func_name": "compute_bacterial_growth_tool",
+      "schema_const": "BACTERIAL_GROWTH_TOOL_SCHEMA",
+      "handler_style": "kwargs"
+    },
+    {
+      "tool_name": "viral_lattice_tool",
+      "module": "viral_lattice_tool",
+      "func_name": "compute_viral_lattice_tool",
+      "schema_const": "VIRAL_LATTICE_TOOL_SCHEMA",
+      "handler_style": "kwargs"
+    },
+    {
+      "tool_name": "enzyme_stochastic",
+      "module": "enzyme_stochastic_tool",
+      "func_name": "compute_enzyme_stochastic",
+      "schema_const": "ENZYME_STOCHASTIC_SCHEMA",
+      "handler_style": "kwargs"
+    },
+    {
+      "tool_name": "evo_LGCA_tool",
+      "module": "evo_lgca_tool",
+      "func_name": "compute_evo_lgca_tool",
+      "schema_const": "EVO_LGCA_TOOL_SCHEMA",
+      "handler_style": "kwargs"
+    },
+    {
+      "tool_name": "mesh_spectral_tool",
+      "module": "mesh_spectral_tool",
+      "func_name": "compute_mesh_spectral_tool",
+      "schema_const": "MESH_SPECTRAL_TOOL_SCHEMA",
+      "handler_style": "kwargs"
+    },
+    {
+      "tool_name": "gas_tool",
+      "module": "gas_tool",
+      "func_name": "compute_gas",
+      "schema_const": "GAS_TOOL_SCHEMA",
+      "handler_style": "mode_params"
+    },
+    {
+      "tool_name": "knowledge_graph_tool",
+      "module": "knowledge_graph_tool",
+      "func_name": "compute_knowledge_graph",
+      "schema_const": "KNOWLEDGE_GRAPH_TOOL_SCHEMA",
+      "handler_style": "mode_params"
+    },
+    {
+      "tool_name": "semantic_bridge",
+      "module": "semantic_bridge_tool",
+      "func_name": "compute_semantic_bridge",
+      "schema_const": "SEMANTIC_BRIDGE_TOOL_SCHEMA",
+      "handler_style": "mode_params"
+    },
+    {
+      "tool_name": "biorefinery_tool",
+      "module": "biorefinery_tool",
+      "func_name": "compute_biorefinery",
+      "schema_const": "BIOREFINERY_TOOL_SCHEMA",
+      "handler_style": "mode_params"
+    },
+    {
+      "tool_name": "credit_simulation_tool",
+      "module": "credit_simulation_tool",
+      "func_name": "compute_credit_simulation_tool",
+      "schema_const": "CREDIT_SIMULATION_TOOL_SCHEMA",
+      "handler_style": "mode_params"
+    },
+    {
+      "tool_name": "refinance_analysis_tool",
+      "module": "refinance_analysis_tool",
+      "func_name": "compute_refinance_analysis_tool",
+      "schema_const": "REFINANCE_ANALYSIS_TOOL_SCHEMA",
+      "handler_style": "mode_params"
+    }
+  ],
+  "conflicts": [
+    {
+      "tool_name": "run_octave",
+      "reason": "no se encontro 'result = FUNC(...)' -- forma atipica (ej. output=..., handle_X(args))"
+    },
+    {
+      "tool_name": "compute_gradient_hessian",
+      "reason": "modulo 'auto_differentiation_tool' tiene MULTIPLES schemas: ['GRADIENT_HESSIAN_TOOL_SCHEMA', 'JACOBIAN_TOOL_SCHEMA'] -- requiere revision manual (multi-tool module)"
+    },
+    {
+      "tool_name": "compute_jacobian",
+      "reason": "modulo 'auto_differentiation_tool' tiene MULTIPLES schemas: ['GRADIENT_HESSIAN_TOOL_SCHEMA', 'JACOBIAN_TOOL_SCHEMA'] -- requiere revision manual (multi-tool module)"
+    },
+    {
+      "tool_name": "run_math_pipeline",
+      "reason": "no se encontro 'result = FUNC(...)' -- forma atipica (ej. output=..., handle_X(args))"
+    },
+    {
+      "tool_name": "statistical_physics_tool",
+      "reason": "firma atipica: compute_statistical_physics(mode=args[\"mode\"], **_params)"
+    },
+    {
+      "tool_name": "clustering_tool",
+      "reason": "firma atipica: compute_clustering(mode=args[\"mode\"], **_params)"
+    },
+    {
+      "tool_name": "natural_hazard_risk_tool",
+      "reason": "modulo 'natural_hazard_risk_tool' no tiene ninguna constante SCHEMA en su import"
+    },
+    {
+      "tool_name": "decision_support_tool",
+      "reason": "modulo 'decision_support_tool' no tiene ninguna constante SCHEMA en su import"
+    },
+    {
+      "tool_name": "water_resource_tool",
+      "reason": "modulo 'water_resource_tool' no tiene ninguna constante SCHEMA en su import"
+    },
+    {
+      "tool_name": "flood_modeling_tool",
+      "reason": "modulo 'flood_modeling_tool' no tiene ninguna constante SCHEMA en su import"
+    },
+    {
+      "tool_name": "climate_scenario_tool",
+      "reason": "modulo 'climate_scenario_tool' no tiene ninguna constante SCHEMA en su import"
+    },
+    {
+      "tool_name": "early_warning_tool",
+      "reason": "modulo 'early_warning_tool' no tiene ninguna constante SCHEMA en su import"
+    },
+    {
+      "tool_name": "disaster_simulation_tool",
+      "reason": "modulo 'disaster_simulation_tool' no tiene ninguna constante SCHEMA en su import"
+    },
+    {
+      "tool_name": "octave_run",
+      "reason": "no se encontro 'result = FUNC(...)' -- forma atipica (ej. output=..., handle_X(args))"
+    },
+    {
+      "tool_name": "octave_eval_expr",
+      "reason": "no se encontro 'result = FUNC(...)' -- forma atipica (ej. output=..., handle_X(args))"
+    },
+    {
+      "tool_name": "octave_run_script",
+      "reason": "no se encontro 'result = FUNC(...)' -- forma atipica (ej. output=..., handle_X(args))"
+    },
+    {
+      "tool_name": "octave_version",
+      "reason": "no se encontro 'result = FUNC(...)' -- forma atipica (ej. output=..., handle_X(args))"
+    },
+    {
+      "tool_name": "compute_lyapunov_v2",
+      "reason": "funcion 'compute_lyapunov_v2' no encontrada en ningun import (ya migrada o inexistente)"
+    },
+    {
+      "tool_name": "graph_algorithms",
+      "reason": "modulo 'graph_tool' no tiene ninguna constante SCHEMA en su import"
+    },
+    {
+      "tool_name": "qm_potential_well",
+      "reason": "modulo 'qm_tool' no tiene ninguna constante SCHEMA en su import"
+    },
+    {
+      "tool_name": "nuclear_decay_chain",
+      "reason": "modulo 'nuclear_decay_tool' no tiene ninguna constante SCHEMA en su import"
+    },
+    {
+      "tool_name": "fractal_dimension",
+      "reason": "modulo 'fractal_dimension_tool' no tiene ninguna constante SCHEMA en su import"
+    },
+    {
+      "tool_name": "ethnomath",
+      "reason": "modulo 'ethnomath_tool' no tiene ninguna constante SCHEMA en su import"
+    },
+    {
+      "tool_name": "ethnomath2",
+      "reason": "modulo 'ethnomath2_tool' no tiene ninguna constante SCHEMA en su import"
+    },
+    {
+      "tool_name": "ancient_calculator",
+      "reason": "modulo 'ancient_calculators_tool' no tiene ninguna constante SCHEMA en su import"
+    },
+    {
+      "tool_name": "ancestral_octave",
+      "reason": "firma atipica: compute_ancestral_octave(**args, run_octave_fn=run_octave)"
+    },
+    {
+      "tool_name": "math_philosophy_history",
+      "reason": "modulo 'filosofia_historia_mate_tool' no tiene ninguna constante SCHEMA en su import"
+    },
+    {
+      "tool_name": "levant",
+      "reason": "modulo 'levant_tool' no tiene ninguna constante SCHEMA en su import"
+    },
+    {
+      "tool_name": "originarios",
+      "reason": "modulo 'originarios_tool' no tiene ninguna constante SCHEMA en su import"
+    },
+    {
+      "tool_name": "cross_validation",
+      "reason": "modulo 'cross_validation_tool' no tiene ninguna constante SCHEMA en su import"
+    },
+    {
+      "tool_name": "entropy_structure",
+      "reason": "modulo 'entropy_structure_tool' no tiene ninguna constante SCHEMA en su import"
+    },
+    {
+      "tool_name": "music_math",
+      "reason": "modulo 'music_math_tool' no tiene ninguna constante SCHEMA en su import"
+    },
+    {
+      "tool_name": "linear_algebra",
+      "reason": "modulo 'linear_algebra_tool' no tiene ninguna constante SCHEMA en su import"
+    },
+    {
+      "tool_name": "persistent_homology",
+      "reason": "modulo 'persistent_homology_tool' no tiene ninguna constante SCHEMA en su import"
+    },
+    {
+      "tool_name": "statistics",
+      "reason": "modulo 'statistics_tool' no tiene ninguna constante SCHEMA en su import"
+    },
+    {
+      "tool_name": "symbolic",
+      "reason": "modulo 'symbolic_tool' no tiene ninguna constante SCHEMA en su import"
+    },
+    {
+      "tool_name": "optimization",
+      "reason": "modulo 'optimization_tool' no tiene ninguna constante SCHEMA en su import"
+    },
+    {
+      "tool_name": "pde",
+      "reason": "modulo 'pde_tool' no tiene ninguna constante SCHEMA en su import"
+    },
+    {
+      "tool_name": "braid_group",
+      "reason": "modulo 'braid_group_tool' no tiene ninguna constante SCHEMA en su import"
+    },
+    {
+      "tool_name": "population_dynamics",
+      "reason": "modulo 'population_dynamics_tool' no tiene ninguna constante SCHEMA en su import"
+    },
+    {
+      "tool_name": "reaction_diffusion_real",
+      "reason": "funcion 'reaction_diffusion_real' no encontrada en ningun import (ya migrada o inexistente)"
+    },
+    {
+      "tool_name": "enzyme_kinetics",
+      "reason": "modulo 'enzyme_kinetics_tool' no tiene ninguna constante SCHEMA en su import"
+    },
+    {
+      "tool_name": "tritbraid",
+      "reason": "firma atipica: compute_tritbraid(**tb_kwargs)"
+    },
+    {
+      "tool_name": "historian",
+      "reason": "modulo 'historian_tool' no tiene ninguna constante SCHEMA en su import"
+    },
+    {
+      "tool_name": "antibiotic_diffusion",
+      "reason": "modulo 'antibiotic_diffusion' no tiene ninguna constante SCHEMA en su import"
+    },
+    {
+      "tool_name": "plague_sir",
+      "reason": "modulo 'plague_sir_tool' no tiene ninguna constante SCHEMA en su import"
+    },
+    {
+      "tool_name": "settlement_clusters",
+      "reason": "modulo 'settlement_clusters_tool' no tiene ninguna constante SCHEMA en su import"
+    },
+    {
+      "tool_name": "historical_extractor",
+      "reason": "modulo 'historical_extractor_tool' no tiene ninguna constante SCHEMA en su import"
+    },
+    {
+      "tool_name": "paleography",
+      "reason": "modulo 'paleography_tool' no tiene ninguna constante SCHEMA en su import"
+    },
+    {
+      "tool_name": "abstract_algebra",
+      "reason": "modulo 'abstract_algebra_tool' no tiene ninguna constante SCHEMA en su import"
+    },
+    {
+      "tool_name": "workspace_save",
+      "reason": "modulo 'workspace_tool' no tiene ninguna constante SCHEMA en su import"
+    },
+    {
+      "tool_name": "workspace_load",
+      "reason": "modulo 'workspace_tool' no tiene ninguna constante SCHEMA en su import"
+    },
+    {
+      "tool_name": "workspace_list",
+      "reason": "modulo 'workspace_tool' no tiene ninguna constante SCHEMA en su import"
+    },
+    {
+      "tool_name": "workspace_describe",
+      "reason": "modulo 'workspace_tool' no tiene ninguna constante SCHEMA en su import"
+    },
+    {
+      "tool_name": "workspace_delete",
+      "reason": "modulo 'workspace_tool' no tiene ninguna constante SCHEMA en su import"
+    },
+    {
+      "tool_name": "workspace_link",
+      "reason": "modulo 'workspace_tool' no tiene ninguna constante SCHEMA en su import"
+    },
+    {
+      "tool_name": "plot_workspace_run",
+      "reason": "modulo 'plot_tool' no tiene ninguna constante SCHEMA en su import"
+    },
+    {
+      "tool_name": "electromagnetic_tool",
+      "reason": "firma atipica: handle_electromagnetic_tool(args)"
+    },
+    {
+      "tool_name": "survey_angles_tool",
+      "reason": "funcion 'compute_survey_angles' no encontrada en ningun import (ya migrada o inexistente)"
+    },
+    {
+      "tool_name": "survey_distance_tool",
+      "reason": "funcion 'compute_survey_distance' no encontrada en ningun import (ya migrada o inexistente)"
+    },
+    {
+      "tool_name": "survey_curvature_tool",
+      "reason": "funcion 'compute_survey_curvature' no encontrada en ningun import (ya migrada o inexistente)"
+    },
+    {
+      "tool_name": "traverse_adjustment_tool",
+      "reason": "funcion 'compute_traverse_adjustment' no encontrada en ningun import (ya migrada o inexistente)"
+    },
+    {
+      "tool_name": "survey_curves_tool",
+      "reason": "funcion 'compute_survey_curves' no encontrada en ningun import (ya migrada o inexistente)"
+    },
+    {
+      "tool_name": "survey_area_volume_tool",
+      "reason": "funcion 'compute_survey_area_volume' no encontrada en ningun import (ya migrada o inexistente)"
+    },
+    {
+      "tool_name": "climate_tool",
+      "reason": "modulo 'climate_tool' no tiene ninguna constante SCHEMA en su import"
+    },
+    {
+      "tool_name": "advanced_stochastic_tool",
+      "reason": "modulo 'advanced_stochastic_tool' no tiene ninguna constante SCHEMA en su import"
+    },
+    {
+      "tool_name": "multivariate_bayes_tool",
+      "reason": "modulo 'multivariate_bayes_tool' no tiene ninguna constante SCHEMA en su import"
+    }
+  ]
+}

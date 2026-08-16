@@ -1,0 +1,787 @@
+{
+  "plan": [
+    {
+      "tool_name": "natural_hazard_risk_tool",
+      "module": "natural_hazard_risk_tool",
+      "func_name": "compute_natural_hazard_risk",
+      "const_name": "NATURAL_HAZARD_RISK_TOOL_SCHEMA",
+      "is_full_entry": false,
+      "call_expr": "compute_natural_hazard_risk(args.get(\"mode\"), args.get(\"params\"))",
+      "register_block": "\ntry:\n    from tool_registry import register_tool\n    register_tool(\n        name=\"natural_hazard_risk_tool\",\n        schema={\n        \"name\": \"natural_hazard_risk_tool\",\n        \"description\": 'Modelado de riesgo multifactorial (R=H*E*V/A) para gestion publica de desastres naturales: risk_index (indice de riesgo puntual con clasificacion en bandas), risk_grid (mapa de calor de riesgo sobre grilla), gumbel_return_period (periodo de retorno empirico T=(n+1)/m), gumbel_fit (ajuste de distribucion de Gumbel por momentos y estimacion de magnitud de diseno o periodo de retorno).',\n        \"inputSchema\": NATURAL_HAZARD_RISK_TOOL_SCHEMA,\n    },\n        handler=lambda args: compute_natural_hazard_risk(args.get(\"mode\"), args.get(\"params\")),\n    )\nexcept ImportError:\n    pass\n",
+      "tools_span": [
+        46858,
+        47429
+      ],
+      "elif_span": [
+        66216,
+        66605
+      ]
+    },
+    {
+      "tool_name": "decision_support_tool",
+      "module": "decision_support_tool",
+      "func_name": "compute_decision_support",
+      "const_name": "DECISION_SUPPORT_TOOL_SCHEMA",
+      "is_full_entry": false,
+      "call_expr": "compute_decision_support(args.get(\"mode\"), args.get(\"params\"))",
+      "register_block": "\ntry:\n    from tool_registry import register_tool\n    register_tool(\n        name=\"decision_support_tool\",\n        schema={\n        \"name\": \"decision_support_tool\",\n        \"description\": 'Sistemas de apoyo a decisiones multicriterio para priorizacion de inversiones publicas: ahp (Proceso Analitico Jerarquico de Saaty, pesos via autovector principal y ratio de consistencia CR), topsis (ordenamiento de alternativas por cercania a la solucion ideal, con criterios de beneficio/costo y pesos configurables).',\n        \"inputSchema\": DECISION_SUPPORT_TOOL_SCHEMA,\n    },\n        handler=lambda args: compute_decision_support(args.get(\"mode\"), args.get(\"params\")),\n    )\nexcept ImportError:\n    pass\n",
+      "tools_span": [
+        47435,
+        47937
+      ],
+      "elif_span": [
+        66605,
+        66988
+      ]
+    },
+    {
+      "tool_name": "water_resource_tool",
+      "module": "water_resource_tool",
+      "func_name": "compute_water_resource",
+      "const_name": "WATER_RESOURCE_TOOL_SCHEMA",
+      "is_full_entry": false,
+      "call_expr": "compute_water_resource(args.get(\"mode\"), args.get(\"params\"))",
+      "register_block": "\ntry:\n    from tool_registry import register_tool\n    register_tool(\n        name=\"water_resource_tool\",\n        schema={\n        \"name\": \"water_resource_tool\",\n        \"description\": 'Hidrologia de cuencas para gestion de recursos hidricos: rational_method (caudal pico Qp=CIA/360), scs_curve_number (escorrentia directa por numero de curva SCS), time_of_concentration (formula de Kirpich), water_balance (balance de masa de embalse/cuenca con deteccion de deficit y desborde).',\n        \"inputSchema\": WATER_RESOURCE_TOOL_SCHEMA,\n    },\n        handler=lambda args: compute_water_resource(args.get(\"mode\"), args.get(\"params\")),\n    )\nexcept ImportError:\n    pass\n",
+      "tools_span": [
+        47943,
+        48417
+      ],
+      "elif_span": [
+        66988,
+        67367
+      ]
+    },
+    {
+      "tool_name": "flood_modeling_tool",
+      "module": "flood_modeling_tool",
+      "func_name": "compute_flood_modeling",
+      "const_name": "FLOOD_MODELING_TOOL_SCHEMA",
+      "is_full_entry": false,
+      "call_expr": "compute_flood_modeling(args.get(\"mode\"), args.get(\"params\"))",
+      "register_block": "\ntry:\n    from tool_registry import register_tool\n    register_tool(\n        name=\"flood_modeling_tool\",\n        schema={\n        \"name\": \"flood_modeling_tool\",\n        \"description\": 'Modelado de crecidas para planificacion de drenajes: scs_triangular_hydrograph (hidrograma unitario triangular SCS), muskingum_routing (transito de crecidas por un tramo de cauce), manning_normal_depth (tirante normal y ancho de inundacion en seccion trapezoidal via ecuacion de Manning).',\n        \"inputSchema\": FLOOD_MODELING_TOOL_SCHEMA,\n    },\n        handler=lambda args: compute_flood_modeling(args.get(\"mode\"), args.get(\"params\")),\n    )\nexcept ImportError:\n    pass\n",
+      "tools_span": [
+        48423,
+        48892
+      ],
+      "elif_span": [
+        67367,
+        67746
+      ]
+    },
+    {
+      "tool_name": "climate_scenario_tool",
+      "module": "climate_scenario_tool",
+      "func_name": "compute_climate_scenario",
+      "const_name": "CLIMATE_SCENARIO_TOOL_SCHEMA",
+      "is_full_entry": false,
+      "call_expr": "compute_climate_scenario(args.get(\"mode\"), args.get(\"params\"))",
+      "register_block": "\ntry:\n    from tool_registry import register_tool\n    register_tool(\n        name=\"climate_scenario_tool\",\n        schema={\n        \"name\": \"climate_scenario_tool\",\n        \"description\": 'Analisis de escenarios climaticos: trend_analysis (regresion lineal, Mann-Kendall, changepoint CUSUM sobre series temporales), rcp_projection (proyeccion de temperatura/nivel del mar para un RCP y anio dado), list_rcp_scenarios (catalogo RCP2.6/4.5/6.0/8.5 con datos IPCC AR5), validate.',\n        \"inputSchema\": CLIMATE_SCENARIO_TOOL_SCHEMA,\n    },\n        handler=lambda args: compute_climate_scenario(args.get(\"mode\"), args.get(\"params\")),\n    )\nexcept ImportError:\n    pass\n",
+      "tools_span": [
+        15053,
+        15523
+      ],
+      "elif_span": [
+        67746,
+        68129
+      ]
+    },
+    {
+      "tool_name": "early_warning_tool",
+      "module": "early_warning_tool",
+      "func_name": "compute_early_warning",
+      "const_name": "EARLY_WARNING_TOOL_SCHEMA",
+      "is_full_entry": false,
+      "call_expr": "compute_early_warning(args.get(\"mode\"), args.get(\"params\"))",
+      "register_block": "\ntry:\n    from tool_registry import register_tool\n    register_tool(\n        name=\"early_warning_tool\",\n        schema={\n        \"name\": \"early_warning_tool\",\n        \"description\": 'Analisis de series temporales para alertas tempranas: threshold_crossing (cruce de umbrales tipo semaforo con proyeccion de tiempo hasta el proximo umbral), trend_analysis (regresion lineal, pendiente y R2), rate_of_change_alert (tasa de cambio y deteccion de subidas/bajadas criticas), moving_average_anomaly (deteccion de anomalias contra media movil trailing).',\n        \"inputSchema\": EARLY_WARNING_TOOL_SCHEMA,\n    },\n        handler=lambda args: compute_early_warning(args.get(\"mode\"), args.get(\"params\")),\n    )\nexcept ImportError:\n    pass\n",
+      "tools_span": [
+        48898,
+        49441
+      ],
+      "elif_span": [
+        68129,
+        68506
+      ]
+    },
+    {
+      "tool_name": "disaster_simulation_tool",
+      "module": "disaster_simulation_tool",
+      "func_name": "compute_disaster_simulation",
+      "const_name": "DISASTER_SIMULATION_TOOL_SCHEMA",
+      "is_full_entry": true,
+      "call_expr": "compute_disaster_simulation(args.get(\"mode\"), args.get(\"params\"))",
+      "register_block": "\ntry:\n    from tool_registry import register_tool\n    register_tool(\n        name=\"disaster_simulation_tool\",\n        schema=DISASTER_SIMULATION_TOOL_SCHEMA,\n        handler=lambda args: compute_disaster_simulation(args.get(\"mode\"), args.get(\"params\")),\n    )\nexcept ImportError:\n    pass\n",
+      "tools_span": [
+        15529,
+        16630
+      ],
+      "elif_span": [
+        68506,
+        68895
+      ]
+    },
+    {
+      "tool_name": "graph_algorithms",
+      "module": "graph_tool",
+      "func_name": "compute_graph_algorithms",
+      "const_name": "GRAPH_ALGORITHMS_SCHEMA",
+      "is_full_entry": false,
+      "call_expr": "compute_graph_algorithms(**args)",
+      "register_block": "\ntry:\n    from tool_registry import register_tool\n    register_tool(\n        name=\"graph_algorithms\",\n        schema={\n        \"name\": \"graph_algorithms\",\n        \"description\": \"Corre algoritmos clasicos de grafos: Dijkstra, MST (Kruskal), deteccion de ciclos. Presets: small_weighted, disconnected, with_cycle, o custom via 'edges' [[u,v,peso],...]. mode='validate' corre un check rapido contra valores exactos calculados a mano.\",\n        \"inputSchema\": GRAPH_ALGORITHMS_SCHEMA,\n    },\n        handler=lambda args: compute_graph_algorithms(**args),\n    )\nexcept ImportError:\n    pass\n",
+      "tools_span": [
+        20747,
+        21301
+      ],
+      "elif_span": [
+        74877,
+        75226
+      ]
+    },
+    {
+      "tool_name": "qm_potential_well",
+      "module": "qm_tool",
+      "func_name": "compute_qm_potential_well",
+      "const_name": "QM_POTENTIAL_WELL_SCHEMA",
+      "is_full_entry": false,
+      "call_expr": "compute_qm_potential_well(**args)",
+      "register_block": "\ntry:\n    from tool_registry import register_tool\n    register_tool(\n        name=\"qm_potential_well\",\n        schema={\n        \"name\": \"qm_potential_well\",\n        \"description\": 'Resuelve la ecuacion de Schrodinger 1D independiente del tiempo por diferencias finitas. Presets: infinite_well, finite_well, harmonic_oscillator, o custom via custom_potential (expresion Octave en x).',\n        \"inputSchema\": QM_POTENTIAL_WELL_SCHEMA,\n    },\n        handler=lambda args: compute_qm_potential_well(**args),\n    )\nexcept ImportError:\n    pass\n",
+      "tools_span": [
+        21307,
+        21864
+      ],
+      "elif_span": [
+        75226,
+        75577
+      ]
+    },
+    {
+      "tool_name": "nuclear_decay_chain",
+      "module": "nuclear_decay_tool",
+      "func_name": "compute_nuclear_decay_chain",
+      "const_name": "NUCLEAR_DECAY_CHAIN_SCHEMA",
+      "is_full_entry": false,
+      "call_expr": "compute_nuclear_decay_chain(**args)",
+      "register_block": "\ntry:\n    from tool_registry import register_tool\n    register_tool(\n        name=\"nuclear_decay_chain\",\n        schema={\n        \"name\": \"nuclear_decay_chain\",\n        \"description\": \"Resuelve una cadena de decaimiento nuclear (Bateman) via ode45. Presets: cs137_ba137m, sr90_y90, o custom via 'chain'. stable_last=True no sigue la cadena mas alla del ultimo isotopo pero NUNCA anula su lambda (permite alcanzar equilibrio secular). mode='validate' corre un check rapido: decaimiento simple vs analitico + equilibrio secular.\",\n        \"inputSchema\": NUCLEAR_DECAY_CHAIN_SCHEMA,\n    },\n        handler=lambda args: compute_nuclear_decay_chain(**args),\n    )\nexcept ImportError:\n    pass\n",
+      "tools_span": [
+        21870,
+        22518
+      ],
+      "elif_span": [
+        75577,
+        75932
+      ]
+    },
+    {
+      "tool_name": "fractal_dimension",
+      "module": "fractal_dimension_tool",
+      "func_name": "compute_fractal_dimension",
+      "const_name": "FRACTAL_DIMENSION_SCHEMA",
+      "is_full_entry": false,
+      "call_expr": "compute_fractal_dimension(**args)",
+      "register_block": "\ntry:\n    from tool_registry import register_tool\n    register_tool(\n        name=\"fractal_dimension\",\n        schema={\n        \"name\": \"fractal_dimension\",\n        \"description\": \"Dimension fractal por box-counting. Presets: sierpinski_triangle, koch_curve, cantor_set (con dimension analitica de referencia), chen_lee_attractor (integra el sistema caotico en Octave), o custom via 'points'. mode='validate' corre un check rapido contra los 3 presets con dimension analitica conocida.\",\n        \"inputSchema\": FRACTAL_DIMENSION_SCHEMA,\n    },\n        handler=lambda args: compute_fractal_dimension(**args),\n    )\nexcept ImportError:\n    pass\n",
+      "tools_span": [
+        22524,
+        23243
+      ],
+      "elif_span": [
+        75932,
+        76283
+      ]
+    },
+    {
+      "tool_name": "ethnomath",
+      "module": "ethnomath_tool",
+      "func_name": "compute_ethnomath",
+      "const_name": "ETHNOMATH_SCHEMA",
+      "is_full_entry": true,
+      "call_expr": "compute_ethnomath(**args)",
+      "register_block": "\ntry:\n    from tool_registry import register_tool\n    register_tool(\n        name=\"ethnomath\",\n        schema={**ETHNOMATH_SCHEMA, \"name\": \"ethnomath\"},\n        handler=lambda args: compute_ethnomath(**args),\n    )\nexcept ImportError:\n    pass\n",
+      "tools_span": [
+        23249,
+        23563
+      ],
+      "elif_span": [
+        76283,
+        76618
+      ]
+    },
+    {
+      "tool_name": "ethnomath2",
+      "module": "ethnomath2_tool",
+      "func_name": "compute_ethnomath2",
+      "const_name": "ETHNOMATH2_SCHEMA",
+      "is_full_entry": true,
+      "call_expr": "compute_ethnomath2(**args)",
+      "register_block": "\ntry:\n    from tool_registry import register_tool\n    register_tool(\n        name=\"ethnomath2\",\n        schema={**ETHNOMATH2_SCHEMA, \"name\": \"ethnomath2\"},\n        handler=lambda args: compute_ethnomath2(**args),\n    )\nexcept ImportError:\n    pass\n",
+      "tools_span": [
+        23569,
+        23941
+      ],
+      "elif_span": [
+        76618,
+        76955
+      ]
+    },
+    {
+      "tool_name": "ancient_calculator",
+      "module": "ancient_calculators_tool",
+      "func_name": "compute_ancient_calculator",
+      "const_name": "ANCIENT_CALCULATOR_SCHEMA",
+      "is_full_entry": false,
+      "call_expr": "compute_ancient_calculator(**args)",
+      "register_block": "\ntry:\n    from tool_registry import register_tool\n    register_tool(\n        name=\"ancient_calculator\",\n        schema={\n        \"name\": \"ancient_calculator\",\n        \"description\": 'Simula calculadoras historicas reales operando sus cuentas/fichas: suanpan, soroban, roman_hand_abacus, yupana_depasquale (hipotesis en disputa academica, ver advertencia en la respuesta).',\n        \"inputSchema\": ANCIENT_CALCULATOR_SCHEMA,\n    },\n        handler=lambda args: compute_ancient_calculator(**args),\n    )\nexcept ImportError:\n    pass\n",
+      "tools_span": [
+        23947,
+        24319
+      ],
+      "elif_span": [
+        76955,
+        77308
+      ]
+    },
+    {
+      "tool_name": "math_philosophy_history",
+      "module": "filosofia_historia_mate_tool",
+      "func_name": "compute_math_philosophy_history",
+      "const_name": "MATH_PHILOSOPHY_HISTORY_SCHEMA",
+      "is_full_entry": false,
+      "call_expr": "compute_math_philosophy_history(**args)",
+      "register_block": "\ntry:\n    from tool_registry import register_tool\n    register_tool(\n        name=\"math_philosophy_history\",\n        schema={\n        \"name\": \"math_philosophy_history\",\n        \"description\": 'Referencia sobre filosofia e historia de la matematica (8 topics).',\n        \"inputSchema\": MATH_PHILOSOPHY_HISTORY_SCHEMA,\n    },\n        handler=lambda args: compute_math_philosophy_history(**args),\n    )\nexcept ImportError:\n    pass\n",
+      "tools_span": [
+        24937,
+        25167
+      ],
+      "elif_span": [
+        77683,
+        78046
+      ]
+    },
+    {
+      "tool_name": "levant",
+      "module": "levant_tool",
+      "func_name": "compute_levant",
+      "const_name": "LEVANT_SCHEMA",
+      "is_full_entry": true,
+      "call_expr": "compute_levant(**args)",
+      "register_block": "\ntry:\n    from tool_registry import register_tool\n    register_tool(\n        name=\"levant\",\n        schema={**LEVANT_SCHEMA, \"name\": \"levant\"},\n        handler=lambda args: compute_levant(**args),\n    )\nexcept ImportError:\n    pass\n",
+      "tools_span": [
+        25173,
+        25575
+      ],
+      "elif_span": [
+        78046,
+        78375
+      ]
+    },
+    {
+      "tool_name": "originarios",
+      "module": "originarios_tool",
+      "func_name": "compute_originarios",
+      "const_name": "ORIGINARIOS_SCHEMA",
+      "is_full_entry": true,
+      "call_expr": "compute_originarios(**args)",
+      "register_block": "\ntry:\n    from tool_registry import register_tool\n    register_tool(\n        name=\"originarios\",\n        schema={**ORIGINARIOS_SCHEMA, \"name\": \"originarios\"},\n        handler=lambda args: compute_originarios(**args),\n    )\nexcept ImportError:\n    pass\n",
+      "tools_span": [
+        25581,
+        25925
+      ],
+      "elif_span": [
+        78375,
+        78714
+      ]
+    },
+    {
+      "tool_name": "cross_validation",
+      "module": "cross_validation_tool",
+      "func_name": "compute_cross_validation",
+      "const_name": "CROSS_VALIDATION_SCHEMA",
+      "is_full_entry": false,
+      "call_expr": "compute_cross_validation(**args)",
+      "register_block": "\ntry:\n    from tool_registry import register_tool\n    register_tool(\n        name=\"cross_validation\",\n        schema={\n        \"name\": \"cross_validation\",\n        \"description\": \"Valida un resultado de dimension fractal corriendo el mismo sistema dinamico con dos motores numericos independientes (Octave ode45 y scipy RK45). Devuelve ambas dimensiones, la diferencia relativa, y un flag cross_validated. Sistemas disponibles: chen_lee. mode='validate' corre un check rapido (resolucion reducida) contra el mismo mecanismo.\",\n        \"inputSchema\": CROSS_VALIDATION_SCHEMA,\n    },\n        handler=lambda args: compute_cross_validation(**args),\n    )\nexcept ImportError:\n    pass\n",
+      "tools_span": [
+        25931,
+        26615
+      ],
+      "elif_span": [
+        78714,
+        79063
+      ]
+    },
+    {
+      "tool_name": "entropy_structure",
+      "module": "entropy_structure_tool",
+      "func_name": "compute_entropy_structure",
+      "const_name": "ENTROPY_STRUCTURE_SCHEMA",
+      "is_full_entry": true,
+      "call_expr": "compute_entropy_structure(**args)",
+      "register_block": "\ntry:\n    from tool_registry import register_tool\n    register_tool(\n        name=\"entropy_structure\",\n        schema={**ENTROPY_STRUCTURE_SCHEMA, \"name\": \"entropy_structure\"},\n        handler=lambda args: compute_entropy_structure(**args),\n    )\nexcept ImportError:\n    pass\n",
+      "tools_span": [
+        26621,
+        27314
+      ],
+      "elif_span": [
+        79063,
+        79414
+      ]
+    },
+    {
+      "tool_name": "music_math",
+      "module": "music_math_tool",
+      "func_name": "compute_music_math",
+      "const_name": "MUSIC_MATH_SCHEMA",
+      "is_full_entry": true,
+      "call_expr": "compute_music_math(**args)",
+      "register_block": "\ntry:\n    from tool_registry import register_tool\n    register_tool(\n        name=\"music_math\",\n        schema={**MUSIC_MATH_SCHEMA, \"name\": \"music_math\"},\n        handler=lambda args: compute_music_math(**args),\n    )\nexcept ImportError:\n    pass\n",
+      "tools_span": [
+        27320,
+        27812
+      ],
+      "elif_span": [
+        79414,
+        79751
+      ]
+    },
+    {
+      "tool_name": "linear_algebra",
+      "module": "linear_algebra_tool",
+      "func_name": "compute_linear_algebra",
+      "const_name": "LINEAR_ALGEBRA_SCHEMA",
+      "is_full_entry": true,
+      "call_expr": "compute_linear_algebra(**args)",
+      "register_block": "\ntry:\n    from tool_registry import register_tool\n    register_tool(\n        name=\"linear_algebra\",\n        schema={**LINEAR_ALGEBRA_SCHEMA, \"name\": \"linear_algebra\"},\n        handler=lambda args: compute_linear_algebra(**args),\n    )\nexcept ImportError:\n    pass\n",
+      "tools_span": [
+        27818,
+        28364
+      ],
+      "elif_span": [
+        79751,
+        80096
+      ]
+    },
+    {
+      "tool_name": "persistent_homology",
+      "module": "persistent_homology_tool",
+      "func_name": "compute_persistent_homology",
+      "const_name": "PERSISTENT_HOMOLOGY_SCHEMA",
+      "is_full_entry": true,
+      "call_expr": "compute_persistent_homology(**args)",
+      "register_block": "\ntry:\n    from tool_registry import register_tool\n    register_tool(\n        name=\"persistent_homology\",\n        schema={**PERSISTENT_HOMOLOGY_SCHEMA, \"name\": \"persistent_homology\"},\n        handler=lambda args: compute_persistent_homology(**args),\n    )\nexcept ImportError:\n    pass\n",
+      "tools_span": [
+        28370,
+        29093
+      ],
+      "elif_span": [
+        80096,
+        80451
+      ]
+    },
+    {
+      "tool_name": "statistics",
+      "module": "statistics_tool",
+      "func_name": "compute_statistics",
+      "const_name": "STATISTICS_SCHEMA",
+      "is_full_entry": true,
+      "call_expr": "compute_statistics(**args)",
+      "register_block": "\ntry:\n    from tool_registry import register_tool\n    register_tool(\n        name=\"statistics\",\n        schema={**STATISTICS_SCHEMA, \"name\": \"statistics\"},\n        handler=lambda args: compute_statistics(**args),\n    )\nexcept ImportError:\n    pass\n",
+      "tools_span": [
+        29099,
+        29830
+      ],
+      "elif_span": [
+        80451,
+        80788
+      ]
+    },
+    {
+      "tool_name": "symbolic",
+      "module": "symbolic_tool",
+      "func_name": "compute_symbolic",
+      "const_name": "SYMBOLIC_SCHEMA",
+      "is_full_entry": true,
+      "call_expr": "compute_symbolic(**args)",
+      "register_block": "\ntry:\n    from tool_registry import register_tool\n    register_tool(\n        name=\"symbolic\",\n        schema={**SYMBOLIC_SCHEMA, \"name\": \"symbolic\"},\n        handler=lambda args: compute_symbolic(**args),\n    )\nexcept ImportError:\n    pass\n",
+      "tools_span": [
+        29862,
+        30499
+      ],
+      "elif_span": [
+        81131,
+        81464
+      ]
+    },
+    {
+      "tool_name": "optimization",
+      "module": "optimization_tool",
+      "func_name": "compute_optimization",
+      "const_name": "OPTIMIZATION_SCHEMA",
+      "is_full_entry": true,
+      "call_expr": "compute_optimization(**args)",
+      "register_block": "\ntry:\n    from tool_registry import register_tool\n    register_tool(\n        name=\"optimization\",\n        schema={**OPTIMIZATION_SCHEMA, \"name\": \"optimization\"},\n        handler=lambda args: compute_optimization(**args),\n    )\nexcept ImportError:\n    pass\n",
+      "tools_span": [
+        30505,
+        31150
+      ],
+      "elif_span": [
+        81464,
+        81805
+      ]
+    },
+    {
+      "tool_name": "pde",
+      "module": "pde_tool",
+      "func_name": "compute_pde",
+      "const_name": "PDE_SCHEMA",
+      "is_full_entry": true,
+      "call_expr": "compute_pde(**args)",
+      "register_block": "\ntry:\n    from tool_registry import register_tool\n    register_tool(\n        name=\"pde\",\n        schema={**PDE_SCHEMA, \"name\": \"pde\"},\n        handler=lambda args: compute_pde(**args),\n    )\nexcept ImportError:\n    pass\n",
+      "tools_span": [
+        31156,
+        31800
+      ],
+      "elif_span": [
+        81805,
+        82128
+      ]
+    },
+    {
+      "tool_name": "braid_group",
+      "module": "braid_group_tool",
+      "func_name": "compute_braid_group",
+      "const_name": "BRAID_GROUP_SCHEMA",
+      "is_full_entry": true,
+      "call_expr": "compute_braid_group(**args)",
+      "register_block": "\ntry:\n    from tool_registry import register_tool\n    register_tool(\n        name=\"braid_group\",\n        schema={**BRAID_GROUP_SCHEMA, \"name\": \"braid_group\"},\n        handler=lambda args: compute_braid_group(**args),\n    )\nexcept ImportError:\n    pass\n",
+      "tools_span": [
+        31806,
+        32396
+      ],
+      "elif_span": [
+        82128,
+        82467
+      ]
+    },
+    {
+      "tool_name": "population_dynamics",
+      "module": "population_dynamics_tool",
+      "func_name": "compute_population_dynamics",
+      "const_name": "POPULATION_DYNAMICS_SCHEMA",
+      "is_full_entry": true,
+      "call_expr": "compute_population_dynamics(**args)",
+      "register_block": "\ntry:\n    from tool_registry import register_tool\n    register_tool(\n        name=\"population_dynamics\",\n        schema={**POPULATION_DYNAMICS_SCHEMA, \"name\": \"population_dynamics\"},\n        handler=lambda args: compute_population_dynamics(**args),\n    )\nexcept ImportError:\n    pass\n",
+      "tools_span": [
+        32402,
+        33024
+      ],
+      "elif_span": [
+        82467,
+        82822
+      ]
+    },
+    {
+      "tool_name": "enzyme_kinetics",
+      "module": "enzyme_kinetics_tool",
+      "func_name": "compute_enzyme_kinetics",
+      "const_name": "ENZYME_KINETICS_SCHEMA",
+      "is_full_entry": true,
+      "call_expr": "compute_enzyme_kinetics(**args)",
+      "register_block": "\ntry:\n    from tool_registry import register_tool\n    register_tool(\n        name=\"enzyme_kinetics\",\n        schema={**ENZYME_KINETICS_SCHEMA, \"name\": \"enzyme_kinetics\"},\n        handler=lambda args: compute_enzyme_kinetics(**args),\n    )\nexcept ImportError:\n    pass\n",
+      "tools_span": [
+        33691,
+        34238
+      ],
+      "elif_span": [
+        83177,
+        83524
+      ]
+    },
+    {
+      "tool_name": "historian",
+      "module": "historian_tool",
+      "func_name": "compute_historian",
+      "const_name": "HISTORIAN_SCHEMA",
+      "is_full_entry": false,
+      "call_expr": "compute_historian(**args)",
+      "register_block": "\ntry:\n    from tool_registry import register_tool\n    register_tool(\n        name=\"historian\",\n        schema={\n        \"name\": \"historian\",\n        \"description\": 'Orquestador de analisis historico: parsea numeros de texto libre via regex (sin NLP complejo), arma arrays de numpy, y ajusta el motor correspondiente segun analysis_type -- inflation/demographics (regresion log-lineal: tasa anual %, R2), trade_network (centralidad de red: fuerza entrante + autovector, identifica el hub), units_entropy (entropia de Shannon sobre unidades historicas de medida -- in',\n        \"inputSchema\": HISTORIAN_SCHEMA,\n    },\n        handler=lambda args: compute_historian(**args),\n    )\nexcept ImportError:\n    pass\n",
+      "tools_span": [
+        34865,
+        35484
+      ],
+      "elif_span": [
+        83981,
+        84316
+      ]
+    },
+    {
+      "tool_name": "antibiotic_diffusion",
+      "module": "antibiotic_diffusion",
+      "func_name": "compute_antibiotic_diffusion",
+      "const_name": "ANTIBIOTIC_DIFFUSION_SCHEMA",
+      "is_full_entry": false,
+      "call_expr": "compute_antibiotic_diffusion(**args)",
+      "register_block": "\ntry:\n    from tool_registry import register_tool\n    register_tool(\n        name=\"antibiotic_diffusion\",\n        schema={\n        \"name\": \"antibiotic_diffusion\",\n        \"description\": 'Bioensayo de difusion en disco tipo Kirby-Bauer: difusion radial 2D exacta (Carslaw & Jaeger, disco de concentracion uniforme C0 en agar homogeneo) mas la aproximacion clasica de fuente puntual de Cooper. Liberacion instantanea, sin degradacion ni consumo bacteriano -- estimacion de ordenes de magnitud, no reemplaza ensayo real. Modes: zone_prediction (radio/diametro de halo a un C0 y tiempo de in',\n        \"inputSchema\": ANTIBIOTIC_DIFFUSION_SCHEMA,\n    },\n        handler=lambda args: compute_antibiotic_diffusion(**args),\n    )\nexcept ImportError:\n    pass\n",
+      "tools_span": [
+        35490,
+        36148
+      ],
+      "elif_span": [
+        84316,
+        84673
+      ]
+    },
+    {
+      "tool_name": "plague_sir",
+      "module": "plague_sir_tool",
+      "func_name": "compute_plague_sir",
+      "const_name": "PLAGUE_SIR_SCHEMA",
+      "is_full_entry": false,
+      "call_expr": "compute_plague_sir(**args)",
+      "register_block": "\ntry:\n    from tool_registry import register_tool\n    register_tool(\n        name=\"plague_sir\",\n        schema={\n        \"name\": \"plague_sir\",\n        \"description\": 'SIR inverso para brotes historicos de peste: parsea defunciones semanales de texto libre via regex, ajusta beta (tasa de contagio) con curve_fit manteniendo gamma fijo (parametro de literatura, no medido), integra SIR con RK4, y reporta R0=beta/gamma. Proxy cuantitativo cuando no hay fuente epidemiologica directa -- no corrige subregistro, migracion, ni estacionalidad. Modes: fit_beta (requiere te',\n        \"inputSchema\": PLAGUE_SIR_SCHEMA,\n    },\n        handler=lambda args: compute_plague_sir(**args),\n    )\nexcept ImportError:\n    pass\n",
+      "tools_span": [
+        36154,
+        36808
+      ],
+      "elif_span": [
+        84673,
+        85010
+      ]
+    },
+    {
+      "tool_name": "settlement_clusters",
+      "module": "settlement_clusters_tool",
+      "func_name": "compute_settlement_clusters",
+      "const_name": "SETTLEMENT_CLUSTERS_SCHEMA",
+      "is_full_entry": false,
+      "call_expr": "compute_settlement_clusters(**args)",
+      "register_block": "\ntry:\n    from tool_registry import register_tool\n    register_tool(\n        name=\"settlement_clusters\",\n        schema={\n        \"name\": \"settlement_clusters\",\n        \"description\": 'Proxy arqueologico de barrios/clusters sociales: clusteriza coordenadas de hallazgos por distancia (union-find a radio fijo) en cada periodo/estrato, y rastrea clusters entre periodos consecutivos por proximidad de centroides -- detecta nacimiento y muerte de asentamientos. No hace inferencia cronologica, el orden de periodos lo define quien llama. Modes: analyze (requiere puntos_por_periodo y per',\n        \"inputSchema\": SETTLEMENT_CLUSTERS_SCHEMA,\n    },\n        handler=lambda args: compute_settlement_clusters(**args),\n    )\nexcept ImportError:\n    pass\n",
+      "tools_span": [
+        36814,
+        37509
+      ],
+      "elif_span": [
+        85010,
+        85365
+      ]
+    },
+    {
+      "tool_name": "historical_extractor",
+      "module": "historical_extractor_tool",
+      "func_name": "compute_historical_extractor",
+      "const_name": "HISTORICAL_EXTRACTOR_SCHEMA",
+      "is_full_entry": false,
+      "call_expr": "compute_historical_extractor(**args)",
+      "register_block": "\ntry:\n    from tool_registry import register_tool\n    register_tool(\n        name=\"historical_extractor\",\n        schema={\n        \"name\": \"historical_extractor\",\n        \"description\": 'Extrae MULTIPLES series (anio, valor) de un mismo texto historico via regex por oracion (no NLP), una serie por objeto/concepto mencionado (ej: trigo, cebada, jornal). Corre tendencia por regresion log-lineal en cada serie (reusa el motor de historian), calcula salario real indexado si se indica objeto_salario, y correlacion de Pearson entre series de precios que se solapan en anios. NO interpreta',\n        \"inputSchema\": HISTORICAL_EXTRACTOR_SCHEMA,\n    },\n        handler=lambda args: compute_historical_extractor(**args),\n    )\nexcept ImportError:\n    pass\n",
+      "tools_span": [
+        37515,
+        38146
+      ],
+      "elif_span": [
+        85365,
+        85722
+      ]
+    },
+    {
+      "tool_name": "paleography",
+      "module": "paleography_tool",
+      "func_name": "compute_paleography",
+      "const_name": "PALEOGRAPHY_SCHEMA",
+      "is_full_entry": false,
+      "call_expr": "compute_paleography(**args)",
+      "register_block": "\ntry:\n    from tool_registry import register_tool\n    register_tool(\n        name=\"paleography\",\n        schema={\n        \"name\": \"paleography\",\n        \"description\": 'Tres motores cuantitativos de paleografia/codicologia sobre rasgos YA EXTRAIDOS (no hace OCR ni lee imagenes): seriation (analisis de correspondencia via SVD sobre matriz documentos x rasgos, ordena por el eje 1 y valida contra anios_conocidos con Spearman si se dan), feature_dating_regression (ajusta anio ~ rasgo sobre documentos ancla de fecha conocida y estima fecha de documentos sin fecha, con error estandar residual), letterform_classification (nearest-centroid sobre rasgos normalizados, clasifica letterforms en clases conocidas y marca casos ambiguos por margen chico). Ninguno da fechas/atribuciones definitivas.',\n        \"inputSchema\": PALEOGRAPHY_SCHEMA,\n    },\n        handler=lambda args: compute_paleography(**args),\n    )\nexcept ImportError:\n    pass\n",
+      "tools_span": [
+        38152,
+        39331
+      ],
+      "elif_span": [
+        85722,
+        86061
+      ]
+    },
+    {
+      "tool_name": "abstract_algebra",
+      "module": "abstract_algebra_tool",
+      "func_name": "compute_abstract_algebra",
+      "const_name": "ABSTRACT_ALGEBRA_SCHEMA",
+      "is_full_entry": false,
+      "call_expr": "compute_abstract_algebra(**args)",
+      "register_block": "\ntry:\n    from tool_registry import register_tool\n    register_tool(\n        name=\"abstract_algebra\",\n        schema={\n        \"name\": \"abstract_algebra\",\n        \"description\": 'Algebra abstracta sobre estructuras finitas chicas (orden <=8 para isomorfismo): cayley_table (genera tabla preset Zn_add, Zn_mult, Sn simetrico, Dn diedral), verify_group_axioms (cerradura/asociatividad/identidad/inverso, reporta si es abeliano), verify_ring_field_axioms (axiomas de anillo via grupo abeliano + distributividad, confirma cuerpo si hay inverso multiplicativo para todo no-cero), check_isomorphism (fuerza bruta sobre permutaciones -- respuesta negativa es definitiva para el orden dado, no una sospecha).',\n        \"inputSchema\": ABSTRACT_ALGEBRA_SCHEMA,\n    },\n        handler=lambda args: compute_abstract_algebra(**args),\n    )\nexcept ImportError:\n    pass\n",
+      "tools_span": [
+        39337,
+        40294
+      ],
+      "elif_span": [
+        86061,
+        86410
+      ]
+    },
+    {
+      "tool_name": "workspace_save",
+      "module": "workspace_tool",
+      "func_name": "save_run",
+      "const_name": "WORKSPACE_SAVE_SCHEMA",
+      "is_full_entry": true,
+      "call_expr": "save_run(**args)",
+      "register_block": "\ntry:\n    from tool_registry import register_tool\n    register_tool(\n        name=\"workspace_save\",\n        schema=WORKSPACE_SAVE_SCHEMA,\n        handler=lambda args: save_run(**args),\n    )\nexcept ImportError:\n    pass\n",
+      "tools_span": [
+        40300,
+        40633
+      ],
+      "elif_span": [
+        86410,
+        86741
+      ]
+    },
+    {
+      "tool_name": "workspace_load",
+      "module": "workspace_tool",
+      "func_name": "load_run",
+      "const_name": "WORKSPACE_LOAD_SCHEMA",
+      "is_full_entry": true,
+      "call_expr": "load_run(**args)",
+      "register_block": "\ntry:\n    from tool_registry import register_tool\n    register_tool(\n        name=\"workspace_load\",\n        schema=WORKSPACE_LOAD_SCHEMA,\n        handler=lambda args: load_run(**args),\n    )\nexcept ImportError:\n    pass\n",
+      "tools_span": [
+        40639,
+        40977
+      ],
+      "elif_span": [
+        86741,
+        87072
+      ]
+    },
+    {
+      "tool_name": "workspace_list",
+      "module": "workspace_tool",
+      "func_name": "list_runs",
+      "const_name": "WORKSPACE_LIST_SCHEMA",
+      "is_full_entry": true,
+      "call_expr": "list_runs(**args)",
+      "register_block": "\ntry:\n    from tool_registry import register_tool\n    register_tool(\n        name=\"workspace_list\",\n        schema=WORKSPACE_LIST_SCHEMA,\n        handler=lambda args: list_runs(**args),\n    )\nexcept ImportError:\n    pass\n",
+      "tools_span": [
+        40983,
+        41239
+      ],
+      "elif_span": [
+        87072,
+        87404
+      ]
+    },
+    {
+      "tool_name": "workspace_describe",
+      "module": "workspace_tool",
+      "func_name": "describe_run",
+      "const_name": "WORKSPACE_DESCRIBE_SCHEMA",
+      "is_full_entry": true,
+      "call_expr": "describe_run(**args)",
+      "register_block": "\ntry:\n    from tool_registry import register_tool\n    register_tool(\n        name=\"workspace_describe\",\n        schema=WORKSPACE_DESCRIBE_SCHEMA,\n        handler=lambda args: describe_run(**args),\n    )\nexcept ImportError:\n    pass\n",
+      "tools_span": [
+        41245,
+        41523
+      ],
+      "elif_span": [
+        87404,
+        87743
+      ]
+    },
+    {
+      "tool_name": "workspace_delete",
+      "module": "workspace_tool",
+      "func_name": "delete_run",
+      "const_name": "WORKSPACE_DELETE_SCHEMA",
+      "is_full_entry": true,
+      "call_expr": "delete_run(**args)",
+      "register_block": "\ntry:\n    from tool_registry import register_tool\n    register_tool(\n        name=\"workspace_delete\",\n        schema=WORKSPACE_DELETE_SCHEMA,\n        handler=lambda args: delete_run(**args),\n    )\nexcept ImportError:\n    pass\n",
+      "tools_span": [
+        41529,
+        41734
+      ],
+      "elif_span": [
+        87743,
+        88078
+      ]
+    },
+    {
+      "tool_name": "workspace_link",
+      "module": "workspace_tool",
+      "func_name": "workspace_link",
+      "const_name": "WORKSPACE_LINK_SCHEMA",
+      "is_full_entry": true,
+      "call_expr": "workspace_link(**args)",
+      "register_block": "\ntry:\n    from tool_registry import register_tool\n    register_tool(\n        name=\"workspace_link\",\n        schema=WORKSPACE_LINK_SCHEMA,\n        handler=lambda args: workspace_link(**args),\n    )\nexcept ImportError:\n    pass\n",
+      "tools_span": [
+        41740,
+        42138
+      ],
+      "elif_span": [
+        88078,
+        88416
+      ]
+    },
+    {
+      "tool_name": "plot_workspace_run",
+      "module": "plot_tool",
+      "func_name": "plot_run",
+      "const_name": "PLOT_WORKSPACE_RUN_SCHEMA",
+      "is_full_entry": false,
+      "call_expr": "plot_run(**args)",
+      "register_block": "\ntry:\n    from tool_registry import register_tool\n    register_tool(\n        name=\"plot_workspace_run\",\n        schema={\n        \"name\": \"plot_workspace_run\",\n        \"description\": 'Genera una visualizacion (PNG en base64 + guardado en disco) a partir de un run guardado en el workspace (ej: la trayectoria de un atractor guardada por compute_lyapunov con run_id). No recalcula nada, solo lee y grafica. plot_type: auto (infiere segun el tool de origen), attractor_3d, attractor_2d, line, scatter, heatmap.',\n        \"inputSchema\": PLOT_WORKSPACE_RUN_SCHEMA,\n    },\n        handler=lambda args: plot_run(**args),\n    )\nexcept ImportError:\n    pass\n",
+      "tools_span": [
+        42144,
+        42718
+      ],
+      "elif_span": [
+        88416,
+        88751
+      ]
+    },
+    {
+      "tool_name": "climate_tool",
+      "module": "climate_tool",
+      "func_name": "compute_climate",
+      "const_name": "CLIMATE_TOOL_SCHEMA",
+      "is_full_entry": false,
+      "call_expr": "compute_climate(args.get(\"mode\"), args.get(\"params\"))",
+      "register_block": "\ntry:\n    from tool_registry import register_tool\n    register_tool(\n        name=\"climate_tool\",\n        schema={\n        \"name\": \"climate_tool\",\n        \"description\": 'Fisica climatica especifica con validacion analitica. Modos: energy_balance_ebm (balance de energia 0-D, punto de equilibrio T_eq), newton_cooling_trend (relajacion exponencial dT/dt=-k(T-Ta), proyeccion de series cortas), carbon_cycle_box (modelo de cajas atmosfera-oceano-tierra, conservacion de masa), bifurcation_snowball (histeresis albedo-temperatura tipo Budyko-Sellers, Snowball Earth).',\n        \"inputSchema\": CLIMATE_TOOL_SCHEMA,\n    },\n        handler=lambda args: compute_climate(args.get(\"mode\"), args.get(\"params\")),\n    )\nexcept ImportError:\n    pass\n",
+      "tools_span": [
+        44508,
+        45720
+      ],
+      "elif_span": [
+        104063,
+        104428
+      ]
+    },
+    {
+      "tool_name": "advanced_stochastic_tool",
+      "module": "advanced_stochastic_tool",
+      "func_name": "compute_advanced_stochastic",
+      "const_name": "ADVANCED_STOCHASTIC_TOOL_SCHEMA",
+      "is_full_entry": false,
+      "call_expr": "compute_advanced_stochastic(args.get(\"mode\"), args.get(\"params\"))",
+      "register_block": "\ntry:\n    from tool_registry import register_tool\n    register_tool(\n        name=\"advanced_stochastic_tool\",\n        schema={\n        \"name\": \"advanced_stochastic_tool\",\n        \"description\": 'Procesos estocasticos avanzados: HMM (forward-backward + Viterbi), filtro de Kalman, particle filter (bootstrap), y GARCH(1,1) por MLE.',\n        \"inputSchema\": ADVANCED_STOCHASTIC_TOOL_SCHEMA,\n    },\n        handler=lambda args: compute_advanced_stochastic(args.get(\"mode\"), args.get(\"params\")),\n    )\nexcept ImportError:\n    pass\n",
+      "tools_span": [
+        45728,
+        46236
+      ],
+      "elif_span": [
+        104428,
+        104817
+      ]
+    },
+    {
+      "tool_name": "multivariate_bayes_tool",
+      "module": "multivariate_bayes_tool",
+      "func_name": "compute_multivariate_bayes",
+      "const_name": "MULTIVARIATE_BAYES_TOOL_SCHEMA",
+      "is_full_entry": false,
+      "call_expr": "compute_multivariate_bayes(args.get(\"mode\"), args.get(\"params\"))",
+      "register_block": "\ntry:\n    from tool_registry import register_tool\n    register_tool(\n        name=\"multivariate_bayes_tool\",\n        schema={\n        \"name\": \"multivariate_bayes_tool\",\n        \"description\": 'Estadistica bayesiana multivariada: normal/t multivariada, Wishart, modelo jerarquico (Gibbs), regresion via HMC, PCA con biplot y CV, y Factor Analysis via EM.',\n        \"inputSchema\": MULTIVARIATE_BAYES_TOOL_SCHEMA,\n    },\n        handler=lambda args: compute_multivariate_bayes(args.get(\"mode\"), args.get(\"params\")),\n    )\nexcept ImportError:\n    pass\n",
+      "tools_span": [
+        46242,
+        46852
+      ],
+      "elif_span": [
+        104817,
+        105204
+      ]
+    }
+  ],
+  "problems": []
+}
