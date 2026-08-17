@@ -452,6 +452,85 @@ def _mode_humidity(p):
 
 
 # ---------------------------------------------------------------------------
+# Modo: validate
+# ---------------------------------------------------------------------------
+def _mode_validate():
+    checks = []
+
+    # 1) ideal: a STP (0C, 1 atm, 1 mol) el volumen molar es ~22.414 L (constante de manual)
+    r1 = compute_gas("ideal", {"P": 101325, "n": 1, "T": 273.15})
+    checks.append({
+        "name": "ideal_stp_molar_volume_22414_L",
+        "computed_m3": r1["V"],
+        "expected_m3": 0.022414,
+        "passed": abs(r1["V"] - 0.022414) < 1e-5,
+    })
+
+    # 2) van der Waals con a=0, b=0 debe coincidir exactamente con gas ideal (caso limite)
+    r2_real = compute_gas("real", {"eos": "van_der_waals", "n": 1, "T": 300, "a": 0.0, "b": 0.0, "P": 101325})
+    V_ideal_ref = 1 * R * 300 / 101325
+    checks.append({
+        "name": "van_der_waals_reduces_to_ideal_when_a_b_zero",
+        "V_vdw": r2_real["V"], "V_ideal": V_ideal_ref,
+        "passed": abs(r2_real["V"] - V_ideal_ref) < 1e-9,
+    })
+
+    # 3) kinetic: v_rms = sqrt(3RT/M), formula de manual, N2 a 300K
+    r3 = compute_gas("kinetic", {"M": 0.028, "T": 300})
+    v_rms_expected = math.sqrt(3 * R * 300 / 0.028)
+    checks.append({
+        "name": "kinetic_v_rms_matches_formula_N2_300K",
+        "computed": r3["v_rms_m_s"], "expected": v_rms_expected,
+        "passed": abs(r3["v_rms_m_s"] - v_rms_expected) < 1e-6,
+    })
+
+    # 4) compressible: proceso adiabatico P1 V1^gamma = P2 V2^gamma (formula de manual)
+    r4 = compute_gas("compressible", {"gamma": 1.4, "P1": 101325, "V1": 1.0, "V2": 0.5})
+    P2_expected = 101325 * (1.0 / 0.5) ** 1.4
+    checks.append({
+        "name": "adiabatic_process_matches_PV_gamma_formula",
+        "computed": r4["proceso_adiabatico"]["P2"], "expected": P2_expected,
+        "passed": abs(r4["proceso_adiabatico"]["P2"] - P2_expected) < 1e-6,
+    })
+
+    # 5) compressible: relacion de presion critica en tobera para gamma=1.4 es un valor
+    # de manual bien conocido (~0.5283, flujo isentropico, garganta sonica)
+    r5 = compute_gas("compressible", {"gamma": 1.4})
+    checks.append({
+        "name": "critical_pressure_ratio_gamma_1_4_matches_textbook",
+        "computed": r5["relacion_presion_critica"], "expected": 0.5283,
+        "passed": abs(r5["relacion_presion_critica"] - 0.5283) < 1e-4,
+    })
+
+    # 6) humidity: round-trip RH -> P_vapor -> RH debe devolver el mismo RH (consistencia interna)
+    r6 = compute_gas("humidity", {"T": 298.15, "P_total": 101325, "RH": 50.0})
+    checks.append({
+        "name": "humidity_RH_roundtrip_consistent",
+        "RH_in": 50.0, "RH_out": r6["humedad_relativa_pct"],
+        "passed": abs(r6["humedad_relativa_pct"] - 50.0) < 1e-9,
+    })
+
+    # 6b) aire humedo debe ser MENOS denso que el aire seco equivalente a igual P,T
+    # (el vapor de agua tiene menor masa molar que el aire seco -- hecho fisico conocido)
+    checks.append({
+        "name": "humid_air_less_dense_than_dry_equivalent",
+        "rho_humeda": r6["densidad_humeda_kg_m3"], "rho_seca_equiv": r6["densidad_seca_equivalente_kg_m3"],
+        "passed": r6["densidad_humeda_kg_m3"] < r6["densidad_seca_equivalente_kg_m3"],
+    })
+
+    # 7) modo invalido lanza excepcion
+    try:
+        compute_gas("modo_invalido", {})
+        invalid_raised = False
+    except ValueError:
+        invalid_raised = True
+    checks.append({"name": "invalid_mode_raises", "passed": invalid_raised})
+
+    all_passed = all(c["passed"] for c in checks)
+    return {"checks": checks, "validation_passed": all_passed, "all_passed": all_passed}
+
+
+# ---------------------------------------------------------------------------
 # Dispatcher principal
 # ---------------------------------------------------------------------------
 def compute_gas(mode, params=None):
@@ -468,9 +547,11 @@ def compute_gas(mode, params=None):
         return _mode_compressible(params)
     elif mode == "humidity":
         return _mode_humidity(params)
+    elif mode == "validate":
+        return _mode_validate()
     else:
         raise ValueError(
-            f"Modo desconocido: {mode}. Usar: ideal | real | mixture | kinetic | compressible | humidity"
+            f"Modo desconocido: {mode}. Usar: ideal | real | mixture | kinetic | compressible | humidity | validate"
         )
 
 
@@ -484,16 +565,17 @@ GAS_TOOL_SCHEMA = {
         "Maxwell-Boltzmann, ley de Graham, propiedades de transporte: "
         "viscosidad, conductividad termica, autodifusion), dinamica de "
         "flujo compresible (numero de Mach, proceso adiabatico, ondas de "
-        "choque normal, relacion area-Mach en toberas), fugacidad, y "
+        "choque normal, relacion area-Mach en toberas), fugacidad, "
         "humedad de mezclas gas-vapor (presion de saturacion, razon de "
-        "mezcla, densidad de aire humedo)."
+        "mezcla, densidad de aire humedo), y validate (suite de 8 checks "
+        "contra formulas de manual)."
     ),
     "inputSchema": {
         "type": "object",
         "properties": {
             "mode": {
                 "type": "string",
-                "enum": ["ideal", "real", "van_der_waals", "mixture", "kinetic", "compressible", "humidity"],
+                "enum": ["ideal", "real", "van_der_waals", "mixture", "kinetic", "compressible", "humidity", "validate"],
             },
             "params": {"type": "object"},
         },
@@ -503,8 +585,8 @@ GAS_TOOL_SCHEMA = {
 
 
 if __name__ == "__main__":
-    # smoke test rapido
-    print(compute_gas("ideal", {"P": 101325, "n": 1, "T": 273.15}))
-    print(compute_gas("real", {"eos": "van_der_waals", "n": 1, "T": 300, "a": 0.1358, "b": 3.183e-5, "P": 200000}))
-    print(compute_gas("kinetic", {"M": 0.028, "T": 300}))
-    print(compute_gas("compressible", {"gamma": 1.4, "P1": 101325, "V1": 1.0, "V2": 0.5}))
+    import json
+    d = compute_gas("validate")
+    print(json.dumps(d, indent=2, ensure_ascii=False))
+    assert d["all_passed"], "Validacion fallo, ver detalle arriba"
+    print("\nTodos los chequeos de gas_tool.py pasaron OK.")
