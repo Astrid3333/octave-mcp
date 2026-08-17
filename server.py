@@ -100,6 +100,7 @@ import droop_kelp_tool  # auto-registra via tool_registry, no requiere mas edici
 import octave_grammar_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import octave_innovation_doc_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import heating_value_tool  # auto-registra via tool_registry, no requiere mas ediciones
+import units_constants_tool  # auto-registra via tool_registry, no requiere mas ediciones
 from archaeoastronomy_tool import compute_archaeoastronomy, ARCHAEOASTRONOMY_TOOL_SCHEMA
 from quantum_information_tool import compute_quantum_information, QUANTUM_INFORMATION_TOOL_SCHEMA
 from octave_infra_tool import octave_run, octave_eval_expr, octave_run_script, octave_version
