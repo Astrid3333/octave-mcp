@@ -1,0 +1,1327 @@
+From 254a84a3073a30eefe77bc4dc5a5b24f70654f75 Mon Sep 17 00:00:00 2001
+From: Astrid3333 <desastrid.belen@gmail.com>
+Date: Mon, 17 Aug 2026 02:39:54 +0000
+Subject: [PATCH] Agrega 3 tools de energia renovable: solar, eolica, baterias
+
+- solar_radiation_tool: geometria solar (Spencer 1971), clear-sky
+  Hottel+Liu-Jordan, POA isotropico, optimizador de tilt anual
+  (dias representativos de Klein). 15 self-checks, todos pasan.
+- wind_power_curve_tool: densidad de aire ISA, potencia disponible,
+  limite de Betz, curva de potencia cubica cutin/rated/cutout,
+  Weibull, AEP via cuadratura numerica. 15 self-checks, todos pasan.
+- battery_sizing_tool: capacidad por autonomia, PV sizing por HSP,
+  vida en ciclos vs DoD por quimica (lead_acid_flooded/agm, lifepo4,
+  nmc), sizing de charge controller, balance energetico diario.
+  17 self-checks, todos pasan.
+
+Las 3 usan el patron nuevo de tool_registry (self-registro, una sola
+linea de import en server.py, sin anchors triples). Wiring en server.py
+verificado via dispatch real (tools/list + tools/call simulado, mismo
+path que un cliente MCP).
+
+Nota: server.py ya tenia un import roto preexistente (nasa_tool.py no
+esta en el repo) que impide correr server.py end-to-end en este sandbox
+-- no relacionado a este cambio, no se toco.
+---
+ battery_sizing_tool.py   | 334 +++++++++++++++++++++++
+ server.py                |   3 +
+ solar_radiation_tool.py  | 565 +++++++++++++++++++++++++++++++++++++++
+ wind_power_curve_tool.py | 359 +++++++++++++++++++++++++
+ 4 files changed, 1261 insertions(+)
+ create mode 100644 battery_sizing_tool.py
+ create mode 100644 solar_radiation_tool.py
+ create mode 100644 wind_power_curve_tool.py
+
+diff --git a/battery_sizing_tool.py b/battery_sizing_tool.py
+new file mode 100644
+index 0000000..5526317
+--- /dev/null
++++ b/battery_sizing_tool.py
+@@ -0,0 +1,334 @@
++"""
++battery_sizing_tool.py
++
++Dimensionamiento de sistemas de bateria para energia renovable aislada
++(off-grid) o respaldo -- formula cerrada, balance de energia, sin solver.
++
++Fisica/ingenieria (referencias estandar de diseno de sistemas fotovoltaicos
++aislados, ej. Sandia PV design handbooks, practica de ingenieria off-grid --
++formulas de dominio publico re-derivadas aca):
++
++  Balance de energia para autonomia (dias sin generacion):
++    Capacidad_util_kWh = Carga_diaria_kWh * dias_autonomia
++    Capacidad_nominal_kWh = Capacidad_util_kWh / (DoD * eta_bateria * eta_inversor)
++    Capacidad_nominal_Ah = Capacidad_nominal_kWh * 1000 / V_sistema
++
++  Dimensionamiento de arreglo PV para cubrir la carga diaria (metodo de
++  horas de sol pico, HSP -- estandar de diseno off-grid):
++    Potencia_pv_kW = Carga_diaria_kWh / (HSP * eta_sistema)
++    donde eta_sistema agrupa perdidas de cableado, suciedad, temperatura,
++    MPPT, inversor (tipico 0.75-0.90 combinado)
++
++  Vida util en ciclos vs profundidad de descarga (modelo empirico tipo
++  ley de potencia, ajustado a curvas de datasheet de fabricantes --
++  MUY variable segun quimica, ver data_confidence):
++    N_ciclos(DoD) = N_ref * (DoD_ref/DoD)^alpha
++    Vida_anios = N_ciclos(DoD) / ciclos_por_anio
++
++  Dimensionamiento de controlador de carga (regla NEC 690.8, factor de
++  seguridad estandar de la industria):
++    I_controlador = 1.25 * 1.25 * Isc_stc_array  (125% x 125%: uno por
++    irradiancia sobre STC en dias frios/reflectivos, otro por seguridad
++    de continuidad de la NEC)
++
++CUIDADO DE CONFIANZA DE DATOS:
++  - balance de energia (capacidad, autonomia, sizing PV por HSP): alta --
++    formula cerrada estandar de ingenieria, sin parametros empiricos de
++    fabricante mas alla de eficiencias declaradas por el usuario.
++  - ciclo de vida vs DoD: media/baja -- el exponente alpha y N_ref son
++    ajustes empiricos que varian fuertemente por quimica y fabricante
++    (plomo-acido vs LiFePO4 vs NMC difieren en mas de 10x en vida a DoD
++    profundo). Los valores default aca son ordenes de magnitud tipicos de
++    literatura, NO reemplazan la curva del datasheet real del fabricante
++    elegido -- avisar siempre si se usan para diseno final.
++"""
++import math
++
++# Ordenes de magnitud tipicos de literatura para N_ref, DoD_ref, alpha por
++# quimica (ver nota de confianza arriba -- estos son puntos de partida
++# educativos, no specs de fabricante).
++BATTERY_CHEMISTRY = {
++    "lead_acid_flooded": dict(N_ref=1200, DoD_ref=0.50, alpha=1.5, confidence="baja",
++        note="plomo-acido inundada, ciclado profundo reduce vida fuertemente (alpha alto)"),
++    "lead_acid_agm": dict(N_ref=1500, DoD_ref=0.50, alpha=1.3, confidence="baja",
++        note="plomo-acido AGM, algo mas tolerante a ciclado profundo que inundada"),
++    "lifepo4": dict(N_ref=4000, DoD_ref=0.80, alpha=0.6, confidence="media",
++        note="litio LiFePO4, tolera DoD profundo bastante mejor que plomo-acido"),
++    "nmc": dict(N_ref=2000, DoD_ref=0.80, alpha=0.8, confidence="media",
++        note="litio NMC, mayor densidad energetica pero vida algo menor que LFP a igual DoD"),
++}
++
++
++def _battery_capacity(params):
++    daily_load = params.get("daily_load_kWh")
++    autonomy = params.get("autonomy_days")
++    dod = params.get("dod")
++    eta_batt = params.get("eta_battery", 0.95)
++    eta_inv = params.get("eta_inverter", 0.95)
++    v_sys = params.get("system_voltage_V")
++    if daily_load is None or autonomy is None or dod is None:
++        raise ValueError("battery_capacity requiere daily_load_kWh, autonomy_days, dod")
++    if not (0 < dod <= 1):
++        raise ValueError("dod debe estar en (0, 1]")
++
++    usable_kwh = daily_load * autonomy
++    nominal_kwh = usable_kwh / (dod * eta_batt * eta_inv)
++    result = {
++        "daily_load_kWh": daily_load, "autonomy_days": autonomy, "dod": dod,
++        "eta_battery": eta_batt, "eta_inverter": eta_inv,
++        "usable_capacity_kWh": round(usable_kwh, 3),
++        "nominal_capacity_kWh": round(nominal_kwh, 3),
++    }
++    if v_sys:
++        result["system_voltage_V"] = v_sys
++        result["nominal_capacity_Ah"] = round(nominal_kwh * 1000 / v_sys, 2)
++    return result
++
++
++def _pv_array_sizing(params):
++    daily_load = params.get("daily_load_kWh")
++    psh = params.get("peak_sun_hours")
++    eta_sys = params.get("eta_system", 0.80)
++    if daily_load is None or psh is None:
++        raise ValueError("pv_array_sizing requiere daily_load_kWh y peak_sun_hours")
++    if psh <= 0:
++        raise ValueError("peak_sun_hours debe ser > 0")
++    p_pv_kw = daily_load / (psh * eta_sys)
++    return {
++        "daily_load_kWh": daily_load, "peak_sun_hours": psh, "eta_system": eta_sys,
++        "pv_array_power_kW": round(p_pv_kw, 4),
++        "note": "eta_system agrupa cableado+suciedad+temperatura+MPPT+inversor; "
++                "tipico 0.75-0.90 combinado, default 0.80.",
++    }
++
++
++def _cycle_life(params):
++    chem = params.get("chemistry")
++    dod = params.get("dod")
++    cycles_per_year = params.get("cycles_per_year", 365)
++    if chem is None or dod is None:
++        raise ValueError("cycle_life_estimate requiere chemistry y dod")
++    if chem not in BATTERY_CHEMISTRY:
++        raise ValueError(f"chemistry desconocida: {chem!r}. Disponibles: {sorted(BATTERY_CHEMISTRY)}")
++    if not (0 < dod <= 1):
++        raise ValueError("dod debe estar en (0, 1]")
++    c = BATTERY_CHEMISTRY[chem]
++    n_cycles = c["N_ref"] * (c["DoD_ref"] / dod) ** c["alpha"]
++    life_years = n_cycles / cycles_per_year
++    return {
++        "chemistry": chem, "dod": dod, "cycles_per_year": cycles_per_year,
++        "estimated_cycles": round(n_cycles, 0),
++        "estimated_life_years": round(life_years, 2),
++        "reference_point": {"N_ref_cycles": c["N_ref"], "DoD_ref": c["DoD_ref"], "alpha": c["alpha"]},
++        "data_confidence": c["confidence"],
++        "note": c["note"] + ". Modelo ley de potencia calibrado a un punto de "
++                "referencia -- verificar siempre contra la curva de ciclado del "
++                "datasheet del fabricante especifico antes de un diseno final.",
++    }
++
++
++def _charge_controller_sizing(params):
++    isc = params.get("array_isc_A")
++    if isc is None:
++        raise ValueError("charge_controller_sizing requiere array_isc_A")
++    safety_irradiance = params.get("safety_factor_irradiance", 1.25)
++    safety_nec = params.get("safety_factor_continuous", 1.25)
++    i_controller = isc * safety_irradiance * safety_nec
++    return {
++        "array_isc_A": isc,
++        "safety_factor_irradiance": safety_irradiance,
++        "safety_factor_continuous": safety_nec,
++        "min_controller_current_A": round(i_controller, 2),
++        "note": "Regla estandar de la industria (NEC 690.8 estilo): 125% por "
++                "irradiancia sobre STC en dias frios/reflectivos, x 125% adicional "
++                "por seguridad de operacion continua.",
++    }
++
++
++def _energy_balance_mode(params):
++    """Balance simple: dado consumo diario, generacion PV diaria estimada
++    (potencia_pv * HSP * eta_sistema) y capacidad de bateria, calcula el
++    excedente/deficit diario y cuantos dias de autonomia real cubre la
++    bateria instalada frente al consumo dado."""
++    daily_load = params.get("daily_load_kWh")
++    pv_power_kw = params.get("pv_array_power_kW")
++    psh = params.get("peak_sun_hours")
++    eta_sys = params.get("eta_system", 0.80)
++    battery_kwh = params.get("battery_nominal_capacity_kWh")
++    dod = params.get("dod", 0.5)
++    eta_batt = params.get("eta_battery", 0.95)
++    eta_inv = params.get("eta_inverter", 0.95)
++    if None in (daily_load, pv_power_kw, psh, battery_kwh):
++        raise ValueError("energy_balance requiere daily_load_kWh, pv_array_power_kW, "
++                          "peak_sun_hours, battery_nominal_capacity_kWh")
++    daily_gen = pv_power_kw * psh * eta_sys
++    surplus = daily_gen - daily_load
++    usable_battery = battery_kwh * dod * eta_batt * eta_inv
++    autonomy_covered_days = usable_battery / daily_load if daily_load > 0 else float("inf")
++    return {
++        "daily_load_kWh": daily_load, "daily_generation_kWh": round(daily_gen, 3),
++        "daily_surplus_kWh": round(surplus, 3),
++        "usable_battery_kWh": round(usable_battery, 3),
++        "autonomy_covered_days": round(autonomy_covered_days, 2),
++        "balance_status": "superavit" if surplus >= 0 else "deficit",
++    }
++
++
++def _validate():
++    checks = []
++
++    # 1) Consistencia: battery_capacity con eta=1 y dod=1 -> nominal == usable
++    r1 = _battery_capacity({"daily_load_kWh": 10.0, "autonomy_days": 2, "dod": 1.0,
++                              "eta_battery": 1.0, "eta_inverter": 1.0})
++    checks.append({"case": "dod=1, eta=1: capacidad nominal == capacidad util (20 kWh)",
++                    "got": r1["nominal_capacity_kWh"], "expected": 20.0,
++                    "ok": abs(r1["nominal_capacity_kWh"] - 20.0) < 1e-9})
++
++    # 2) Menor DoD (mas conservador) requiere mas capacidad nominal para la
++    # misma autonomia util -- monotonicidad fisica
++    r_dod_low = _battery_capacity({"daily_load_kWh": 10.0, "autonomy_days": 2, "dod": 0.3})
++    r_dod_high = _battery_capacity({"daily_load_kWh": 10.0, "autonomy_days": 2, "dod": 0.9})
++    checks.append({"case": "menor DoD => mayor capacidad nominal requerida (misma carga/autonomia)",
++                    "got": r_dod_low["nominal_capacity_kWh"], "expected_greater_than": r_dod_high["nominal_capacity_kWh"],
++                    "ok": r_dod_low["nominal_capacity_kWh"] > r_dod_high["nominal_capacity_kWh"]})
++
++    # 3) Ah = kWh*1000/V, chequeo aritmetico directo
++    r3 = _battery_capacity({"daily_load_kWh": 5.0, "autonomy_days": 3, "dod": 0.5,
++                              "eta_battery": 0.9, "eta_inverter": 0.9, "system_voltage_V": 48})
++    expected_ah = r3["nominal_capacity_kWh"] * 1000 / 48
++    checks.append({"case": "conversion kWh->Ah consistente con V_sistema",
++                    "got": r3["nominal_capacity_Ah"], "expected": round(expected_ah, 2),
++                    "ok": abs(r3["nominal_capacity_Ah"] - expected_ah) < 0.01})
++
++    # 4) PV sizing: mas horas de sol pico (mismo consumo) => menor potencia PV requerida
++    r4a = _pv_array_sizing({"daily_load_kWh": 10.0, "peak_sun_hours": 3.0})
++    r4b = _pv_array_sizing({"daily_load_kWh": 10.0, "peak_sun_hours": 6.0})
++    checks.append({"case": "mas HSP => menor potencia PV requerida (mismo consumo)",
++                    "got": r4b["pv_array_power_kW"], "expected_less_than": r4a["pv_array_power_kW"],
++                    "ok": r4b["pv_array_power_kW"] < r4a["pv_array_power_kW"]})
++    # chequeo aritmetico directo del caso simple eta=1
++    r4c = _pv_array_sizing({"daily_load_kWh": 12.0, "peak_sun_hours": 4.0, "eta_system": 1.0})
++    checks.append({"case": "PV sizing aritmetica directa (eta=1): 12kWh/4HSP=3kW",
++                    "got": r4c["pv_array_power_kW"], "expected": 3.0, "ok": abs(r4c["pv_array_power_kW"] - 3.0) < 1e-9})
++
++    # 5) Cycle life: DoD menor => mas ciclos de vida estimados (monotonicidad,
++    # todas las quimicas de la tabla siguen alpha>0)
++    for chem in BATTERY_CHEMISTRY:
++        r_shallow = _cycle_life({"chemistry": chem, "dod": 0.2})
++        r_deep = _cycle_life({"chemistry": chem, "dod": 0.8})
++        checks.append({"case": f"{chem}: DoD bajo (0.2) da mas ciclos que DoD profundo (0.8)",
++                        "got": r_shallow["estimated_cycles"], "expected_greater_than": r_deep["estimated_cycles"],
++                        "ok": r_shallow["estimated_cycles"] > r_deep["estimated_cycles"]})
++
++    # 6) Cycle life: en DoD == DoD_ref, ciclos == N_ref exacto (por construccion
++    # de la formula de ley de potencia)
++    for chem, c in BATTERY_CHEMISTRY.items():
++        r_ref = _cycle_life({"chemistry": chem, "dod": c["DoD_ref"]})
++        checks.append({"case": f"{chem}: en DoD==DoD_ref, ciclos==N_ref exacto",
++                        "got": r_ref["estimated_cycles"], "expected": float(c["N_ref"]),
++                        "ok": abs(r_ref["estimated_cycles"] - c["N_ref"]) < 1.0})
++
++    # 7) Charge controller: caso simple con factores 1.0 -> igual a Isc
++    r7 = _charge_controller_sizing({"array_isc_A": 10.0, "safety_factor_irradiance": 1.0,
++                                      "safety_factor_continuous": 1.0})
++    checks.append({"case": "charge controller con factores=1.0 == Isc",
++                    "got": r7["min_controller_current_A"], "expected": 10.0,
++                    "ok": abs(r7["min_controller_current_A"] - 10.0) < 1e-9})
++    # caso default NEC-style: 10A * 1.25 * 1.25 = 15.625A
++    r7b = _charge_controller_sizing({"array_isc_A": 10.0})
++    checks.append({"case": "charge controller default (1.25x1.25): 10A -> 15.625A",
++                    "got": r7b["min_controller_current_A"], "expected": 15.625,
++                    "ok": abs(r7b["min_controller_current_A"] - 15.625) < 0.01})
++
++    # 8) Energy balance: generacion == consumo exacto -> surplus 0, status superavit
++    # (por convencion >=0 es superavit)
++    r8 = _energy_balance_mode({"daily_load_kWh": 10.0, "pv_array_power_kW": 2.5,
++                                 "peak_sun_hours": 5.0, "eta_system": 0.8,
++                                 "battery_nominal_capacity_kWh": 10.0})
++    # daily_gen = 2.5*5*0.8=10.0 == daily_load=10.0
++    checks.append({"case": "energy_balance: generacion==consumo -> surplus~0",
++                    "got": r8["daily_surplus_kWh"], "expected": 0.0, "ok": abs(r8["daily_surplus_kWh"]) < 1e-9})
++    checks.append({"case": "energy_balance: surplus>=0 clasifica como superavit",
++                    "got": r8["balance_status"], "expected": "superavit", "ok": r8["balance_status"] == "superavit"})
++
++    return {"validate": True, "all_passed": all(c["ok"] for c in checks), "checks": checks}
++
++
++def compute_battery_sizing(mode, params=None):
++    params = params or {}
++    if mode == "battery_capacity":
++        return _battery_capacity(params)
++    elif mode == "pv_array_sizing":
++        return _pv_array_sizing(params)
++    elif mode == "cycle_life_estimate":
++        return _cycle_life(params)
++    elif mode == "charge_controller_sizing":
++        return _charge_controller_sizing(params)
++    elif mode == "energy_balance":
++        return _energy_balance_mode(params)
++    elif mode == "validate":
++        return _validate()
++    else:
++        raise ValueError(
++            f"mode desconocido: {mode!r}. Valores validos: battery_capacity, "
++            f"pv_array_sizing, cycle_life_estimate, charge_controller_sizing, "
++            f"energy_balance, validate."
++        )
++
++
++BATTERY_SIZING_TOOL_SCHEMA = {
++    "type": "object",
++    "properties": {
++        "mode": {
++            "type": "string",
++            "enum": ["battery_capacity", "pv_array_sizing", "cycle_life_estimate",
++                     "charge_controller_sizing", "energy_balance", "validate"],
++            "default": "battery_capacity",
++        },
++        "daily_load_kWh": {"type": "number"},
++        "autonomy_days": {"type": "number"},
++        "dod": {"type": "number", "description": "Profundidad de descarga, 0-1."},
++        "eta_battery": {"type": "number", "default": 0.95},
++        "eta_inverter": {"type": "number", "default": 0.95},
++        "system_voltage_V": {"type": "number", "description": "Opcional, para convertir a Ah."},
++        "peak_sun_hours": {"type": "number", "description": "HSP del sitio, kWh/m2/dia numericamente."},
++        "eta_system": {"type": "number", "default": 0.80, "description": "Eficiencia combinada del sistema PV."},
++        "chemistry": {"type": "string", "enum": sorted(BATTERY_CHEMISTRY)},
++        "cycles_per_year": {"type": "number", "default": 365},
++        "array_isc_A": {"type": "number", "description": "Corriente de cortocircuito del arreglo PV en STC."},
++        "safety_factor_irradiance": {"type": "number", "default": 1.25},
++        "safety_factor_continuous": {"type": "number", "default": 1.25},
++        "pv_array_power_kW": {"type": "number", "description": "Solo energy_balance."},
++        "battery_nominal_capacity_kWh": {"type": "number", "description": "Solo energy_balance."},
++    },
++    "required": ["mode"],
++}
++
++
++try:
++    from tool_registry import register_tool
++    register_tool(
++        name="battery_sizing_tool",
++        schema={
++            "name": "battery_sizing_tool",
++            "description": (
++                "Dimensionamiento de sistemas de bateria para energia renovable "
++                "aislada: capacidad por autonomia (battery_capacity), potencia de "
++                "arreglo PV por horas de sol pico (pv_array_sizing), estimacion de "
++                "vida en ciclos vs profundidad de descarga por quimica "
++                "(cycle_life_estimate: lead_acid_flooded, lead_acid_agm, lifepo4, nmc), "
++                "dimensionamiento de controlador de carga (charge_controller_sizing) "
++                "y balance diario generacion vs consumo (energy_balance). Formula "
++                "cerrada, sin solver."
++            ),
++            "inputSchema": BATTERY_SIZING_TOOL_SCHEMA,
++        },
++        handler=lambda args: compute_battery_sizing(args.get("mode"), args),
++    )
++except ImportError:
++    pass
++
++
++if __name__ == "__main__":
++    import json
++    print(json.dumps(compute_battery_sizing("validate"), indent=2, ensure_ascii=False))
+diff --git a/server.py b/server.py
+index f71eb57..46ad5b2 100644
+--- a/server.py
++++ b/server.py
+@@ -105,6 +105,9 @@ import report_generator_tool  # auto-registra via tool_registry, no requiere mas
+ import arxiv_tool  # auto-registra via tool_registry, no requiere mas ediciones
+ import nasa_tool  # auto-registra via tool_registry, no requiere mas ediciones
+ import parallel_task_runner_tool  # auto-registra via tool_registry, no requiere mas ediciones
++import solar_radiation_tool  # auto-registra via tool_registry, no requiere mas ediciones
++import wind_power_curve_tool  # auto-registra via tool_registry, no requiere mas ediciones
++import battery_sizing_tool  # auto-registra via tool_registry, no requiere mas ediciones
+ from archaeoastronomy_tool import compute_archaeoastronomy, ARCHAEOASTRONOMY_TOOL_SCHEMA
+ from quantum_information_tool import compute_quantum_information, QUANTUM_INFORMATION_TOOL_SCHEMA
+ from octave_infra_tool import octave_run, octave_eval_expr, octave_run_script, octave_version
+diff --git a/solar_radiation_tool.py b/solar_radiation_tool.py
+new file mode 100644
+index 0000000..5e15140
+--- /dev/null
++++ b/solar_radiation_tool.py
+@@ -0,0 +1,565 @@
++"""
++solar_radiation_tool.py
++
++Geometria solar y radiacion en cielo despejado -- formula cerrada, sin
++datos meteorologicos externos, sin solver. Todo lo que necesita es
++lat/lon, dia del anio y hora; el modelo de cielo despejado (Hottel 1976)
++solo necesita altitud y un tipo de clima tabulado.
++
++Referencias (textbook estandar de ingenieria solar, formulas de dominio
++publico re-derivadas aca, no texto copiado):
++  - Duffie & Beckman, "Solar Engineering of Thermal Processes" -- geometria
++    solar (declinacion/EoT de Spencer 1971), incidencia sobre superficie
++    inclinada, modelo isotropico de cielo difuso (Liu & Jordan 1963).
++  - Hottel (1976) "A simple model for estimating the transmittance of
++    direct solar radiation through clear atmospheres" -- tau_b(altitud,
++    clima), tau_d de Liu-Jordan (1960).
++
++Convenciones (Duffie & Beckman):
++  - latitud: + norte, - sur.
++  - beta (tilt): 0=horizontal, 90=vertical.
++  - gamma (azimut de superficie): 0 = mirando al ecuador (sur en
++    hemisferio norte, norte en hemisferio sur), + hacia el oeste.
++  - hora angular H: 0 al mediodia solar, +/-15 grados por hora
++    (matutino negativo).
++  - "hora solar" (solar_time_hr) = tiempo solar aparente local, NO hora
++    de reloj. El modo solar_time convierte hora de reloj -> hora solar
++    usando la ecuacion del tiempo + correccion de longitud.
++
++CUIDADO DE CONFIANZA DE DATOS:
++  - geometria solar (declinacion, EoT, posicion del sol): alta -- formulas
++    de Spencer, error tipico < 0.01 grado en declinacion, < 1 min en EoT,
++    validadas aca contra los casos limite de equinoccio/solsticio.
++  - clear-sky Hottel: media -- el propio modelo tiene +/-15% de incertidumbre
++    documentada en la literatura contra medicion real, aun en cielo
++    perfectamente despejado (variabilidad atmosferica no capturada por
++    4 climas tabulados). Sirve para diseno preliminar, no para prediccion
++    de produccion energetica de precision.
++"""
++import math
++
++SOLAR_CONSTANT = 1367.0  # W/m^2 (Gsc, valor clasico de ingenieria, Duffie&Beckman)
++
++# Dias representativos "promedio del mes" de Klein (1977), usados en
++# ingenieria solar para aproximar el comportamiento anual con 12 puntos
++# en vez de integrar los 365 dias.
++KLEIN_REPRESENTATIVE_DAYS = [17, 47, 75, 105, 135, 162, 198, 228, 258, 288, 318, 344]
++
++# Hottel (1976), tabla de correccion por clima (r0, r1, rk) sobre los
++# coeficientes de atmosfera estandar a0*, a1*, k*. Altitud de referencia
++# 0 = nivel del mar.
++HOTTEL_CLIMATES = {
++    "tropical": dict(r0=0.95, r1=0.98, rk=1.02),
++    "midlatitude_summer": dict(r0=0.97, r1=0.99, rk=1.02),
++    "subarctic_summer": dict(r0=0.99, r1=0.99, rk=1.01),
++    "midlatitude_winter": dict(r0=1.03, r1=1.01, rk=1.00),
++}
++
++D2R = math.pi / 180.0
++R2D = 180.0 / math.pi
++
++
++def _B(n):
++    """Angulo del dia (radianes), Spencer 1971. n = dia del anio (1-365)."""
++    return 2 * math.pi * (n - 1) / 365.0
++
++
++def _declination_deg(n):
++    """Declinacion solar (grados), serie de Spencer 1971 -- error < 0.0006 rad
++    (~0.03 grados), mucho mas precisa que la formula simple de Cooper
++    (23.45*sin(360(284+n)/365)) que se usa a veces como aproximacion rapida."""
++    B = _B(n)
++    delta = (0.006918 - 0.399912 * math.cos(B) + 0.070257 * math.sin(B)
++              - 0.006758 * math.cos(2 * B) + 0.000907 * math.sin(2 * B)
++              - 0.002697 * math.cos(3 * B) + 0.00148 * math.sin(3 * B))
++    return delta * R2D
++
++
++def _equation_of_time_min(n):
++    """Ecuacion del tiempo (minutos), Spencer 1971."""
++    B = _B(n)
++    return 229.18 * (0.000075 + 0.001868 * math.cos(B) - 0.032077 * math.sin(B)
++                      - 0.014615 * math.cos(2 * B) - 0.04089 * math.sin(2 * B))
++
++
++def _eccentricity_factor(n):
++    """E0 = (Gon/Gsc), correccion de excentricidad orbital, Spencer 1971."""
++    B = _B(n)
++    return (1.00011 + 0.034221 * math.cos(B) + 0.00128 * math.sin(B)
++            + 0.000719 * math.cos(2 * B) + 0.000077 * math.sin(2 * B))
++
++
++def _solar_time_hr(clock_time_hr, longitude_deg, std_meridian_deg, n):
++    eot = _equation_of_time_min(n)
++    correction_min = 4 * (std_meridian_deg - longitude_deg) + eot
++    return clock_time_hr + correction_min / 60.0
++
++
++def _hour_angle_deg(solar_time_hr):
++    return 15.0 * (solar_time_hr - 12.0)
++
++
++def _sun_position(lat_deg, n, solar_time_hr):
++    """Devuelve (altitud, azimut, zenit) en grados. Azimut medido desde el
++    sur (convencion Duffie&Beckman), + hacia el oeste."""
++    lat = lat_deg * D2R
++    dec = _declination_deg(n) * D2R
++    H = _hour_angle_deg(solar_time_hr) * D2R
++
++    cos_theta_z = math.sin(lat) * math.sin(dec) + math.cos(lat) * math.cos(dec) * math.cos(H)
++    cos_theta_z = max(-1.0, min(1.0, cos_theta_z))
++    theta_z = math.acos(cos_theta_z)
++    altitude = math.pi / 2 - theta_z
++
++    if math.cos(altitude) < 1e-9:
++        azimuth = 0.0
++    else:
++        cos_gamma_s = (cos_theta_z * math.sin(lat) - math.sin(dec)) / (math.cos(altitude) * math.cos(lat))
++        cos_gamma_s = max(-1.0, min(1.0, cos_gamma_s))
++        gamma_s = math.acos(cos_gamma_s)
++        # signo: manana (H<0) azimut negativo (este), tarde (H>0) positivo (oeste)
++        if H < 0:
++            gamma_s = -gamma_s
++        azimuth = gamma_s
++
++    return altitude * R2D, azimuth * R2D, theta_z * R2D
++
++
++def _incidence_angle_deg(lat_deg, n, solar_time_hr, beta_deg, gamma_deg):
++    """Angulo de incidencia sobre superficie con tilt beta y azimut gamma
++    (0=mirando al ecuador). Formula general de Duffie&Beckman Eq. 1.6.2."""
++    lat = lat_deg * D2R
++    dec = _declination_deg(n) * D2R
++    H = _hour_angle_deg(solar_time_hr) * D2R
++    beta = beta_deg * D2R
++    gamma = gamma_deg * D2R
++
++    cos_theta = (math.sin(dec) * math.sin(lat) * math.cos(beta)
++                 - math.sin(dec) * math.cos(lat) * math.sin(beta) * math.cos(gamma)
++                 + math.cos(dec) * math.cos(lat) * math.cos(beta) * math.cos(H)
++                 + math.cos(dec) * math.sin(lat) * math.sin(beta) * math.cos(gamma) * math.cos(H)
++                 + math.cos(dec) * math.sin(beta) * math.sin(gamma) * math.sin(H))
++    cos_theta = max(-1.0, min(1.0, cos_theta))
++    return math.acos(cos_theta) * R2D
++
++
++def _sunset_hour_angle_deg(lat_deg, n):
++    lat = lat_deg * D2R
++    dec = _declination_deg(n) * D2R
++    cos_ws = -math.tan(lat) * math.tan(dec)
++    if cos_ws <= -1.0:
++        return 180.0  # sol de medianoche
++    if cos_ws >= 1.0:
++        return 0.0    # noche polar
++    return math.acos(cos_ws) * R2D
++
++
++def _sun_times(params):
++    lat = params.get("latitude_deg")
++    n = params.get("day_of_year")
++    if lat is None or n is None:
++        raise ValueError("sun_times requiere latitude_deg y day_of_year")
++    ws = _sunset_hour_angle_deg(lat, n)
++    day_length_hr = 2 * ws / 15.0
++    sunrise = 12.0 - ws / 15.0
++    sunset = 12.0 + ws / 15.0
++    return {
++        "latitude_deg": lat, "day_of_year": n,
++        "declination_deg": round(_declination_deg(n), 4),
++        "equation_of_time_min": round(_equation_of_time_min(n), 3),
++        "sunset_hour_angle_deg": round(ws, 4),
++        "sunrise_solar_time_hr": round(sunrise, 4),
++        "sunset_solar_time_hr": round(sunset, 4),
++        "day_length_hr": round(day_length_hr, 4),
++    }
++
++
++def _solar_time_mode(params):
++    required = ["clock_time_hr", "longitude_deg", "std_meridian_deg", "day_of_year"]
++    missing = [k for k in required if params.get(k) is None]
++    if missing:
++        raise ValueError(f"solar_time requiere: {', '.join(missing)}")
++    st = _solar_time_hr(params["clock_time_hr"], params["longitude_deg"],
++                         params["std_meridian_deg"], params["day_of_year"])
++    return {
++        "clock_time_hr": params["clock_time_hr"],
++        "equation_of_time_min": round(_equation_of_time_min(params["day_of_year"]), 3),
++        "longitude_correction_min": round(4 * (params["std_meridian_deg"] - params["longitude_deg"]), 3),
++        "solar_time_hr": round(st, 4),
++        "note": "std_meridian_deg = 15 * offset_UTC_horas (ej. Chile continental "
++                "UTC-4 -> -60; positivo al este de Greenwich).",
++    }
++
++
++def _solar_position_mode(params):
++    lat = params.get("latitude_deg")
++    n = params.get("day_of_year")
++    st = params.get("solar_time_hr")
++    if lat is None or n is None or st is None:
++        raise ValueError("solar_position requiere latitude_deg, day_of_year, solar_time_hr")
++    alt, az, zen = _sun_position(lat, n, st)
++    result = {
++        "latitude_deg": lat, "day_of_year": n, "solar_time_hr": st,
++        "declination_deg": round(_declination_deg(n), 4),
++        "hour_angle_deg": round(_hour_angle_deg(st), 4),
++        "solar_altitude_deg": round(alt, 4),
++        "solar_zenith_deg": round(zen, 4),
++        "solar_azimuth_deg": round(az, 4),
++        "sun_is_up": alt > 0,
++    }
++    beta = params.get("beta_deg")
++    gamma = params.get("gamma_deg", 0.0)
++    if beta is not None:
++        result["surface_tilt_deg"] = beta
++        result["surface_azimuth_deg"] = gamma
++        result["incidence_angle_deg"] = round(_incidence_angle_deg(lat, n, st, beta, gamma), 4)
++    return result
++
++
++def _clearsky_beam_diffuse(lat_deg, n, solar_time_hr, altitude_km=0.0, climate="midlatitude_summer"):
++    """Nucleo Hottel (1976) + Liu-Jordan (1960). Devuelve (I_bn, I_b_horiz,
++    I_d_horiz, I_global_horiz) en W/m^2. Si el sol esta bajo el horizonte,
++    todo es 0."""
++    if climate not in HOTTEL_CLIMATES:
++        raise ValueError(f"clima desconocido: {climate!r}. Disponibles: {sorted(HOTTEL_CLIMATES)}")
++    alt, _, _ = _sun_position(lat_deg, n, solar_time_hr)
++    if alt <= 0:
++        return 0.0, 0.0, 0.0, 0.0
++
++    A = altitude_km
++    a0s = 0.4237 - 0.00821 * (6 - A) ** 2
++    a1s = 0.5055 + 0.00595 * (6.5 - A) ** 2
++    ks = 0.2711 + 0.01858 * (2.5 - A) ** 2
++    c = HOTTEL_CLIMATES[climate]
++    a0, a1, k = c["r0"] * a0s, c["r1"] * a1s, c["rk"] * ks
++
++    sin_alt = math.sin(alt * D2R)
++    tau_b = a0 + a1 * math.exp(-k / sin_alt)
++    tau_d = 0.2710 - 0.2939 * tau_b  # Liu-Jordan, diffuse transmittance en cielo despejado
++
++    G0n = SOLAR_CONSTANT * _eccentricity_factor(n)
++    I_bn = G0n * tau_b
++    I_b_h = I_bn * sin_alt
++    I_d_h = G0n * tau_d * sin_alt
++    return I_bn, I_b_h, I_d_h, I_b_h + I_d_h
++
++
++def _clearsky_mode(params):
++    lat = params.get("latitude_deg")
++    n = params.get("day_of_year")
++    st = params.get("solar_time_hr")
++    if lat is None or n is None or st is None:
++        raise ValueError("clearsky_irradiance requiere latitude_deg, day_of_year, solar_time_hr")
++    alt_km = params.get("altitude_km", 0.0)
++    climate = params.get("climate", "midlatitude_summer")
++    I_bn, I_bh, I_dh, I_gh = _clearsky_beam_diffuse(lat, n, st, alt_km, climate)
++    return {
++        "latitude_deg": lat, "day_of_year": n, "solar_time_hr": st,
++        "climate": climate, "altitude_km": alt_km,
++        "solar_altitude_deg": round(_sun_position(lat, n, st)[0], 4),
++        "beam_normal_Wm2": round(I_bn, 2),
++        "beam_horizontal_Wm2": round(I_bh, 2),
++        "diffuse_horizontal_Wm2": round(I_dh, 2),
++        "global_horizontal_Wm2": round(I_gh, 2),
++        "data_confidence": "media",
++        "note": "Modelo Hottel de cielo despejado: +/-15% de incertidumbre tipica "
++                "documentada en literatura incluso en dia realmente despejado. Para "
++                "diseno preliminar, no reemplaza datos TMY/satelitales.",
++    }
++
++
++def _poa_irradiance(lat_deg, n, solar_time_hr, beta_deg, gamma_deg, altitude_km=0.0,
++                      climate="midlatitude_summer", albedo=0.2):
++    """Irradiancia total sobre plano inclinado (POA), modelo isotropico de
++    cielo difuso (Liu & Jordan 1963): I_poa = beam + diffuse_isotropic + reflejo_suelo."""
++    I_bn, I_bh, I_dh, I_gh = _clearsky_beam_diffuse(lat_deg, n, solar_time_hr, altitude_km, climate)
++    if I_bn == 0.0 and I_gh == 0.0:
++        return 0.0, 0.0, 0.0, 0.0
++    theta = _incidence_angle_deg(lat_deg, n, solar_time_hr, beta_deg, gamma_deg)
++    cos_theta = max(0.0, math.cos(theta * D2R))  # sin luz directa si el sol queda detras del plano
++
++    beta = beta_deg * D2R
++    I_beam_t = I_bn * cos_theta
++    I_diff_t = I_dh * (1 + math.cos(beta)) / 2.0
++    I_refl_t = I_gh * albedo * (1 - math.cos(beta)) / 2.0
++    return I_beam_t, I_diff_t, I_refl_t, I_beam_t + I_diff_t + I_refl_t
++
++
++def _poa_mode(params):
++    lat = params.get("latitude_deg")
++    n = params.get("day_of_year")
++    st = params.get("solar_time_hr")
++    beta = params.get("beta_deg")
++    if lat is None or n is None or st is None or beta is None:
++        raise ValueError("poa_irradiance requiere latitude_deg, day_of_year, solar_time_hr, beta_deg")
++    gamma = params.get("gamma_deg", 0.0 if lat >= 0 else 180.0)
++    alt_km = params.get("altitude_km", 0.0)
++    climate = params.get("climate", "midlatitude_summer")
++    albedo = params.get("albedo", 0.2)
++    beam, diff, refl, total = _poa_irradiance(lat, n, st, beta, gamma, alt_km, climate, albedo)
++    return {
++        "latitude_deg": lat, "day_of_year": n, "solar_time_hr": st,
++        "beta_deg": beta, "gamma_deg": gamma, "albedo": albedo,
++        "poa_beam_Wm2": round(beam, 2),
++        "poa_diffuse_Wm2": round(diff, 2),
++        "poa_ground_reflected_Wm2": round(refl, 2),
++        "poa_total_Wm2": round(total, 2),
++        "data_confidence": "media",
++        "note": "Cielo difuso isotropico (Liu-Jordan); no incluye componente "
++                "circumsolar/horizonte (modelos anisotropicos tipo Hay-Davies "
++                "darian un pequenio ajuste extra, tipicamente <5% en cielo despejado).",
++    }
++
++
++def _daily_energy_kwh_m2(lat_deg, n, beta_deg, gamma_deg, altitude_km=0.0,
++                           climate="midlatitude_summer", albedo=0.2, n_samples=97):
++    """Integra la POA total a lo largo del dia (regla del trapecio, muestreo
++    uniforme en hora solar 0-24h) y devuelve energia diaria en kWh/m^2."""
++    times = [24.0 * i / (n_samples - 1) for i in range(n_samples)]
++    values = []
++    for t in times:
++        _, _, _, total = _poa_irradiance(lat_deg, n, t, beta_deg, gamma_deg, altitude_km, climate, albedo)
++        values.append(total)
++    # trapecio
++    dt_hr = times[1] - times[0]
++    energy_Wh_m2 = 0.0
++    for i in range(len(values) - 1):
++        energy_Wh_m2 += (values[i] + values[i + 1]) / 2.0 * dt_hr
++    return energy_Wh_m2 / 1000.0
++
++
++def _daily_energy_mode(params):
++    lat = params.get("latitude_deg")
++    n = params.get("day_of_year")
++    beta = params.get("beta_deg")
++    if lat is None or n is None or beta is None:
++        raise ValueError("daily_energy requiere latitude_deg, day_of_year, beta_deg")
++    gamma = params.get("gamma_deg", 0.0 if lat >= 0 else 180.0)
++    alt_km = params.get("altitude_km", 0.0)
++    climate = params.get("climate", "midlatitude_summer")
++    albedo = params.get("albedo", 0.2)
++    e = _daily_energy_kwh_m2(lat, n, beta, gamma, alt_km, climate, albedo)
++    return {
++        "latitude_deg": lat, "day_of_year": n, "beta_deg": beta, "gamma_deg": gamma,
++        "daily_energy_kWh_m2": round(e, 4),
++        "data_confidence": "media",
++    }
++
++
++def _optimize_tilt_mode(params):
++    lat = params.get("latitude_deg")
++    if lat is None:
++        raise ValueError("optimize_tilt requiere latitude_deg")
++    gamma = params.get("gamma_deg", 0.0 if lat >= 0 else 180.0)
++    alt_km = params.get("altitude_km", 0.0)
++    climate = params.get("climate", "midlatitude_summer")
++    albedo = params.get("albedo", 0.2)
++    period = params.get("period", "annual")  # "annual" o day_of_year especifico
++    beta_step = params.get("beta_step_deg", 1.0)
++
++    if period == "annual":
++        days = KLEIN_REPRESENTATIVE_DAYS
++    else:
++        days = [int(period)]
++
++    betas = [i * beta_step for i in range(int(90 / beta_step) + 1)]
++    best_beta, best_energy = None, -1.0
++    curve = []
++    for beta in betas:
++        total = sum(_daily_energy_kwh_m2(lat, n, beta, gamma, alt_km, climate, albedo) for n in days)
++        avg_daily = total / len(days)
++        curve.append({"beta_deg": beta, "avg_daily_energy_kWh_m2": round(avg_daily, 4)})
++        if avg_daily > best_energy:
++            best_energy = avg_daily
++            best_beta = beta
++
++    return {
++        "latitude_deg": lat, "gamma_deg": gamma, "period": period,
++        "optimal_beta_deg": best_beta,
++        "optimal_avg_daily_energy_kWh_m2": round(best_energy, 4),
++        "rule_of_thumb_beta_deg": round(abs(lat), 2),
++        "note": "rule_of_thumb_beta_deg = |latitud| es la heuristica clasica de "
++                "ingenieria para tilt fijo optimo anual; el optimo calculado deberia "
++                "quedar cerca (tipicamente dentro de +/-10-15 grados, la diferencia "
++                "viene de la asimetria estacional del clima Hottel elegido).",
++        "sweep_beta_step_deg": beta_step,
++        "curve": curve,
++    }
++
++
++def _validate():
++    checks = []
++
++    # 1) Declinacion ~0 en equinoccio (20 marzo aprox, n=79) y ~+23.45 en
++    # solsticio de junio (n=172), ~-23.45 en solsticio de diciembre (n=355)
++    d_eq = _declination_deg(79)
++    checks.append({"case": "declinacion en equinoccio marzo (n=79) ~ 0",
++                    "got": round(d_eq, 3), "expected": 0.0, "ok": abs(d_eq) < 1.0})
++    d_jun = _declination_deg(172)
++    checks.append({"case": "declinacion en solsticio junio (n=172) ~ +23.45",
++                    "got": round(d_jun, 3), "expected": 23.45, "ok": abs(d_jun - 23.45) < 0.5})
++    d_dec = _declination_deg(355)
++    checks.append({"case": "declinacion en solsticio diciembre (n=355) ~ -23.45",
++                    "got": round(d_dec, 3), "expected": -23.45, "ok": abs(d_dec + 23.45) < 0.5})
++
++    # 2) En el ecuador, equinoccio, mediodia solar: sol en el cenit (altitud=90)
++    alt, az, zen = _sun_position(0.0, 79, 12.0)
++    checks.append({"case": "ecuador+equinoccio+mediodia: altitud solar ~ 90",
++                    "got": round(alt, 2), "expected": 90.0, "ok": abs(alt - 90) < 1.0})
++
++    # 3) Tropico de Cancer, solsticio de junio, mediodia: sol en el cenit
++    alt2, _, _ = _sun_position(23.45, 172, 12.0)
++    checks.append({"case": "Tropico de Cancer+solsticio junio+mediodia: altitud ~ 90",
++                    "got": round(alt2, 2), "expected": 90.0, "ok": abs(alt2 - 90) < 1.0})
++
++    # 4) Excentricidad orbital: G0n maximo cerca de perihelio (principios de enero,
++    # n~3) y minimo cerca de afelio (principios de julio, n~186)
++    E0_jan = _eccentricity_factor(3)
++    E0_jul = _eccentricity_factor(186)
++    checks.append({"case": "irradiancia extraterrestre mayor en enero (perihelio) que en julio (afelio)",
++                    "got": round(E0_jan, 5), "expected_greater_than": round(E0_jul, 5),
++                    "ok": E0_jan > E0_jul})
++    checks.append({"case": "Gon en rango fisico esperado (1322-1414 W/m2 aprox)",
++                    "got": round(SOLAR_CONSTANT * E0_jan, 1),
++                    "ok": 1322 <= SOLAR_CONSTANT * E0_jan <= 1420})
++
++    # 5) Consistencia interna: incidencia sobre superficie horizontal (beta=0)
++    # debe coincidir con el zenit solar, para cualquier gamma (irrelevante si beta=0)
++    lat_t, n_t, st_t = -41.87, 172, 10.5  # Castro, Chiloe aprox, invierno-verano cualquiera
++    theta_h = _incidence_angle_deg(lat_t, n_t, st_t, 0.0, 0.0)
++    _, _, zen_t = _sun_position(lat_t, n_t, st_t)
++    checks.append({"case": "incidencia sobre horizontal == zenit solar (consistencia interna)",
++                    "got": round(theta_h, 4), "expected": round(zen_t, 4),
++                    "ok": abs(theta_h - zen_t) < 1e-6})
++
++    # 6) Superficie inclinada a beta=latitud, mirando al ecuador, en equinoccio
++    # y mediodia solar: incidencia = 0 (el plano apunta exactamente al sol)
++    lat_test = 35.0
++    gamma_test = 0.0  # hemisferio norte, mirando al sur (ecuador)
++    theta_opt = _incidence_angle_deg(lat_test, 79, 12.0, lat_test, gamma_test)
++    checks.append({"case": "beta=lat, gamma=ecuador, equinoccio, mediodia: incidencia ~ 0",
++                    "got": round(theta_opt, 3), "expected": 0.0, "ok": abs(theta_opt) < 0.5})
++    # mismo caso en hemisferio sur (gamma=180=mirando al norte)
++    lat_test_s = -35.0
++    theta_opt_s = _incidence_angle_deg(lat_test_s, 79, 12.0, abs(lat_test_s), 180.0)
++    checks.append({"case": "hemisferio sur: beta=|lat|, gamma=180(norte), equinoccio, mediodia: incidencia ~ 0",
++                    "got": round(theta_opt_s, 3), "expected": 0.0, "ok": abs(theta_opt_s) < 0.5})
++
++    # 7) Duracion del dia = 12h exactas en el ecuador para cualquier dia del anio
++    st = _sun_times({"latitude_deg": 0.0, "day_of_year": 172})
++    checks.append({"case": "duracion del dia en el ecuador ~ 12h (todo el anio)",
++                    "got": st["day_length_hr"], "expected": 12.0, "ok": abs(st["day_length_hr"] - 12.0) < 0.05})
++
++    # 8) Clear-sky Hottel: I_bn debe estar en rango fisico razonable a nivel del
++    # mar con sol alto (0 < I_bn < Gon), y crecer con la altitud (menos atmosfera
++    # que atravesar)
++    I_bn_sl, _, _, _ = _clearsky_beam_diffuse(-33.0, 355, 12.0, altitude_km=0.0, climate="midlatitude_summer")
++    I_bn_hi, _, _, _ = _clearsky_beam_diffuse(-33.0, 355, 12.0, altitude_km=3.0, climate="midlatitude_summer")
++    Gon = SOLAR_CONSTANT * _eccentricity_factor(355)
++    checks.append({"case": "clear-sky I_bn en rango fisico (0, Gon) a nivel del mar",
++                    "got": round(I_bn_sl, 1), "ok": 0 < I_bn_sl < Gon})
++    checks.append({"case": "clear-sky I_bn crece con altitud (menos atmosfera)",
++                    "got": round(I_bn_hi, 1), "expected_greater_than": round(I_bn_sl, 1),
++                    "ok": I_bn_hi > I_bn_sl})
++
++    # 9) POA con beta=0 debe coincidir con la irradiancia global horizontal
++    # (el termino de reflejo de suelo se anula con beta=0 y el diffuso isotropico
++    # coincide con el horizontal cuando el plano ES el horizonte)
++    _, _, _, I_gh = _clearsky_beam_diffuse(-33.0, 355, 12.0, 0.0, "midlatitude_summer")
++    _, _, _, poa_h = _poa_irradiance(-33.0, 355, 12.0, 0.0, 0.0, 0.0, "midlatitude_summer", 0.2)
++    checks.append({"case": "POA con beta=0 == irradiancia global horizontal",
++                    "got": round(poa_h, 2), "expected": round(I_gh, 2), "ok": abs(poa_h - I_gh) < 0.5})
++
++    # 10) Optimizador: para latitudes medias, el tilt optimo anual deberia
++    # quedar razonablemente cerca de |latitud| (heuristica clasica)
++    opt = _optimize_tilt_mode({"latitude_deg": -33.45, "beta_step_deg": 5.0})
++    diff_rule = abs(opt["optimal_beta_deg"] - opt["rule_of_thumb_beta_deg"])
++    checks.append({"case": "tilt optimo anual cerca de |latitud| (heuristica clasica, tol 15 grados)",
++                    "got": opt["optimal_beta_deg"], "expected_near": opt["rule_of_thumb_beta_deg"],
++                    "ok": diff_rule <= 15.0})
++
++    return {"validate": True, "all_passed": all(c["ok"] for c in checks), "checks": checks}
++
++
++def compute_solar_radiation(mode, params=None):
++    params = params or {}
++    if mode == "solar_time":
++        return _solar_time_mode(params)
++    elif mode == "sun_times":
++        return _sun_times(params)
++    elif mode == "solar_position":
++        return _solar_position_mode(params)
++    elif mode == "clearsky_irradiance":
++        return _clearsky_mode(params)
++    elif mode == "poa_irradiance":
++        return _poa_mode(params)
++    elif mode == "daily_energy":
++        return _daily_energy_mode(params)
++    elif mode == "optimize_tilt":
++        return _optimize_tilt_mode(params)
++    elif mode == "validate":
++        return _validate()
++    else:
++        raise ValueError(
++            f"mode desconocido: {mode!r}. Valores validos: solar_time, sun_times, "
++            f"solar_position, clearsky_irradiance, poa_irradiance, daily_energy, "
++            f"optimize_tilt, validate."
++        )
++
++
++SOLAR_RADIATION_TOOL_SCHEMA = {
++    "type": "object",
++    "properties": {
++        "mode": {
++            "type": "string",
++            "enum": ["solar_time", "sun_times", "solar_position", "clearsky_irradiance",
++                     "poa_irradiance", "daily_energy", "optimize_tilt", "validate"],
++            "default": "poa_irradiance",
++        },
++        "latitude_deg": {"type": "number", "description": "+ norte, - sur."},
++        "longitude_deg": {"type": "number", "description": "+ este de Greenwich. Solo solar_time."},
++        "std_meridian_deg": {"type": "number",
++            "description": "Solo solar_time. 15 * offset_UTC_horas (ej. Chile continental UTC-4 -> -60)."},
++        "clock_time_hr": {"type": "number", "description": "Hora de reloj decimal (0-24). Solo solar_time."},
++        "day_of_year": {"type": "integer", "description": "1-365."},
++        "solar_time_hr": {"type": "number", "description": "Hora solar aparente decimal, mediodia solar=12."},
++        "beta_deg": {"type": "number", "description": "Inclinacion del plano: 0=horizontal, 90=vertical."},
++        "gamma_deg": {"type": "number",
++            "description": "Azimut del plano, 0=mirando al ecuador (default segun hemisferio de latitude_deg)."},
++        "altitude_km": {"type": "number", "default": 0.0, "description": "Altitud del sitio sobre el nivel del mar."},
++        "climate": {"type": "string", "enum": sorted(HOTTEL_CLIMATES), "default": "midlatitude_summer",
++            "description": "Tipo de clima para el modelo Hottel de cielo despejado."},
++        "albedo": {"type": "number", "default": 0.2, "description": "Reflectancia del suelo (0-1)."},
++        "period": {"type": "string", "default": "annual",
++            "description": "optimize_tilt: 'annual' (12 dias representativos de Klein) o un day_of_year especifico como string."},
++        "beta_step_deg": {"type": "number", "default": 1.0, "description": "optimize_tilt: paso del barrido de tilt."},
++    },
++    "required": ["mode"],
++}
++
++
++try:
++    from tool_registry import register_tool
++    register_tool(
++        name="solar_radiation_tool",
++        schema={
++            "name": "solar_radiation_tool",
++            "description": (
++                "Geometria solar (declinacion, ecuacion del tiempo, posicion del sol, "
++                "amanecer/atardecer) e irradiancia de cielo despejado (modelo Hottel + "
++                "Liu-Jordan) sobre superficie horizontal o inclinada (POA), incluyendo "
++                "un optimizador de inclinacion fija (optimize_tilt) que barre beta para "
++                "maximizar la energia diaria promedio anual o de un dia especifico. "
++                "Formula cerrada, sin datos meteorologicos externos, asume cielo despejado."
++            ),
++            "inputSchema": SOLAR_RADIATION_TOOL_SCHEMA,
++        },
++        handler=lambda args: compute_solar_radiation(args.get("mode"), args),
++    )
++except ImportError:
++    pass
++
++
++if __name__ == "__main__":
++    import json
++    print(json.dumps(compute_solar_radiation("validate"), indent=2, ensure_ascii=False))
+diff --git a/wind_power_curve_tool.py b/wind_power_curve_tool.py
+new file mode 100644
+index 0000000..22ba765
+--- /dev/null
++++ b/wind_power_curve_tool.py
+@@ -0,0 +1,359 @@
++"""
++wind_power_curve_tool.py
++
++Potencia eolica -- formula cerrada + una integracion numerica simple
++(cuadratura de la distribucion de Weibull contra la curva de potencia
++para el AEP). Sin dependencias nuevas, sin solver.
++
++Fisica (referencias estandar de ingenieria eolica, Manwell/McGowan/Rogers
++"Wind Energy Explained" y el limite de Betz 1919 -- formulas de dominio
++publico re-derivadas aca):
++
++  Potencia disponible en el viento a traves de un area A:
++    P_wind = 0.5 * rho * A * v^3
++
++  Limite de Betz: la maxima fraccion extraible de esa potencia por
++  cualquier turbina de eje horizontal es Cp_max = 16/27 ~ 0.5926,
++  resultado de maximizar Cp(a) = 4a(1-a)^2 sobre el factor de induccion
++  axial a (a=1/3 en el optimo).
++
++  Curva de potencia simplificada (modelo cubico estandar en cutin-rated):
++    P(v) = 0                                            v < v_cutin
++    P(v) = P_rated * (v^3-v_cutin^3)/(v_rated^3-v_cutin^3)   v_cutin<=v<=v_rated
++    P(v) = P_rated                                      v_rated<=v<=v_cutout
++    P(v) = 0                                            v > v_cutout
++
++  Densidad del aire con altitud (atmosfera estandar internacional,
++  formula barometrica simplificada, valida hasta ~11km):
++    rho(h) = rho0 * (1 - L*h/T0)^(g*M/(R*L) - 1)
++    rho0=1.225 kg/m3, T0=288.15K, L=0.0065 K/m, g=9.80665, M=0.0289644 kg/mol,
++    R=8.31446 J/(mol K)
++
++  Distribucion de Weibull para velocidad de viento:
++    f(v) = (k/c)*(v/c)^(k-1)*exp(-(v/c)^k)
++  Velocidad media: v_mean = c*Gamma(1+1/k)
++
++  AEP (energia anual producida) = 8760h * integral_0^inf P(v)*f(v) dv
++  (cuadratura numerica simple, regla del trapecio sobre v discretizado)
++
++CUIDADO DE CONFIANZA DE DATOS: todo lo de esta tool es formula cerrada
++fisica (alta confianza matematica). El termino "media" solo aplica a la
++curva de potencia cubica simplificada en si misma -- es una aproximacion
++estandar de ingenieria para turbinas reales (que usan tablas de
++fabricante con perdidas aerodinamicas no cubicas cerca de v_rated);
++error tipico reportado en literatura 5-15% contra curvas de datasheet
++reales, aceptable para dimensionamiento preliminar.
++"""
++import math
++
++BETZ_LIMIT = 16.0 / 27.0  # ~0.59259...
++RHO0 = 1.225       # kg/m^3, densidad del aire a nivel del mar, 15C (ISA)
++T0 = 288.15        # K
++LAPSE = 0.0065     # K/m
++G = 9.80665        # m/s^2
++M_AIR = 0.0289644  # kg/mol
++R_GAS = 8.31446261815324  # J/(mol K)
++
++
++def _air_density(altitude_m=0.0, temperature_C=None):
++    """Densidad del aire por atmosfera estandar (si no se da temperatura)
++    o por gas ideal a temperatura dada (mas preciso si se conoce el sitio)."""
++    if temperature_C is not None:
++        # gas ideal con presion de la ISA a esa altitud, T real dada por el usuario
++        T_isa = T0 - LAPSE * altitude_m
++        p = 101325.0 * (T_isa / T0) ** (G * M_AIR / (R_GAS * LAPSE))
++        T = temperature_C + 273.15
++        return p * M_AIR / (R_GAS * T)
++    T = T0 - LAPSE * altitude_m
++    return RHO0 * (T / T0) ** (G * M_AIR / (R_GAS * LAPSE) - 1)
++
++
++def _air_density_mode(params):
++    h = params.get("altitude_m", 0.0)
++    T = params.get("temperature_C")
++    rho = _air_density(h, T)
++    return {
++        "altitude_m": h, "temperature_C": T,
++        "air_density_kg_m3": round(rho, 5),
++        "note": "Sin temperature_C usa atmosfera estandar (ISA); con temperature_C "
++                "usa gas ideal con la presion ISA de esa altitud y la T real dada.",
++    }
++
++
++def _wind_power_density(rho, v):
++    """Potencia disponible en el viento por unidad de area, W/m^2."""
++    return 0.5 * rho * v ** 3
++
++
++def _power_available_mode(params):
++    v = params.get("wind_speed_ms")
++    A = params.get("rotor_area_m2")
++    if v is None or A is None:
++        raise ValueError("power_available requiere wind_speed_ms y rotor_area_m2")
++    rho = _air_density(params.get("altitude_m", 0.0), params.get("temperature_C"))
++    P_wind = _wind_power_density(rho, v) * A
++    Cp = params.get("Cp", BETZ_LIMIT)
++    eta = params.get("eta_mech_gen", 1.0)
++    P_extracted = P_wind * Cp * eta
++    return {
++        "wind_speed_ms": v, "rotor_area_m2": A, "air_density_kg_m3": round(rho, 4),
++        "Cp": Cp, "eta_mech_gen": eta,
++        "power_in_wind_W": round(P_wind, 2),
++        "power_extracted_W": round(P_extracted, 2),
++        "betz_limit_Cp": round(BETZ_LIMIT, 6),
++        "fraction_of_betz": round(Cp / BETZ_LIMIT, 4) if Cp else None,
++    }
++
++
++def _power_curve(v, v_cutin, v_rated, v_cutout, P_rated):
++    if v < v_cutin or v > v_cutout:
++        return 0.0
++    if v < v_rated:
++        return P_rated * (v ** 3 - v_cutin ** 3) / (v_rated ** 3 - v_cutin ** 3)
++    return P_rated
++
++
++def _power_curve_mode(params):
++    required = ["v_cutin_ms", "v_rated_ms", "v_cutout_ms", "P_rated_kW"]
++    missing = [k for k in required if params.get(k) is None]
++    if missing:
++        raise ValueError(f"power_curve requiere: {', '.join(missing)}")
++    v_cutin, v_rated, v_cutout, P_rated = (params["v_cutin_ms"], params["v_rated_ms"],
++                                             params["v_cutout_ms"], params["P_rated_kW"])
++    if not (v_cutin < v_rated < v_cutout):
++        raise ValueError("se requiere v_cutin < v_rated < v_cutout")
++    if "wind_speed_ms" in params and params["wind_speed_ms"] is not None:
++        v = params["wind_speed_ms"]
++        return {
++            "wind_speed_ms": v,
++            "power_kW": round(_power_curve(v, v_cutin, v_rated, v_cutout, P_rated), 4),
++            "v_cutin_ms": v_cutin, "v_rated_ms": v_rated, "v_cutout_ms": v_cutout, "P_rated_kW": P_rated,
++        }
++    # sin wind_speed_ms: devuelve la curva completa muestreada
++    v_max_plot = v_cutout + 2
++    step = params.get("curve_step_ms", 0.5)
++    n = int(v_max_plot / step) + 1
++    curve = []
++    v_ = 0.0
++    for _ in range(n + 1):
++        curve.append({"v_ms": round(v_, 3), "power_kW": round(_power_curve(v_, v_cutin, v_rated, v_cutout, P_rated), 4)})
++        v_ += step
++    return {
++        "v_cutin_ms": v_cutin, "v_rated_ms": v_rated, "v_cutout_ms": v_cutout, "P_rated_kW": P_rated,
++        "curve": curve,
++    }
++
++
++def _weibull_pdf(v, k, c):
++    if v < 0:
++        return 0.0
++    return (k / c) * (v / c) ** (k - 1) * math.exp(-(v / c) ** k)
++
++
++def _weibull_mean(k, c):
++    return c * math.gamma(1 + 1 / k)
++
++
++def _weibull_mode(params):
++    k = params.get("k_shape")
++    c = params.get("c_scale_ms")
++    if k is None or c is None:
++        raise ValueError("weibull_distribution requiere k_shape y c_scale_ms")
++    v_mean = _weibull_mean(k, c)
++    result = {"k_shape": k, "c_scale_ms": c, "mean_wind_speed_ms": round(v_mean, 4)}
++    if "wind_speed_ms" in params and params["wind_speed_ms"] is not None:
++        v = params["wind_speed_ms"]
++        result["wind_speed_ms"] = v
++        result["pdf_value"] = round(_weibull_pdf(v, k, c), 6)
++    return result
++
++
++def _aep(k, c, v_cutin, v_rated, v_cutout, P_rated_kW, v_max=40.0, n_steps=400):
++    """AEP en kWh/anio, integrando P(v)*f(v) por trapecio."""
++    dv = v_max / n_steps
++    total = 0.0
++    v_prev = 0.0
++    f_prev = _weibull_pdf(v_prev, k, c) * _power_curve(v_prev, v_cutin, v_rated, v_cutout, P_rated_kW)
++    for i in range(1, n_steps + 1):
++        v = i * dv
++        f = _weibull_pdf(v, k, c) * _power_curve(v, v_cutin, v_rated, v_cutout, P_rated_kW)
++        total += (f_prev + f) / 2.0 * dv
++        f_prev = f
++    return total * 8760.0  # kW promedio -> kWh/anio
++
++
++def _aep_mode(params):
++    required = ["k_shape", "c_scale_ms", "v_cutin_ms", "v_rated_ms", "v_cutout_ms", "P_rated_kW"]
++    missing = [k for k in required if params.get(k) is None]
++    if missing:
++        raise ValueError(f"annual_energy requiere: {', '.join(missing)}")
++    k, c = params["k_shape"], params["c_scale_ms"]
++    v_cutin, v_rated, v_cutout, P_rated = (params["v_cutin_ms"], params["v_rated_ms"],
++                                             params["v_cutout_ms"], params["P_rated_kW"])
++    v_max = params.get("v_max_integration_ms", max(40.0, v_cutout + 10))
++    aep_kwh = _aep(k, c, v_cutin, v_rated, v_cutout, P_rated, v_max)
++    cf = aep_kwh / (P_rated * 8760.0)
++    return {
++        "k_shape": k, "c_scale_ms": c, "mean_wind_speed_ms": round(_weibull_mean(k, c), 4),
++        "v_cutin_ms": v_cutin, "v_rated_ms": v_rated, "v_cutout_ms": v_cutout, "P_rated_kW": P_rated,
++        "AEP_kWh_year": round(aep_kwh, 1),
++        "capacity_factor": round(cf, 4),
++        "data_confidence": "media",
++        "note": "capacity_factor tipico de turbinas reales en sitios buenos: 0.30-0.45 "
++                "onshore, 0.40-0.55 offshore -- util como chequeo de sanidad del resultado.",
++    }
++
++
++def _validate():
++    checks = []
++
++    # 1) Limite de Betz exacto
++    checks.append({"case": "limite de Betz == 16/27", "got": round(BETZ_LIMIT, 8),
++                    "expected": round(16 / 27, 8), "ok": abs(BETZ_LIMIT - 16 / 27) < 1e-12})
++
++    # 2) Cp(a)=4a(1-a)^2 maximizado en a=1/3 da exactamente 16/27
++    def Cp_a(a):
++        return 4 * a * (1 - a) ** 2
++    checks.append({"case": "Cp(a=1/3) == Betz", "got": round(Cp_a(1 / 3), 6),
++                    "expected": round(BETZ_LIMIT, 6), "ok": abs(Cp_a(1 / 3) - BETZ_LIMIT) < 1e-6})
++    # y que sea maximo local (vecinos menores)
++    checks.append({"case": "a=1/3 es maximo local de Cp(a)",
++                    "got": [round(Cp_a(0.30), 5), round(Cp_a(1 / 3), 5), round(Cp_a(0.37), 5)],
++                    "ok": Cp_a(1 / 3) > Cp_a(0.30) and Cp_a(1 / 3) > Cp_a(0.37)})
++
++    # 3) Densidad del aire a nivel del mar, ISA (15C) == 1.225 kg/m3 exacto (por construccion)
++    rho_sl = _air_density(0.0)
++    checks.append({"case": "densidad del aire a nivel del mar (ISA) == 1.225",
++                    "got": round(rho_sl, 4), "expected": 1.225, "ok": abs(rho_sl - 1.225) < 1e-6})
++    # decrece con altitud
++    rho_2000 = _air_density(2000.0)
++    checks.append({"case": "densidad del aire decrece con altitud (2000m < nivel del mar)",
++                    "got": round(rho_2000, 4), "expected_less_than": round(rho_sl, 4), "ok": rho_2000 < rho_sl})
++    # valor de referencia conocido: densidad a 2000m ISA ~ 1.007 kg/m3 (tablas ISA estandar)
++    checks.append({"case": "densidad a 2000m ISA ~ 1.007 kg/m3 (tabla ISA estandar, tol 1%)",
++                    "got": round(rho_2000, 4), "expected": 1.007, "ok": abs(rho_2000 - 1.007) / 1.007 < 0.01})
++
++    # 4) Curva de potencia: P(v_cutin)=0, P(v_rated)=P_rated exacto, P(v_cutout+eps)=0
++    v_cutin, v_rated, v_cutout, P_rated = 3.0, 12.0, 25.0, 2000.0
++    p_cutin = _power_curve(v_cutin, v_cutin, v_rated, v_cutout, P_rated)
++    p_rated = _power_curve(v_rated, v_cutin, v_rated, v_cutout, P_rated)
++    p_mid_rated = _power_curve(18.0, v_cutin, v_rated, v_cutout, P_rated)
++    p_over = _power_curve(v_cutout + 0.1, v_cutin, v_rated, v_cutout, P_rated)
++    p_under = _power_curve(v_cutin - 0.1, v_cutin, v_rated, v_cutout, P_rated)
++    checks.append({"case": "P(v_cutin)==0", "got": p_cutin, "expected": 0.0, "ok": p_cutin == 0.0})
++    checks.append({"case": "P(v_rated)==P_rated exacto", "got": p_rated, "expected": P_rated, "ok": abs(p_rated - P_rated) < 1e-9})
++    checks.append({"case": "P constante == P_rated entre v_rated y v_cutout", "got": p_mid_rated, "expected": P_rated, "ok": abs(p_mid_rated - P_rated) < 1e-9})
++    checks.append({"case": "P(v>v_cutout)==0", "got": p_over, "expected": 0.0, "ok": p_over == 0.0})
++    checks.append({"case": "P(v<v_cutin)==0", "got": p_under, "expected": 0.0, "ok": p_under == 0.0})
++
++    # 5) Weibull: k=2 (Rayleigh) con c dado, v_mean == c*Gamma(1.5) == c*sqrt(pi)/2
++    k, c = 2.0, 8.0
++    v_mean = _weibull_mean(k, c)
++    expected_rayleigh = c * math.sqrt(math.pi) / 2
++    checks.append({"case": "Weibull k=2 (Rayleigh): v_mean == c*sqrt(pi)/2",
++                    "got": round(v_mean, 6), "expected": round(expected_rayleigh, 6),
++                    "ok": abs(v_mean - expected_rayleigh) < 1e-9})
++
++    # 6) Weibull pdf integra a 1 (numericamente, trapecio de alta resolucion)
++    n_int, v_max_int = 4000, 60.0
++    dv = v_max_int / n_int
++    total = 0.0
++    prev = _weibull_pdf(0.0, k, c)
++    for i in range(1, n_int + 1):
++        v = i * dv
++        cur = _weibull_pdf(v, k, c)
++        total += (prev + cur) / 2.0 * dv
++        prev = cur
++    checks.append({"case": "integral de la pdf de Weibull ~ 1", "got": round(total, 4), "expected": 1.0, "ok": abs(total - 1.0) < 1e-3})
++
++    # 7) AEP: capacity factor debe estar en rango fisico (0,1) y AEP > 0 para
++    # un caso tipico razonable
++    aep = _aep(k, c, 3.0, 12.0, 25.0, 2000.0)
++    cf = aep / (2000.0 * 8760.0)
++    checks.append({"case": "capacity factor en rango fisico (0,1)", "got": round(cf, 4), "ok": 0 < cf < 1})
++
++    # 8) AEP debe subir si sube la velocidad media del viento (c mayor), todo lo
++    # demas igual -- chequeo de monotonicidad fisica basica
++    aep_low_c = _aep(2.0, 5.0, 3.0, 12.0, 25.0, 2000.0)
++    aep_high_c = _aep(2.0, 10.0, 3.0, 12.0, 25.0, 2000.0)
++    checks.append({"case": "AEP crece con c_scale (mas viento) manteniendo todo lo demas igual",
++                    "got": round(aep_high_c, 1), "expected_greater_than": round(aep_low_c, 1),
++                    "ok": aep_high_c > aep_low_c})
++
++    return {"validate": True, "all_passed": all(c["ok"] for c in checks), "checks": checks}
++
++
++def compute_wind_power_curve(mode, params=None):
++    params = params or {}
++    if mode == "air_density":
++        return _air_density_mode(params)
++    elif mode == "power_available":
++        return _power_available_mode(params)
++    elif mode == "power_curve":
++        return _power_curve_mode(params)
++    elif mode == "weibull_distribution":
++        return _weibull_mode(params)
++    elif mode == "annual_energy":
++        return _aep_mode(params)
++    elif mode == "validate":
++        return _validate()
++    else:
++        raise ValueError(
++            f"mode desconocido: {mode!r}. Valores validos: air_density, power_available, "
++            f"power_curve, weibull_distribution, annual_energy, validate."
++        )
++
++
++WIND_POWER_CURVE_TOOL_SCHEMA = {
++    "type": "object",
++    "properties": {
++        "mode": {
++            "type": "string",
++            "enum": ["air_density", "power_available", "power_curve", "weibull_distribution",
++                     "annual_energy", "validate"],
++            "default": "annual_energy",
++        },
++        "altitude_m": {"type": "number", "default": 0.0},
++        "temperature_C": {"type": "number", "description": "Opcional; si se omite usa atmosfera estandar ISA."},
++        "wind_speed_ms": {"type": "number"},
++        "rotor_area_m2": {"type": "number", "description": "Solo power_available. pi*R^2 del rotor."},
++        "Cp": {"type": "number", "description": "Solo power_available. Default: limite de Betz (16/27)."},
++        "eta_mech_gen": {"type": "number", "default": 1.0, "description": "Eficiencia mecanica*generador combinada."},
++        "v_cutin_ms": {"type": "number"},
++        "v_rated_ms": {"type": "number"},
++        "v_cutout_ms": {"type": "number"},
++        "P_rated_kW": {"type": "number"},
++        "curve_step_ms": {"type": "number", "default": 0.5, "description": "Solo power_curve sin wind_speed_ms."},
++        "k_shape": {"type": "number", "description": "Parametro de forma de Weibull (tipico 1.5-3 para viento)."},
++        "c_scale_ms": {"type": "number", "description": "Parametro de escala de Weibull, m/s."},
++        "v_max_integration_ms": {"type": "number", "description": "Solo annual_energy: limite superior de la integral."},
++    },
++    "required": ["mode"],
++}
++
++
++try:
++    from tool_registry import register_tool
++    register_tool(
++        name="wind_power_curve_tool",
++        schema={
++            "name": "wind_power_curve_tool",
++            "description": (
++                "Potencia eolica: densidad del aire por altitud (ISA), potencia "
++                "disponible en el viento y limite de Betz, curva de potencia "
++                "cubica simplificada cutin/rated/cutout, distribucion de Weibull "
++                "de velocidad de viento y energia anual producida (AEP) con "
++                "capacity factor via integracion Weibull x curva de potencia. "
++                "Formula cerrada + cuadratura numerica simple, sin dependencias nuevas."
++            ),
++            "inputSchema": WIND_POWER_CURVE_TOOL_SCHEMA,
++        },
++        handler=lambda args: compute_wind_power_curve(args.get("mode"), args),
++    )
++except ImportError:
++    pass
++
++
++if __name__ == "__main__":
++    import json
++    print(json.dumps(compute_wind_power_curve("validate"), indent=2, ensure_ascii=False))
+-- 
+2.43.0
+
