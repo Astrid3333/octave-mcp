@@ -108,6 +108,7 @@ import parallel_task_runner_tool  # auto-registra via tool_registry, no requiere
 import solar_radiation_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import wind_power_curve_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import battery_sizing_tool  # auto-registra via tool_registry, no requiere mas ediciones
+import renewable_mpc_controller  # auto-registra via tool_registry, no requiere mas ediciones
 from archaeoastronomy_tool import compute_archaeoastronomy, ARCHAEOASTRONOMY_TOOL_SCHEMA
 from quantum_information_tool import compute_quantum_information, QUANTUM_INFORMATION_TOOL_SCHEMA
 from octave_infra_tool import octave_run, octave_eval_expr, octave_run_script, octave_version
