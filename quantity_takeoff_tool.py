@@ -12,9 +12,14 @@ Operaciones soportadas (parámetro `operation`):
   - masonry_count        : cantidad de unidades de albañilería (ladrillos/bloques) por muro
   - boq_summary          : agrega una lista de line items en una planilla de cubicación (BOQ)
 
+mode="validate" (alternativa a 'operation'): corre 7 autochequeos contra
+valores calculados a mano, uno por cada operación soportada, e ignora
+cualquier otro parámetro.
+
 Dependencias: numpy únicamente (sin scipy).
 """
 
+import math
 import numpy as np
 
 # Densidad lineal estándar del acero de refuerzo (kg/m) por diámetro nominal en mm.
@@ -155,6 +160,74 @@ def _boq_summary(items):
     return result
 
 
+def _run_validate():
+    """Autochequeos contra valores calculados a mano, uno por operación."""
+    checks = []
+
+    # 1. concrete_volume / footing: 2 x 1 x 0.3 = 0.6 m3
+    vol = _concrete_volume("footing", {"length": 2, "width": 1, "thickness": 0.3})
+    checks.append({
+        "case": "concrete_volume footing 2x1x0.3",
+        "got": round(vol, 4), "expected": 0.6, "ok": abs(vol - 0.6) < 1e-9,
+    })
+
+    # 2. formwork_area / column circular: pi * 0.4 * 3 = 3.7699 m2
+    area = _formwork_area("column", {"shape": "circular", "diameter": 0.4, "height": 3})
+    expected_area = round(math.pi * 0.4 * 3, 4)
+    checks.append({
+        "case": "formwork_area column circular d=0.4 h=3",
+        "got": round(area, 4), "expected": expected_area,
+        "ok": abs(round(area, 4) - expected_area) < 1e-6,
+    })
+
+    # 3. rebar_weight: 1 barra de 12mm x 1m = 0.888 kg/m (tabla), redondeado a 2 decimales -> 0.89
+    total_kg, _ = _rebar_weight([{"diameter_mm": 12, "length_m": 1, "count": 1}])
+    checks.append({
+        "case": "rebar_weight 1x d12mm L=1m (tabla 0.888 kg/m, redondeado a 2 decimales)",
+        "got": total_kg, "expected": 0.89, "ok": abs(total_kg - 0.89) < 1e-9,
+    })
+
+    # 4. excavation_volume sin talud: 3x2x1 = 6 m3
+    vol_exc = _excavation_volume({"length": 3, "width": 2, "depth": 1})
+    checks.append({
+        "case": "excavation_volume sin talud 3x2x1",
+        "got": round(vol_exc, 4), "expected": 6.0, "ok": abs(vol_exc - 6.0) < 1e-9,
+    })
+
+    # 5. excavation_volume con talud 1:1 (prismatoide): L=W=2, D=1 -> 9.3333 m3
+    vol_exc_slope = _excavation_volume({"length": 2, "width": 2, "depth": 1, "slope_h_per_v": 1})
+    expected_slope = 9.333333333333332
+    checks.append({
+        "case": "excavation_volume con talud 1:1, L=W=2 D=1 (prismatoide)",
+        "got": round(vol_exc_slope, 4), "expected": round(expected_slope, 4),
+        "ok": abs(vol_exc_slope - expected_slope) < 1e-6,
+    })
+
+    # 6. masonry_count: wall_area=10, unidad 0.39x0.19, junta 0.01, merma 5% -> 132 unidades
+    masonry = _masonry_count({"wall_area": 10, "unit_length": 0.39, "unit_height": 0.19})
+    checks.append({
+        "case": "masonry_count wall_area=10 unit 0.39x0.19 junta 0.01 merma 5%",
+        "got": masonry["units_to_order"], "expected": 132, "ok": masonry["units_to_order"] == 132,
+    })
+
+    # 7. boq_summary: dos líneas en m3 con costo -> total_quantity=15, total_cost=60
+    boq = _boq_summary([
+        {"description": "a", "quantity": 10, "unit": "m3", "unit_cost": 5},
+        {"description": "b", "quantity": 5, "unit": "m3", "unit_cost": 2},
+    ])
+    tq = boq["grouped_by_unit"][0]["total_quantity"]
+    tc = boq.get("total_cost")
+    checks.append({
+        "case": "boq_summary 2 lineas m3 con costo (total_quantity y total_cost)",
+        "got": {"total_quantity": tq, "total_cost": tc},
+        "expected": {"total_quantity": 15, "total_cost": 60},
+        "ok": abs(tq - 15) < 1e-9 and abs(tc - 60) < 1e-9,
+    })
+
+    all_passed = all(c["ok"] for c in checks)
+    return {"validate": True, "all_passed": all_passed, "checks": checks}
+
+
 QUANTITY_TAKEOFF_TOOL_SCHEMA = {
     "name": "quantity_takeoff",
     "description": (
@@ -173,6 +246,11 @@ QUANTITY_TAKEOFF_TOOL_SCHEMA = {
                 ],
                 "description": "Tipo de cálculo a ejecutar.",
             },
+            "mode": {
+                "type": "string",
+                "enum": ["validate"],
+                "description": "Si es 'validate', ejecuta el autocheque interno (7 casos, uno por operación) contra valores calculados a mano, e ignora 'operation' y el resto de los parámetros.",
+            },
             "element": {
                 "type": "string",
                 "description": "Tipo de elemento (footing/slab/column/beam/wall). Usado por concrete_volume y formwork_area.",
@@ -190,16 +268,23 @@ QUANTITY_TAKEOFF_TOOL_SCHEMA = {
                 "description": "Lista de {description, quantity, unit, unit_cost opcional}. Usado por boq_summary.",
             },
         },
-        "required": ["operation"],
+        "required": [],
     },
 }
 
 
-def compute_quantity_takeoff(operation, **params):
+def compute_quantity_takeoff(operation=None, mode=None, **params):
     """
-    Entry point del tool. Despacha según `operation`.
+    Entry point del tool. Si mode=='validate', corre el autocheque interno.
+    Si no, despacha según `operation` (comportamiento original sin cambios).
     Retorna un dict serializable a JSON.
     """
+    if mode == "validate":
+        return _run_validate()
+
+    if operation is None:
+        raise ValueError("Debe indicarse 'operation' (o mode='validate').")
+
     if operation == "concrete_volume":
         vol = _concrete_volume(params["element"], params["dims"])
         return {"operation": operation, "element": params["element"], "volume_m3": round(vol, 4)}
@@ -229,3 +314,8 @@ def compute_quantity_takeoff(operation, **params):
         "Usar: concrete_volume | formwork_area | rebar_weight | "
         "excavation_volume | masonry_count | boq_summary"
     )
+
+
+if __name__ == "__main__":
+    import json
+    print(json.dumps(compute_quantity_takeoff(mode="validate"), ensure_ascii=False, indent=2))
