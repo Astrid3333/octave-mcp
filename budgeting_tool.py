@@ -12,6 +12,7 @@ Operaciones soportadas (parámetro `mode`):
   - unit_price_analysis    : análisis de precio unitario (APU) clásico: materiales + mano de obra + equipo -> precio de venta
   - escalation             : escalamiento compuesto de un monto por inflación/reajuste anual
   - budget_summary         : agrega varios capítulos de partidas en un presupuesto total, con markups al final
+  - validate                : corre 5 autochequeos (uno por modo) contra valores calculados a mano
 
 Dependencias: ninguna externa (aritmética pura).
 """
@@ -29,7 +30,8 @@ BUDGETING_TOOL_SCHEMA = {
         "properties": {
             "mode": {
                 "type": "string",
-                "enum": ["direct_cost", "apply_markups", "unit_price_analysis", "escalation", "budget_summary"],
+                "enum": ["direct_cost", "apply_markups", "unit_price_analysis", "escalation", "budget_summary", "validate"],
+                "description": "Si es 'validate', ejecuta el autocheque interno (5 casos, uno por modo) contra valores calculados a mano, e ignora el resto de los parámetros.",
             },
             "items": {"type": "array", "description": "Lista de {description, quantity, unit_cost}. direct_cost."},
             "direct_cost": {"type": "number", "description": "Costo directo base. apply_markups."},
@@ -137,8 +139,66 @@ def _budget_summary(chapters, overhead_pct=0.0, profit_pct=0.0, contingency_pct=
     }
 
 
+def _run_validate():
+    """Autochequeos contra valores calculados a mano, uno por modo."""
+    checks = []
+
+    # 1. direct_cost: 2x100 + 3x50 = 350
+    dc = _direct_cost([{"quantity": 2, "unit_cost": 100}, {"quantity": 3, "unit_cost": 50}])
+    checks.append({
+        "case": "direct_cost 2x100 + 3x50",
+        "got": dc["total_direct_cost"], "expected": 350.0,
+        "ok": abs(dc["total_direct_cost"] - 350.0) < 1e-6,
+    })
+
+    # 2. apply_markups: 1000 con GG 15%, utilidad 10%, contingencia 5%, IVA 19% secuencial -> 1580.62
+    markups = _apply_markups(1000, overhead_pct=0.15, profit_pct=0.10, contingency_pct=0.05, tax_pct=0.19)
+    checks.append({
+        "case": "apply_markups 1000 con GG15/Util10/Cont5/IVA19 secuencial",
+        "got": markups["total"], "expected": 1580.62,
+        "ok": abs(markups["total"] - 1580.62) < 1e-6,
+    })
+
+    # 3. unit_price_analysis: materiales 2x10, mano de obra 1x20, equipo 1x5, GG 10%, utilidad 5% -> 51.98
+    upa = _unit_price_analysis(
+        materials=[{"qty": 2, "unit_cost": 10}], labor=[{"qty": 1, "unit_cost": 20}],
+        equipment=[{"qty": 1, "unit_cost": 5}], overhead_pct=0.1, profit_pct=0.05,
+    )
+    checks.append({
+        "case": "unit_price_analysis mat=20 mo=20 eq=5 GG10/Util5",
+        "got": upa["unit_price"], "expected": 51.98,
+        "ok": abs(upa["unit_price"] - 51.98) < 1e-6,
+    })
+
+    # 4. escalation: 1000 al 5% anual por 2 años -> 1102.5
+    esc = _escalation(1000, 0.05, 2)
+    checks.append({
+        "case": "escalation 1000 a 5% anual x 2 anios",
+        "got": esc["escalated_amount"], "expected": 1102.5,
+        "ok": abs(esc["escalated_amount"] - 1102.5) < 1e-6,
+    })
+
+    # 5. budget_summary: 2 capitulos (100 + 100 = 200 directo), GG 10% -> grand_total 220
+    bs = _budget_summary(
+        [{"name": "A", "items": [{"quantity": 1, "unit_cost": 100}]},
+         {"name": "B", "items": [{"quantity": 2, "unit_cost": 50}]}],
+        overhead_pct=0.1,
+    )
+    checks.append({
+        "case": "budget_summary 2 capitulos direct=200 GG10",
+        "got": {"total_direct_cost": bs["total_direct_cost"], "grand_total": bs["grand_total"]},
+        "expected": {"total_direct_cost": 200.0, "grand_total": 220.0},
+        "ok": abs(bs["total_direct_cost"] - 200.0) < 1e-6 and abs(bs["grand_total"] - 220.0) < 1e-6,
+    })
+
+    all_passed = all(c["ok"] for c in checks)
+    return {"validate": True, "all_passed": all_passed, "checks": checks}
+
+
 def compute_budgeting(mode, **params):
     """Entry point del tool. Despacha según `mode`. Retorna un dict serializable a JSON."""
+    if mode == "validate":
+        return _run_validate()
     if mode == "direct_cost":
         return _direct_cost(params["items"])
     if mode == "apply_markups":
@@ -161,5 +221,10 @@ def compute_budgeting(mode, **params):
 
     raise ValueError(
         f"mode no soportado: {mode}. Usar: direct_cost | apply_markups | "
-        "unit_price_analysis | escalation | budget_summary"
+        "unit_price_analysis | escalation | budget_summary | validate"
     )
+
+
+if __name__ == "__main__":
+    import json
+    print(json.dumps(compute_budgeting(mode="validate"), ensure_ascii=False, indent=2))
