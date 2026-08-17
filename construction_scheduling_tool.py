@@ -9,6 +9,7 @@ Operaciones soportadas (parámetro `mode`):
   - critical_path       : método de la ruta crítica (CPM), forward/backward pass
   - resource_loading     : perfil diario de demanda de recursos a partir de un cronograma CPM
   - crash_schedule        : compresión greedy del cronograma (crashing) hacia una reducción objetivo
+  - validate               : corre 3 autochequeos (uno por modo) contra una red CPM conocida a mano
 
 Dependencias: ninguna externa.
 """
@@ -24,7 +25,11 @@ CONSTRUCTION_SCHEDULING_TOOL_SCHEMA = {
     "inputSchema": {
         "type": "object",
         "properties": {
-            "mode": {"type": "string", "enum": ["critical_path", "resource_loading", "crash_schedule"]},
+            "mode": {
+                "type": "string",
+                "enum": ["critical_path", "resource_loading", "crash_schedule", "validate"],
+                "description": "Si es 'validate', ejecuta el autocheque interno (3 casos, uno por modo) contra una red CPM conocida a mano, e ignora el resto de los parámetros.",
+            },
             "activities": {
                 "type": "array",
                 "description": (
@@ -187,8 +192,67 @@ def _crash_schedule(activities, target_reduction):
     }
 
 
+def _run_validate():
+    """Autochequeos contra una red CPM conocida, resuelta a mano.
+
+    Red: A(3) -> B(4) -> D(5)
+         A(3) -> C(2) -> D(5)
+    Ruta crítica esperada: A-B-D, duración total 12 (A-C-D da 3+2+5=10, con
+    holgura 2 en C). Se reusa la misma red para critical_path y resource_loading;
+    crash_schedule usa una red de una sola actividad para aislar el cálculo
+    de pendiente de costo.
+    """
+    checks = []
+
+    net = [
+        {"id": "A", "duration": 3, "predecessors": []},
+        {"id": "B", "duration": 4, "predecessors": ["A"]},
+        {"id": "C", "duration": 2, "predecessors": ["A"]},
+        {"id": "D", "duration": 5, "predecessors": ["B", "C"]},
+    ]
+
+    # 1. critical_path: A-B-D, duracion 12 (A-C-D=10 con holgura 2 en C)
+    cp = _critical_path(net)
+    checks.append({
+        "case": "critical_path red A(3)-B(4)-D(5) / A(3)-C(2)-D(5)",
+        "got": {"project_duration": cp["project_duration"], "critical_path": sorted(cp["critical_path"])},
+        "expected": {"project_duration": 12, "critical_path": ["A", "B", "D"]},
+        "ok": cp["project_duration"] == 12 and sorted(cp["critical_path"]) == ["A", "B", "D"],
+    })
+
+    # 2. resource_loading: misma red, demanda A=2/B=3/C=1/D=4 -> pico 4 en dia 3
+    rl = _resource_loading(net, {"A": 2, "B": 3, "C": 1, "D": 4})
+    checks.append({
+        "case": "resource_loading misma red, demanda A2/B3/C1/D4",
+        "got": {"peak_demand": rl["peak_demand"], "peak_day": rl["peak_day"]},
+        "expected": {"peak_demand": 4.0, "peak_day": 3},
+        "ok": abs(rl["peak_demand"] - 4.0) < 1e-9 and rl["peak_day"] == 3,
+    })
+
+    # 3. crash_schedule: 1 actividad, normal=5/crash=3, normal_cost=100/crash_cost=160,
+    #    reducir 2 dias -> pendiente 30/dia, costo extra 60, duracion final 3
+    act = [{"id": "A", "normal_duration": 5, "crash_duration": 3,
+            "normal_cost": 100, "crash_cost": 160, "predecessors": []}]
+    cs = _crash_schedule(act, 2)
+    checks.append({
+        "case": "crash_schedule 1 actividad normal=5/crash=3 costo 100/160, reducir 2 dias",
+        "got": {"achieved_reduction": cs["achieved_reduction"],
+                "final_project_duration": cs["final_project_duration"],
+                "total_extra_cost": cs["total_extra_cost"]},
+        "expected": {"achieved_reduction": 2.0, "final_project_duration": 3.0, "total_extra_cost": 60.0},
+        "ok": (abs(cs["achieved_reduction"] - 2.0) < 1e-6
+               and abs(cs["final_project_duration"] - 3.0) < 1e-6
+               and abs(cs["total_extra_cost"] - 60.0) < 1e-6),
+    })
+
+    all_passed = all(c["ok"] for c in checks)
+    return {"validate": True, "all_passed": all_passed, "checks": checks}
+
+
 def compute_construction_scheduling(mode, **params):
     """Entry point del tool. Despacha según `mode`. Retorna un dict serializable a JSON."""
+    if mode == "validate":
+        return _run_validate()
     if mode == "critical_path":
         return _critical_path(params["activities"])
     if mode == "resource_loading":
@@ -196,4 +260,9 @@ def compute_construction_scheduling(mode, **params):
     if mode == "crash_schedule":
         return _crash_schedule(params["activities"], params["target_reduction"])
 
-    raise ValueError(f"mode no soportado: {mode}. Usar: critical_path | resource_loading | crash_schedule")
+    raise ValueError(f"mode no soportado: {mode}. Usar: critical_path | resource_loading | crash_schedule | validate")
+
+
+if __name__ == "__main__":
+    import json
+    print(json.dumps(compute_construction_scheduling(mode="validate"), ensure_ascii=False, indent=2))
