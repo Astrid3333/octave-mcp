@@ -1,0 +1,89 @@
+{
+  "_comentario": "Cada idioma guarda el termino COMPLETO como string atomico (patron carpentries/glosario), no se compone por columnas adjetivo+sustantivo+regla de orden. Un idioma vacio significa 'no verificado todavia', nunca se completa por inferencia.",
+  "terminos": {
+    "gas_ideal": {
+      "es": "gas ideal",
+      "en": "ideal gas",
+      "de": {
+        "valor": "ideales Gas",
+        "fuente": "de.wikipedia.org/Ideales_Gas (concordancia neutra: das Gas)"
+      },
+      "zh": {
+        "valor": "理想气体",
+        "fuente": "zh.wikipedia.org/理想气体"
+      },
+      "ja": {
+        "valor": "理想気体",
+        "fuente": "ja.wikipedia.org/理想気体"
+      },
+      "ar": {
+        "valor": "غاز مثالي",
+        "fuente": "ar.wikipedia.org/غاز_مثالي"
+      },
+      "he": {
+        "valor": "גז אידיאלי",
+        "fuente": "he.wikipedia.org/גז_אידיאלי"
+      },
+      "fa": {
+        "valor": "گاز ایده‌آل",
+        "fuente": "fa.wikipedia.org/گاز_ایده‌آل (variante académica: گاز آرمانی, فرهنگستان)"
+      },
+      "ru": {
+        "valor": "идеальный газ",
+        "fuente": "ru.wikipedia.org/Идеальный_газ"
+      },
+      "pt": {
+        "valor": "gás ideal",
+        "fuente": "es.wikipedia.org/Gas_ideal + fuentes .br (preparaenem.com, ufmg.br)"
+      }
+    },
+    "presion": {
+      "es": "presión",
+      "en": "pressure",
+      "zh": {
+        "valor": "压力",
+        "fuente": "zh.wikipedia.org (国际标准大气, 范德华方程式)"
+      },
+      "ja": {
+        "valor": "圧力",
+        "fuente": "ja.wikipedia.org/理想気体 + JIS Z2332"
+      },
+      "ar": {
+        "valor": "ضغط",
+        "fuente": "ar.wikipedia.org/ضغط_ديناميكي"
+      },
+      "he": {
+        "valor": "לחץ",
+        "fuente": "he.wikipedia.org/לחץ"
+      },
+      "fa": {
+        "valor": "فشار",
+        "fuente": "fa.wikipedia.org/گاز"
+      },
+      "ru": {
+        "valor": "давление",
+        "fuente": "ru.wikipedia.org/Идеальный_газ"
+      },
+      "pt": {
+        "valor": "pressão",
+        "fuente": "fisica.ufmg.br (material universitario)"
+      },
+      "af": {
+        "valor": "druk",
+        "fuente": "af.wikipedia.org/Woordelys_vir_onderwaterduik + education.gov.za (examen oficial)"
+      },
+      "de": {
+        "valor": "Druck",
+        "fuente": "estándar en física alemana (SI: Pa), sin ambigüedad de género/caso en nominativo"
+      }
+    },
+    "validacion": {
+      "es": "validación",
+      "en": "validation"
+    },
+    "capa": {
+      "es": "capa",
+      "en": "layer"
+    }
+  }
+}

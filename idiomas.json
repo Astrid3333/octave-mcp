@@ -1,0 +1,18 @@
+{
+  "_comentario": "El orden gramatical (orden_adjetivo) es informativo, para dar contexto a quien verifique una traduccion. NO se usa para generar ni reordenar nada por regla: cada termino se guarda ya armado en terminos.json.",
+  "idiomas": {
+    "es": {"nombre": "español", "estado": "base"},
+    "en": {"nombre": "inglés", "estado": "base"},
+    "de": {"nombre": "alemán", "estado": "pendiente_verificacion", "orden_adjetivo": "antes_del_sustantivo"},
+    "pt": {"nombre": "portugués", "estado": "pendiente_verificacion", "orden_adjetivo": "despues_del_sustantivo"},
+    "af": {"nombre": "afrikáans", "estado": "pendiente_verificacion", "orden_adjetivo": "antes_del_sustantivo"},
+    "ru": {"nombre": "ruso", "estado": "pendiente_verificacion", "orden_adjetivo": "antes_del_sustantivo"},
+    "ar": {"nombre": "árabe", "estado": "pendiente_verificacion", "orden_adjetivo": "despues_del_sustantivo"},
+    "he": {"nombre": "hebreo", "estado": "pendiente_verificacion", "orden_adjetivo": "despues_del_sustantivo"},
+    "fa": {"nombre": "persa", "estado": "pendiente_verificacion", "orden_adjetivo": "despues_del_sustantivo"},
+    "zh": {"nombre": "chino", "estado": "pendiente_verificacion", "orden_adjetivo": "antes_del_sustantivo", "nota": "sin espacios entre palabras; termino se guarda atomico, no se tokeniza"},
+    "ja": {"nombre": "japonés", "estado": "pendiente_verificacion", "orden_adjetivo": "antes_del_sustantivo", "nota": "sin espacios entre palabras; termino se guarda atomico, no se tokeniza"},
+    "ps": {"nombre": "pastún", "estado": "excluido", "motivo": "confianza baja en el orden gramatical, no verificado a fondo"},
+    "arn": {"nombre": "mapudungún", "estado": "excluido", "motivo": "lengua ágrafa, ortografía en disputa (Unificado/Ragileo/Azümchefe), sin vocabulario técnico-científico documentado"}
+  }
+}
