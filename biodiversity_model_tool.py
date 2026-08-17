@@ -18,10 +18,7 @@ import math
 try:
     from tool_registry import register_tool
 except ImportError:
-    def register_tool(schema):
-        def _decorator(fn):
-            return fn
-        return _decorator
+    register_tool = None
 
 
 def _shannon(abundances):
@@ -121,9 +118,9 @@ BIODIVERSITY_MODEL_TOOL_SCHEMA = {
     "description": (
         "Calcula indices de diversidad biologica (Shannon-Wiener, Simpson, "
         "estimador de riqueza Chao1) a partir de datos de abundancia por especie. "
-        "No hace interpretacion ecologica causal, solo devuelve indices/estadisticas."
+        "No hace interpretacion ecologica causal, solo devuelve las metricas calculadas."
     ),
-    "input_schema": {
+    "inputSchema": {
         "type": "object",
         "properties": {
             "mode": {
@@ -142,7 +139,6 @@ BIODIVERSITY_MODEL_TOOL_SCHEMA = {
 }
 
 
-@register_tool(BIODIVERSITY_MODEL_TOOL_SCHEMA)
 def compute_biodiversity_model_tool(mode, **kwargs):
     if mode == "validate":
         return _validate()
@@ -172,3 +168,17 @@ def compute_biodiversity_model_tool(mode, **kwargs):
 if __name__ == "__main__":
     import json
     print(json.dumps(compute_biodiversity_model_tool(mode="validate"), indent=2, ensure_ascii=False))
+
+
+try:
+    from tool_registry import register_tool as _register_tool_real
+    _register_tool_real(
+        name="biodiversity_model_tool",
+        schema=BIODIVERSITY_MODEL_TOOL_SCHEMA,
+        handler=lambda args: compute_biodiversity_model_tool(
+            args.get("mode"),
+            **{k: v for k, v in args.items() if k != "mode"}
+        ),
+    )
+except ImportError:
+    pass

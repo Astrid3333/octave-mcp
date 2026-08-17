@@ -18,10 +18,7 @@ Modos:
 try:
     from tool_registry import register_tool
 except ImportError:
-    def register_tool(schema):
-        def _decorator(fn):
-            return fn
-        return _decorator
+    register_tool = None
 
 
 def _stage_balance(input_mass, output_mass, recycled_mass, loss_mass=None, tol=1e-6):
@@ -189,7 +186,7 @@ CIRCULAR_ECONOMY_TOOL_SCHEMA = {
         "encadenamiento multi-etapa, y un Material Circularity Indicator (MCI) simplificado. "
         "Conservacion de masa se usa como invariante de validacion."
     ),
-    "input_schema": {
+    "inputSchema": {
         "type": "object",
         "properties": {
             "mode": {
@@ -216,7 +213,6 @@ CIRCULAR_ECONOMY_TOOL_SCHEMA = {
 }
 
 
-@register_tool(CIRCULAR_ECONOMY_TOOL_SCHEMA)
 def compute_circular_economy_tool(mode, **kwargs):
     if mode == "validate":
         return _validate()
@@ -253,3 +249,17 @@ def compute_circular_economy_tool(mode, **kwargs):
 if __name__ == "__main__":
     import json
     print(json.dumps(compute_circular_economy_tool(mode="validate"), indent=2, ensure_ascii=False))
+
+
+try:
+    from tool_registry import register_tool as _register_tool_real
+    _register_tool_real(
+        name="circular_economy_tool",
+        schema=CIRCULAR_ECONOMY_TOOL_SCHEMA,
+        handler=lambda args: compute_circular_economy_tool(
+            args.get("mode"),
+            **{k: v for k, v in args.items() if k != "mode"}
+        ),
+    )
+except ImportError:
+    pass
