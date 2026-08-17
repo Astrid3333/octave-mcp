@@ -59,7 +59,16 @@ DOMAIN_KEYWORDS = {
     "fisica": ["fisica", "cuantic", "mecanic", "electromagnet", "termodinamic",
                "acustic", "optic", "relativ", "lyapunov", "caos", "bifurcacion",
                "dinamica molecular", "estadistica mecanica"],
-    "quimica": ["quimic", "molecul", "dft", "pyscf", "reaccion", "cinetica"],
+    # Nota: se evitan keywords sueltas ambiguas por homonimo/sigla:
+    #   "quimic" solo -> matcheaba "quimica de bateria" (battery_sizing_tool)
+    #   "reaccion" solo -> matcheaba "reacciones" de apoyo en vigas (structural_analysis)
+    #   "dft" solo -> colisiona con Discrete Fourier Transform (genome_signal_analysis)
+    #   "cinetica" solo -> no distingue negacion ("sin cinetica" en heating_value_tool)
+    # se usan frases compuestas en su lugar, mas especificas.
+    "quimica": ["quimica computacional", "molecul", "reaccion quimica",
+                "reaccion-difusion", "cinetica quimica", "cinetica enzimatica",
+                "cinetica molecular", "pyscf", "hartree-fock", "biocombustible",
+                "combustion"],
     "biologia": ["biolog", "bacteri", "enzima", "poblacion", "genetic",
                  "epidemi", "microbio", "crecimiento"],
     "ingenieria": ["estructural", "cfd", "movimiento de tierra", "obra",
@@ -242,6 +251,18 @@ def _validate():
     ok7 = len(r7["names"]) == len(set(r7["names"]))
     checks.append({"case": "list_all sin nombres duplicados",
                     "got": len(r7["names"]) - len(set(r7["names"])), "expected": 0, "ok": ok7})
+
+    # 8) regresion: falsos positivos conocidos de by_domain('quimica') por
+    #    homonimo/sigla, detectados a mano contra el catalogo completo
+    #    (server.TOOLS real) -- si alguien vuelve a poner una keyword suelta
+    #    ambigua en DOMAIN_KEYWORDS['quimica'], este check debe romper.
+    r8 = _by_domain({"domain": "quimica"})
+    matched8 = {m["name"] for m in r8["results"]}
+    falsos_conocidos = {"battery_sizing_tool", "structural_analysis", "genome_signal_analysis"}
+    colados = falsos_conocidos & matched8
+    checks.append({"case": "regresion: falsos positivos conocidos de by_domain('quimica') no reaparecen",
+                    "got": sorted(colados) if colados else "ninguno",
+                    "expected": "ninguno", "ok": len(colados) == 0})
 
     return {"validate": True, "all_passed": all(c["ok"] for c in checks), "checks": checks}
 
