@@ -439,5 +439,132 @@ def self_test(verbose: bool = True) -> bool:
 # self_test() sólo verifica consistencia matemática interna del integrador.
 
 
+
+
+# ---------------------------------------------------------------------------
+# 7. Registro como tool MCP
+# ---------------------------------------------------------------------------
+#
+# Nota de alcance: solo se exponen las familias con parámetros puramente
+# numéricos (lcdm, wang_meng, signswitch, ide_h3). La familia 'custom' pide
+# una q_fn (callable Python) que no se puede transportar por JSON-RPC, así
+# que queda fuera del tool público; sigue disponible llamando a compute_Hz()
+# directamente desde Python.
+
+from tool_registry import register_tool
+
+_EXPOSED_FAMILIES = ("lcdm", "wang_meng", "signswitch", "ide_h3")
+
+
+def compute_unified_dark_sector_tool(mode: str, params: dict | None = None):
+    params = dict(params or {})
+
+    if mode == "self_test":
+        ok = self_test(verbose=False)
+        return {"mode": "self_test", "all_pass": ok}
+
+    if mode == "compute_Hz":
+        family = params.get("family", "lcdm")
+        if family not in _EXPOSED_FAMILIES:
+            raise ValueError(
+                f"family debe ser una de {_EXPOSED_FAMILIES} "
+                f"('custom' no esta expuesta via MCP: requiere una funcion "
+                f"Python arbitraria, usar compute_Hz() directamente)"
+            )
+        z = params.get("z")
+        if z is None:
+            raise ValueError("falta 'z' (lista de redshifts)")
+        z_arr = np.atleast_1d(np.asarray(z, dtype=float))
+
+        cosmo = Cosmology(
+            H0=params.get("H0", 70.0),
+            Om0=params.get("Om0", 0.3),
+            Or0=params.get("Or0", 8.24e-5),
+        )
+
+        family_kwargs = {}
+        if family == "wang_meng":
+            family_kwargs["xi"] = params.get("xi", 0.01)
+        elif family == "signswitch":
+            family_kwargs["z_dagger"] = params.get("z_dagger", 2.0)
+            family_kwargs["k"] = params.get("k", 5.0)
+        elif family == "ide_h3":
+            family_kwargs["beta"] = params.get("beta", 0.0)
+            family_kwargs["w"] = params.get("w", -1.0)
+
+        out = compute_Hz(z_arr, cosmo, family, **family_kwargs)
+        return {
+            "mode": "compute_Hz",
+            "family": family,
+            "z": out["z"].tolist(),
+            "H_km_s_Mpc": out["H"].tolist(),
+            "E": out["E"].tolist(),
+            "Omega_m": out["Om"].tolist(),
+            "Omega_de": out["Ode"].tolist(),
+        }
+
+    raise ValueError(f"mode desconocido: {mode!r} (usar 'compute_Hz' o 'self_test')")
+
+
+UNIFIED_DARK_SECTOR_TOOL_SCHEMA = {
+    "name": "unified_dark_sector_tool",
+    "description": (
+        "Calcula H(z) y Omega_m(z)/Omega_de(z) bajo un formalismo Friedmann+"
+        "continuidad unificado, para cuatro familias de sector oscuro "
+        "comparables entre si: lcdm (control), wang_meng (rho_de~a^-xi, "
+        "Ozer&Taha 1987/Wang&Meng 2005), signswitch (Lambda_s tanh, ansatz "
+        "tipo Akarsu et al. motivado por DESI BAO 2024), ide_h3 (acoplamiento "
+        "Q~beta*H^3). Ninguna familia esta ajustada a datos observacionales "
+        "reales, ver docstring del modulo. mode='self_test' corre las "
+        "verificaciones internas (regresion a LCDM, conservacion de energia, "
+        "cuadratura vs ODE)."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "mode": {
+                "type": "string",
+                "enum": ["compute_Hz", "self_test"],
+                "description": "compute_Hz: evalua H(z) para una familia. self_test: corre self_test() interno.",
+            },
+            "params": {
+                "type": "object",
+                "properties": {
+                    "family": {
+                        "type": "string",
+                        "enum": list(_EXPOSED_FAMILIES),
+                        "description": "Familia de sector oscuro (default lcdm). 'custom' no esta expuesta via MCP.",
+                    },
+                    "z": {
+                        "type": "array",
+                        "items": {"type": "number"},
+                        "description": "Redshifts donde evaluar H(z) (requerido para compute_Hz)",
+                    },
+                    "H0": {"type": "number", "description": "H0 en km/s/Mpc (default 70.0)"},
+                    "Om0": {"type": "number", "description": "Omega_m hoy (default 0.3)"},
+                    "Or0": {"type": "number", "description": "Omega_r hoy (default 8.24e-5)"},
+                    "xi": {"type": "number", "description": "Solo wang_meng: exponente rho_de~a^-xi (default 0.01)"},
+                    "z_dagger": {"type": "number", "description": "Solo signswitch: redshift de cambio de signo (default 2.0)"},
+                    "k": {"type": "number", "description": "Solo signswitch: agudeza de la transicion tanh (default 5.0)"},
+                    "beta": {"type": "number", "description": "Solo ide_h3: intensidad de acoplamiento Q~beta*H^3 (default 0.0)"},
+                    "w": {"type": "number", "description": "Solo ide_h3: ecuacion de estado del fluido oscuro (default -1.0)"},
+                },
+            },
+        },
+        "required": ["mode"],
+    },
+}
+
+
+register_tool(
+    name="unified_dark_sector_tool",
+    schema=UNIFIED_DARK_SECTOR_TOOL_SCHEMA,
+    handler=lambda args: compute_unified_dark_sector_tool(
+        args.get("mode"), args.get("params")
+    ),
+)
+
+
 if __name__ == "__main__":
-    self_test(verbose=True)
+    import json
+    print(json.dumps(compute_unified_dark_sector_tool("self_test"), indent=2))
