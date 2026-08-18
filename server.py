@@ -114,6 +114,7 @@ import biodiversity_model_tool  # auto-registra via tool_registry, no requiere m
 import dynamic_kill_calculator_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import tool_catalog_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import scalar_field_cosmology_tool  # auto-registra via tool_registry, no requiere mas ediciones
+import vacuum_energy_density_tool  # auto-registra via tool_registry, no requiere mas ediciones
 from archaeoastronomy_tool import compute_archaeoastronomy, ARCHAEOASTRONOMY_TOOL_SCHEMA
 from quantum_information_tool import compute_quantum_information, QUANTUM_INFORMATION_TOOL_SCHEMA
 from octave_infra_tool import octave_run, octave_eval_expr, octave_run_script, octave_version
