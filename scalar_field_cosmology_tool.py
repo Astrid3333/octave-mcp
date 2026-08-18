@@ -55,6 +55,7 @@ No incluye acoplamiento campo-fluido ni k != 0.
 
 import numpy as np
 from scipy.integrate import solve_ivp
+from tool_registry import register_tool
 
 
 # ---------------------------------------------------------------------------
@@ -328,6 +329,15 @@ SCALAR_FIELD_COSMOLOGY_TOOL_SCHEMA = {
         "required": ["mode"],
     },
 }
+
+
+register_tool(
+    name="scalar_field_cosmology_tool",
+    schema=SCALAR_FIELD_COSMOLOGY_TOOL_SCHEMA,
+    handler=lambda args: compute_scalar_field_cosmology_tool(
+        args.get("mode"), args.get("params")
+    ),
+)
 
 
 if __name__ == "__main__":
