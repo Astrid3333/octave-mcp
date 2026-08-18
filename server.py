@@ -113,6 +113,7 @@ import renewable_mpc_controller  # auto-registra via tool_registry, no requiere 
 import circular_economy_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import biodiversity_model_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import crystallography_tool  # auto-registra via tool_registry, no requiere mas ediciones
+import altitude_pressure_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import dynamic_kill_calculator_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import tool_catalog_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import scalar_field_cosmology_tool  # auto-registra via tool_registry, no requiere mas ediciones
