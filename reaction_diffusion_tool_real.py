@@ -28,7 +28,7 @@ import os
 import math
 
 REACTION_DIFFUSION_SCHEMA = {
-    "name": "compute_reaction_diffusion",
+    "name": "reaction_diffusion_real",
     "description": (
         "Inestabilidad de Turing en un sistema de reaccion-difusion "
         "linealizado de 2 especies (du/dt=Du*u_xx+a11*u+a12*v, "
@@ -41,7 +41,7 @@ REACTION_DIFFUSION_SCHEMA = {
     "inputSchema": {
         "type": "object",
         "properties": {
-            "mode": {"type": "string", "enum": ["check_turing_instability", "simulate_growth_rate"], "default": "check_turing_instability"},
+            "mode": {"type": "string", "enum": ["check_turing_instability", "simulate_growth_rate", "validate"], "default": "check_turing_instability"},
             "a11": {"type": "number", "default": 1.0}, "a12": {"type": "number", "default": -1.0},
             "a21": {"type": "number", "default": 2.0}, "a22": {"type": "number", "default": -1.5},
             "Du": {"type": "number", "default": 1.0}, "Dv": {"type": "number", "default": 10.0},
@@ -90,6 +90,22 @@ def _eigvec_real(M, lam):
 
 def compute_reaction_diffusion(mode="check_turing_instability", a11=1.0, a12=-1.0,
                                 a21=2.0, a22=-1.5, Du=1.0, Dv=10.0):
+    if mode == "validate":
+        r1 = compute_reaction_diffusion("check_turing_instability")
+        check1 = bool(r1.get("inestabilidad_turing_presente"))
+        r_stable = compute_reaction_diffusion(
+            "check_turing_instability", a11=-1.0, a12=-1.0, a21=2.0, a22=-1.5, Du=1.0, Dv=10.0
+        )
+        check2 = not bool(r_stable.get("inestabilidad_turing_presente"))
+        r2 = compute_reaction_diffusion("simulate_growth_rate")
+        err = r2.get("error_relativo")
+        check3 = (err is not None) and (err < 0.05)
+        checks = {
+            "turing_instability_detectada_con_parametros_default": check1,
+            "estabilidad_detectada_correctamente_con_trace_negativa": check2,
+            "crecimiento_numerico_coincide_con_analitico": check3,
+        }
+        return {"checks": checks, "validation_passed": all(checks.values())}
     trace = a11 + a22
     det = a11 * a22 - a12 * a21
     cond1 = trace < 0
@@ -190,3 +206,12 @@ printf("%.10e ", amps);
 if __name__ == "__main__":
     import json
     print(json.dumps(compute_reaction_diffusion("check_turing_instability"), indent=2, ensure_ascii=False))
+
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+register_tool("reaction_diffusion_real", REACTION_DIFFUSION_SCHEMA, lambda args: compute_reaction_diffusion(mode=args.get("mode", "check_turing_instability"), **(args.get("params") or {})))

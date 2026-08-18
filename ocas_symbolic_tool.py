@@ -40,7 +40,7 @@ OCAS_SYMBOLIC_SCHEMA = {
     "inputSchema": {
         "type": "object",
         "properties": {
-            "mode": {"type": "string", "enum": ["symbolic", "number_theory", "diophantine"], "default": "symbolic"},
+            "mode": {"type": "string", "enum": ["symbolic", "number_theory", "diophantine", "validate"], "default": "symbolic"},
             "preset": {"type": "string", "default": "known"},
             "sub_mode": {"type": "string", "description": "Para mode=symbolic: simplify|differentiate|integrate|substitute"},
             "expression": {"type": "string", "description": "Ej: 'x^2 + 2*x + 1'. Potencia SIEMPRE con '^'."},
