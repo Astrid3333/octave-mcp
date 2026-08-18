@@ -32,6 +32,7 @@ import social_impact_tool  # auto-registra via tool_registry, no requiere mas ed
 import math_pipeline_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import ocas_symbolic_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import pipeline_orchestrator_tool  # auto-registra via tool_registry, no requiere mas ediciones
+import ternary_arithmetic_tool  # auto-registra via tool_registry, no requiere mas ediciones
 from lyapunov_tool import compute_lyapunov_exponent, LYAPUNOV_TOOL_SCHEMA
 from stiff_ode_tool import integrate_stiff_ode, STIFF_ODE_TOOL_SCHEMA
 from bifurcation_tool import compute_bifurcation_diagram, BIFURCATION_TOOL_SCHEMA
@@ -111,6 +112,7 @@ import battery_sizing_tool  # auto-registra via tool_registry, no requiere mas e
 import renewable_mpc_controller  # auto-registra via tool_registry, no requiere mas ediciones
 import circular_economy_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import biodiversity_model_tool  # auto-registra via tool_registry, no requiere mas ediciones
+import crystallography_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import dynamic_kill_calculator_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import tool_catalog_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import scalar_field_cosmology_tool  # auto-registra via tool_registry, no requiere mas ediciones
@@ -228,162 +230,21 @@ from critical_infrastructure_tool import CRITICAL_INFRASTRUCTURE_TOOL_SCHEMA
 from urban_planning_tool import URBAN_PLANNING_TOOL_SCHEMA
 from public_data_ingest_tool import PUBLIC_DATA_INGEST_TOOL_SCHEMA
 TOOLS = [
-    
-    
-    CRITICAL_INFRASTRUCTURE_TOOL_SCHEMA,
-    URBAN_PLANNING_TOOL_SCHEMA,
-    PUBLIC_DATA_INGEST_TOOL_SCHEMA,
     {
-        "name": "run_octave",
-        "description": "Ejecuta codigo GNU Octave",
-        "inputSchema": {
-            "type": "object",
-            "properties": {"code": {"type": "string"}},
-            "required": ["code"],
+            "name": "run_octave",
+            "description": "Ejecuta codigo GNU Octave",
+            "inputSchema": {
+                "type": "object",
+                "properties": {"code": {"type": "string"}},
+                "required": ["code"],
+            },
         },
-    },
-    LYAPUNOV_TOOL_SCHEMA,
-    STIFF_ODE_TOOL_SCHEMA,
-    BIFURCATION_TOOL_SCHEMA,
-    HILBERT_TOOL_SCHEMA,
-    GRADIENT_HESSIAN_TOOL_SCHEMA,
-    JACOBIAN_TOOL_SCHEMA,
-    MATH_ERROR_ANALYZER_TOOL_SCHEMA,
-    MATH_BENCHMARK_TOOL_SCHEMA,
-    MATH_INTERPOLATION_TOOL_SCHEMA,
     PIPELINE_BUILDER_TOOL_SCHEMA,
-    MATH_INTERPRETER_TOOL_SCHEMA,
-    MATH_VISUALIZATION_TOOL_SCHEMA,
-    MATH_EXPLAINER_TOOL_SCHEMA,
-    MACHINE_LEARNING_TOOL_SCHEMA,
-    FINANCIAL_MATH_TOOL_SCHEMA,
-    QUANTITY_TAKEOFF_TOOL_SCHEMA,
-    STRUCTURAL_ANALYSIS_TOOL_SCHEMA,
-    EARTHWORKS_TOOL_SCHEMA,
-    BUDGETING_TOOL_SCHEMA,
-    CONSTRUCTION_SCHEDULING_TOOL_SCHEMA,
-    MATH_HUMANIZER_TOOL_SCHEMA,
-    GAME_THEORY_TOOL_SCHEMA,
-    POPULATION_GENETICS_TOOL_SCHEMA,
-    NETWORK_SCIENCE_TOOL_SCHEMA,
-    WAVELET_TOOL_SCHEMA,
-    PERCOLATION_THEORY_TOOL_SCHEMA,
-    REACTION_DIFFUSION_TOOL_SCHEMA,
-    CHEMOMETRICS_TOOL_SCHEMA,
-    ECONOMETRICS_TOOL_SCHEMA,
-    ARCHAEOLOGICAL_SIMULATION_TOOL_SCHEMA,
-    STATISTICAL_PHYSICS_TOOL_SCHEMA,
-    GLM_TOOL_SCHEMA,
-    CLUSTERING_TOOL_SCHEMA,
-    MCDM_TOOL_SCHEMA,
-    OCTAVE_SYNTAX_TOOL_SCHEMA,
-    STOCHASTIC_PROCESSES_TOOL_SCHEMA,
-    ADVANCED_PROBABILITY_TOOL_SCHEMA,
-    INFORMATION_THEORY_TOOL_SCHEMA,
-    OPTIMAL_CONTROL_TOOL_SCHEMA,
-    SPATIAL_STATISTICS_TOOL_SCHEMA,
-    TEXT_ANALYSIS_MATH_TOOL_SCHEMA,
-    MULTIBODY_DYNAMICS_TOOL_SCHEMA,
-    FINITE_ELEMENT_TOOL_SCHEMA,
-    FEM_ADVANCED_TOOL_SCHEMA,
-    PLANE_STRESS_TOOL_SCHEMA,
-    THERMAL_STRUCTURAL_TOOL_SCHEMA,
-    THERMAL_CONDUCTION_TOOL_SCHEMA,
-    THERMAL_ADVANCED_TOOL_SCHEMA,
-    NONLINEAR_BUCKLING_TOOL_SCHEMA,
-    FORCED_VIBRATION_TOOL_SCHEMA,
-    ARCHAEOASTRONOMY_TOOL_SCHEMA,
-    QUANTUM_INFORMATION_TOOL_SCHEMA,
     {"name": "octave_run", "description": "Ejecuta codigo Octave. timeout en segundos (default 60).", "inputSchema": {"type": "object", "properties": {"code": {"type": "string"}, "timeout": {"type": "integer"}}, "required": ["code"]}},
     {"name": "octave_eval_expr", "description": "Evalua una expresion Octave con disp().", "inputSchema": {"type": "object", "properties": {"expression": {"type": "string"}, "timeout": {"type": "integer"}}, "required": ["expression"]}},
     {"name": "octave_run_script", "description": "Ejecuta un script .m existente en disco.", "inputSchema": {"type": "object", "properties": {"script_path": {"type": "string"}, "timeout": {"type": "integer"}}, "required": ["script_path"]}},
     {"name": "octave_version", "description": "Devuelve la version de Octave instalada.", "inputSchema": {"type": "object", "properties": {}}},
-    {"name": "compute_lyapunov_v2", "description": "Calcula el exponente de Lyapunov maximo (lambda1) de un sistema dinamico (presets: chen_lee, burke_shaw, lorenz, rossler, o ecuaciones custom) para cuantificar caos. lambda1>0 confirma comportamiento caotico. Si se indica run_id, guarda la trayectoria completa en el workspace (util para graficar el atractor despues con plot_tool).", "inputSchema": {"type": "object", "properties": {"system": {"type": "string"}, "custom_equations": {"type": "string"}, "custom_params": {"type": "object"}, "y0": {"type": "array"}, "dt": {"type": "number"}, "n_steps": {"type": "integer"}, "d0": {"type": "number"}, "run_id": {"type": "string"}, "save_trajectory_every": {"type": "integer"}, "mode": {"type": "string", "enum": ["validate"], "description": "Si es 'validate', ejecuta el autocheque interno (sistemas lineales 3D con lambda1 exacto conocido) e ignora el resto de los parametros."}}}},
-    
-    
-    
-    
-    
-    
-    
-    {"name": "ancestral_octave", "description": "Corre metodos ancestrales (suanpan_add, chinese_remainder, vedic_multiply, archimedes_pi, quipu_encode) como funciones Octave NATIVAS via ancestral.m, en el mismo motor que octave_run. extra_octave permite componer con otro codigo Octave en la misma sesion. mode='validate' corre checks matematicos contra valores conocidos, sin necesitar preset.", "inputSchema": {"type": "object", "properties": {"preset": {"type": "string"}, "params": {"type": "object"}, "extra_octave": {"type": "string"}, "mode": {"type": "string", "enum": ["validate"]}}, "required": []}},
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    NUMBER_THEORY_SCHEMA,
-    
-    
-    
-    
-    
-    {"name": "reaction_diffusion_real", "description": "Inestabilidad de Turing (reaccion-difusion linealizada): evalua las 4 condiciones analiticas clasicas y compara tasa de crecimiento numerica vs analitica en el numero de onda mas inestable. Mecanismo detras de patrones biologicos (rayas, manchas, morfogenesis).", "inputSchema": {"type": "object", "properties": {"mode": {"type": "string", "enum": ["check_turing_instability", "simulate_growth_rate"], "default": "check_turing_instability"}, "a11": {"type": "number"}, "a12": {"type": "number"}, "a21": {"type": "number"}, "a22": {"type": "number"}, "Du": {"type": "number"}, "Dv": {"type": "number"}}}},
-    
-    {"name": "tritbraid", "description": "DSL TritBraid: secuencias de trenzas de Fibonacci que colapsan a un trit ternario (-1,0,+1). Tokens del programa: 0=identidad, 1=sigma1 (diagonal, no mezcla canales), 2=sigma2 (mezcla via matriz F), M=medicion (colapso proyectivo, regla de Born). Modes: run_program (ejecuta el programa dado y devuelve traza completa), validate_physics (verifica unitariedad, invariancia bajo identidad/sigma1, y mez", "inputSchema": {"type": "object", "properties": {"mode": {"type": "string"}, "program": {"type": "string"}, "seed": {"type": "integer"}, "initial_state": {"type": "array"}}}},
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
     {"name": "numeral_systems_embedding", "description": "Vectoriza sistemas numericos antiguos (base, tipo posicional/aditivo/ fisico, presencia de cero, redundancia representacional, soporte fisico) y proyecta a 2D via UMAP o t-SNE, para explorar agrupamientos estructurales entre culturas. Dataset base: maya_long_count, suanpan, soroban, roman_hand_abacus, yupana_depasquale, quipu, ifa_binary. Extensible via extra_systems (lista de dicts con el mismo s", "inputSchema": {"type": "object", "properties": {"method": {"type": "string"}, "extra_systems": {"type": "array"}, "n_neighbors": {"type": "integer"}, "perplexity": {"type": "number"}, "random_state": {"type": "integer"}, "run_id": {"type": "string"}}}},
-    GENOME_SIGNAL_ANALYSIS_SCHEMA,
-    POLARIZATION_MAPPING_SCHEMA,
-    ELECTROMAGNETIC_TOOL_SCHEMA,
-    ACOUSTICS_TOOL_SCHEMA,
-    DISTMESH_TOOL_SCHEMA,
-    CIRCUIT_TOOL_SCHEMA,
-    TOPOLOGY_OPTIMIZATION_TOOL_SCHEMA,
-    MESH_PDE_TOOL_SCHEMA,
-    QUANTUM_ASTRO_TOOL_SCHEMA,
-    SEMICLASSICAL_COSMOLOGY_TOOL_SCHEMA,
-    COSMOLOGICAL_MCMC_TOOL_SCHEMA,
-    QUANTUM_COSMOLOGY_TOOL_SCHEMA,
-    LSCM_TOOL_SCHEMA,
-    SDF_TOOL_SCHEMA,
-    GEOMETRIC_ALGEBRA_PROTEIN_SCHEMA,
-    OPTICAL_SEQUENCE_ID_SCHEMA,
-    INFRASOUND_TOOL_SCHEMA,
-    BACTERIAL_GROWTH_TOOL_SCHEMA,
-    VIRAL_LATTICE_TOOL_SCHEMA,
-    ENZYME_STOCHASTIC_SCHEMA,
-    EVO_LGCA_TOOL_SCHEMA,
-    MESH_SPECTRAL_TOOL_SCHEMA,
-    SURVEY_ANGLES_TOOL_SCHEMA,
-    SURVEY_DISTANCE_TOOL_SCHEMA,
-    SURVEY_CURVATURE_TOOL_SCHEMA,
-    TRAVERSE_ADJUSTMENT_TOOL_SCHEMA,
-    SURVEY_CURVES_TOOL_SCHEMA,
-    SURVEY_AREA_VOLUME_TOOL_SCHEMA,
-    GAS_TOOL_SCHEMA,
-    KNOWLEDGE_GRAPH_TOOL_SCHEMA,
-    SEMANTIC_BRIDGE_TOOL_SCHEMA,
-    CREDIT_SIMULATION_TOOL_SCHEMA,
-    REFINANCE_ANALYSIS_TOOL_SCHEMA,
-    BIOREFINERY_TOOL_SCHEMA,
-    
-
-
-    
-    
-    
-    
-    
-    
-    
 ] + tool_registry.get_schemas()
 
 
