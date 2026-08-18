@@ -229,6 +229,8 @@ from urban_planning_tool import compute_urban_planning
 from public_data_ingest_tool import compute_public_data_ingest
 from critical_infrastructure_tool import CRITICAL_INFRASTRUCTURE_TOOL_SCHEMA
 from urban_planning_tool import URBAN_PLANNING_TOOL_SCHEMA
+from agricultural_dynamics_tool import agricultural_dynamics_tool as _wire_agricultural_dynamics_tool
+from renewable_potential_tool import renewable_potential_tool as _wire_renewable_potential_tool
 from public_data_ingest_tool import PUBLIC_DATA_INGEST_TOOL_SCHEMA
 TOOLS = [
     {
