@@ -332,6 +332,7 @@ def validate():
         "n_checks": len(checks),
         "n_pass": n_pass,
         "all_pass": n_pass == len(checks),
+        "validation_passed": n_pass == len(checks),
         "checks": checks,
     }
 
