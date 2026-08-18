@@ -380,3 +380,15 @@ if __name__ == "__main__":
     import json
     result = validate()
     print(json.dumps(result, indent=2, ensure_ascii=False))
+
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+def _handle(args):
+    return agricultural_dynamics_tool(args.get("mode"), args.get("params"))
+
+register_tool("agricultural_dynamics_tool", TOOL_SCHEMA, _handle)
