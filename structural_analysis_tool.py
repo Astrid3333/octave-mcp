@@ -91,10 +91,53 @@ def _beam_analysis(support, length, point_loads=None, distributed_load=0.0,
         V[mask] -= p["P"]
         M[mask] -= p["P"] * (x[mask] - p["x"])
 
-    i_max = int(np.argmax(np.abs(M)))
-    max_moment = float(M[i_max])
-    max_moment_x = float(x[i_max])
-    max_shear = float(np.max(np.abs(V)))
+    # --- Picos exactos (fix: el maximo del arreglo linspace subestima el
+    # pico real cuando cae fuera de la grilla, ej. bajo carga puntual) ---
+    def _M_at(xv):
+        Mv = M0 + R_A * xv - w * xv**2 / 2
+        for p in point_loads:
+            if xv >= p["x"] - 1e-12:
+                Mv -= p["P"] * (xv - p["x"])
+        return Mv
+
+    def _V_left(xv):
+        Vv = R_A - w * xv
+        for p in point_loads:
+            if xv > p["x"] + 1e-12:
+                Vv -= p["P"]
+        return Vv
+
+    def _V_right(xv):
+        Vv = R_A - w * xv
+        for p in point_loads:
+            if xv >= p["x"] - 1e-12:
+                Vv -= p["P"]
+        return Vv
+
+    boundaries = sorted(set([0.0, L] + [p["x"] for p in point_loads]))
+
+    # Momento: candidatos = extremos + cada carga puntual + ceros de V(x)
+    # (donde M(x) es estacionario) dentro de cada tramo, si hay carga distribuida
+    m_candidates = set(boundaries)
+    if w != 0.0:
+        for i in range(len(boundaries) - 1):
+            x_left, x_right = boundaries[i], boundaries[i + 1]
+            v_left = _V_right(x_left)
+            x_zero = x_left + v_left / w
+            if x_left - 1e-9 <= x_zero <= x_right + 1e-9:
+                m_candidates.add(min(max(x_zero, x_left), x_right))
+    m_evals = [(xc, _M_at(xc)) for xc in sorted(m_candidates)]
+    max_moment_x, max_moment = max(m_evals, key=lambda t: abs(t[1]))
+    max_moment = float(max_moment)
+    max_moment_x = float(max_moment_x)
+
+    # Corte: maximo |V| ocurre siempre en un extremo de tramo (V es lineal
+    # a trozos), evaluado a izquierda y derecha de cada frontera por los saltos
+    v_evals = []
+    for xb in boundaries:
+        v_evals.append(abs(_V_left(xb)))
+        v_evals.append(abs(_V_right(xb)))
+    max_shear = float(max(v_evals))
 
     result = {
         "mode": "beam_analysis",
@@ -332,3 +375,11 @@ def compute_structural_analysis(mode, **params):
         f"mode no soportado: {mode}. Usar: beam_analysis | truss_analysis | "
         "section_properties | stress_check"
     )
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+register_tool("structural_analysis", STRUCTURAL_ANALYSIS_TOOL_SCHEMA, lambda args, _f=compute_structural_analysis: _f(**args))
