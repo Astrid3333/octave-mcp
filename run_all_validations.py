@@ -69,6 +69,17 @@ ALTERNATE_VALIDATE_MODE = {
     "abstract_algebra": "validate",
 }
 
+# Tools registradas via `lambda args: compute_X(**args)` con firma plana
+# (mode, text_data=None, preset=None, ...) -- no aceptan un kwarg "params"
+# ni tienen **kwargs, asi que el payload estandar {"mode": ..., "params": {}}
+# les tira TypeError. Se omite "params" del payload solo para estas.
+FLAT_SIGNATURE_TOOLS = {
+    "plague_sir",
+    "settlement_clusters",
+    "historical_extractor",
+    "abstract_algebra",
+}
+
 # Nombres de campo alternativos para "el autochequeo paso" -- distintas
 # tools nunca convergieron en una sola convencion. all_params_within_2sigma
 # es especifico de cosmological_mcmc_tool (su autochequeo es una
@@ -107,11 +118,14 @@ def build_requests(tools):
         if name in KNOWN_NON_STANDARD_VALIDATE:
             skipped.append((name, KNOWN_NON_STANDARD_VALIDATE[name]))
             continue
+        arguments = {"mode": mode_to_call}
+        if name not in FLAT_SIGNATURE_TOOLS:
+            arguments["params"] = {}
         requests.append({
             "jsonrpc": "2.0",
             "id": next_id,
             "method": "tools/call",
-            "params": {"name": name, "arguments": {"mode": mode_to_call, "params": {}}},
+            "params": {"name": name, "arguments": arguments},
         })
         tool_id_map[next_id] = name
         next_id += 1
