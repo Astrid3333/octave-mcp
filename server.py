@@ -114,6 +114,7 @@ import parallel_task_runner_tool  # auto-registra via tool_registry, no requiere
 import solar_radiation_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import wind_power_curve_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import battery_sizing_tool  # auto-registra via tool_registry, no requiere mas ediciones
+import solar_heating_sizer_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import renewable_mpc_controller  # auto-registra via tool_registry, no requiere mas ediciones
 import circular_economy_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import biodiversity_model_tool  # auto-registra via tool_registry, no requiere mas ediciones
