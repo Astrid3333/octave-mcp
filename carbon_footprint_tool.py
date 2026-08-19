@@ -171,59 +171,117 @@ def _mode_wood_vs_grid_heating(p):
 
 def _mode_annual_projection(p):
     """
-    Proyeccion multi-anual del modo wood_vs_solar_heating: repite el mismo
-    calculo puntual ano a ano (energia y factores de emision constantes,
-    sin degradacion de paneles FV ni cambios en la matriz electrica -- eso
-    queda fuera de alcance de este modo) y acumula kg CO2 y ahorro.
+    Proyeccion multi-anual de wood_vs_solar_heating o wood_vs_grid_heating,
+    segun el parametro comparison ("solar" default, o "grid" contra el
+    factor real de la matriz electrica chilena/SEN). Acumula kg CO2 ano a
+    ano.
+
+    Con comparison="solar" admite fv_degradation_pct_per_year (default 0.0):
+    reduce el AHORRO (wood_co2 - clean_co2) atribuible al sistema FV en cada
+    ano, no el clean_co2 directamente (encoger clean_co2 invertiria el signo:
+    menos clean_co2 = mas ahorro, al reves de lo esperado). El ahorro decae
+    geometricamente: savings_n = savings_year1 * (1 - tasa)^(n-1), y
+    clean_co2_n se deriva como wood_co2_per_year - savings_n (por lo tanto
+    clean_co2 crece hacia wood_co2_per_year a medida que el beneficio del
+    sistema decae). IMPORTANTE: esto NO modela de donde sale la energia
+    faltante por la degradacion (backup a red, menor cobertura de la
+    demanda, etc.) -- solo reporta que el ahorro atribuible a ese sistema
+    decae con el tiempo; el resto queda fuera de alcance.
+    fv_degradation_pct_per_year no aplica con comparison="grid" (la red no
+    es un sistema propio que se degrade).
     """
     annual_energy_needed_kwh = float(p["annual_energy_needed_kwh"])
     years = int(p.get("years", 20))
     if years < 0:
         raise ValueError("years debe ser >= 0")
 
+    comparison = p.get("comparison", "solar")
+    if comparison not in ("solar", "grid"):
+        raise ValueError("comparison debe ser 'solar' o 'grid'")
+
+    fv_degradation_pct_per_year = float(p.get("fv_degradation_pct_per_year", 0.0))
+    if fv_degradation_pct_per_year < 0:
+        raise ValueError("fv_degradation_pct_per_year debe ser >= 0")
+    if fv_degradation_pct_per_year > 0 and comparison != "solar":
+        raise ValueError("fv_degradation_pct_per_year solo aplica con comparison='solar'")
+
     base_params = dict(p)
     base_params["energy_needed_kwh"] = annual_energy_needed_kwh
-    base_params.pop("annual_energy_needed_kwh", None)
-    base_params.pop("years", None)
-    base = _mode_wood_vs_solar_heating(base_params)
+    for key in ("annual_energy_needed_kwh", "years", "comparison", "fv_degradation_pct_per_year"):
+        base_params.pop(key, None)
+
+    if comparison == "solar":
+        base = _mode_wood_vs_solar_heating(base_params)
+        clean_co2_year1 = base["solar_co2_kg"]
+    else:
+        base = _mode_wood_vs_grid_heating(base_params)
+        clean_co2_year1 = base["grid_co2_kg"]
 
     wood_co2_per_year = base["wood_co2_kg"]
-    solar_co2_per_year = base["solar_co2_kg"]
-    savings_per_year_kg = wood_co2_per_year - solar_co2_per_year
 
-    cumulative_wood = [round(wood_co2_per_year * y, 4) for y in range(1, years + 1)]
-    cumulative_solar = [round(solar_co2_per_year * y, 4) for y in range(1, years + 1)]
-    cumulative_savings = [round(savings_per_year_kg * y, 4) for y in range(1, years + 1)]
+    cumulative_wood, cumulative_clean, cumulative_savings = [], [], []
+    running_wood = running_clean = running_savings = 0.0
+
+    for y in range(1, years + 1):
+        degradation_factor = (1.0 - fv_degradation_pct_per_year / 100.0) ** (y - 1)
+        # El ahorro atribuible al sistema decae con la degradacion (no el CO2
+        # del lado limpio, que se derivaria mal si se encoge directamente --
+        # eso invertiria el signo: menos clean_co2 = MAS ahorro, al reves de
+        # lo esperado). clean_this_year se recalcula desde el ahorro ya
+        # decaido, para que crezca hacia wood_co2_per_year a medida que la
+        # degradacion reduce el beneficio atribuible al sistema.
+        savings_this_year = (wood_co2_per_year - clean_co2_year1) * degradation_factor
+        clean_this_year = wood_co2_per_year - savings_this_year
+
+        running_wood += wood_co2_per_year
+        running_clean += clean_this_year
+        running_savings += savings_this_year
+
+        cumulative_wood.append(round(running_wood, 4))
+        cumulative_clean.append(round(running_clean, 4))
+        cumulative_savings.append(round(running_savings, 4))
 
     milestone_years = [y for y in (1, 5, 10, 20) if y <= years]
     milestones = [
         {
             "year": y,
-            "cumulative_wood_co2_kg": round(wood_co2_per_year * y, 2),
-            "cumulative_solar_co2_kg": round(solar_co2_per_year * y, 2),
-            "cumulative_savings_kg": round(savings_per_year_kg * y, 2),
+            "cumulative_wood_co2_kg": cumulative_wood[y - 1],
+            "cumulative_clean_co2_kg": cumulative_clean[y - 1],
+            "cumulative_savings_kg": cumulative_savings[y - 1],
         }
         for y in milestone_years
     ]
 
-    return {
+    result = {
         "annual_energy_needed_kwh": annual_energy_needed_kwh,
         "years": years,
+        "comparison": comparison,
+        "fv_degradation_pct_per_year": fv_degradation_pct_per_year,
         "wood_co2_per_year_kg": round(wood_co2_per_year, 4),
-        "solar_co2_per_year_kg": round(solar_co2_per_year, 4),
-        "savings_per_year_kg": round(savings_per_year_kg, 4),
+        "clean_co2_per_year_kg": round(clean_co2_year1, 4),
+        "savings_per_year_kg": round(wood_co2_per_year - clean_co2_year1, 4),
         "cumulative_wood_co2_kg": cumulative_wood,
-        "cumulative_solar_co2_kg": cumulative_solar,
+        "cumulative_clean_co2_kg": cumulative_clean,
         "cumulative_savings_kg": cumulative_savings,
         "milestones": milestones,
         "note": (
-            "Modelo lineal: asume energia anual y factores de emision constantes "
-            "ano a ano (sin degradacion de paneles FV ni cambios en la matriz "
-            "electrica). No incluye ahorro economico -- este tool no tiene precios "
-            "de referencia de lena/electricidad."
+            "Modelo lineal en energia y factores de emision (constantes ano a "
+            "ano salvo por fv_degradation_pct_per_year si se especifica). No "
+            "incluye ahorro economico -- este tool no tiene precios de "
+            "referencia de lena/electricidad."
         ),
     }
 
+    # Alias de compatibilidad con el nombre historico de estas claves
+    # (comparison="solar" sigue siendo el default y el comportamiento previo)
+    if comparison == "solar":
+        result["solar_co2_per_year_kg"] = result["clean_co2_per_year_kg"]
+        result["cumulative_solar_co2_kg"] = result["cumulative_clean_co2_kg"]
+    else:
+        result["grid_co2_per_year_kg"] = result["clean_co2_per_year_kg"]
+        result["cumulative_grid_co2_kg"] = result["cumulative_clean_co2_kg"]
+
+    return result
 
 def _validate():
     checks = []
@@ -394,6 +452,58 @@ def _validate():
         "passed": bool(check14_passed),
     })
 
+    # Check 15: annual_projection con comparison='grid', year 1 debe
+    # coincidir con wood_vs_grid_heating puntual (mismo patron que check 6)
+    base_single_grid = _mode_wood_vs_grid_heating({"energy_needed_kwh": 15.0})
+    proj_grid = _mode_annual_projection({"annual_energy_needed_kwh": 15.0, "years": 10, "comparison": "grid"})
+    checks.append({
+        "name": "annual_projection_grid_year1_matches_single_calc",
+        "single_grid_co2": base_single_grid["grid_co2_kg"], "proj_clean_co2_per_year": proj_grid["clean_co2_per_year_kg"],
+        "passed": bool(abs(base_single_grid["grid_co2_kg"] - proj_grid["clean_co2_per_year_kg"]) < 1e-6),
+    })
+
+    # Check 16: annual_projection con fv_degradation_pct_per_year>0, el CO2
+    # limpio acumulado debe ser MAYOR que sin degradacion (el sistema
+    # entrega/evita menos con el tiempo -> el 'no evitado' crece) y el ahorro
+    # acumulado debe ser MENOR que el caso sin degradacion
+    proj_no_deg = _mode_annual_projection({"annual_energy_needed_kwh": 15.0, "years": 10, "comparison": "solar"})
+    proj_deg = _mode_annual_projection({
+        "annual_energy_needed_kwh": 15.0, "years": 10, "comparison": "solar",
+        "fv_degradation_pct_per_year": 5.0,
+    })
+    checks.append({
+        "name": "annual_projection_degradation_reduce_savings",
+        "savings_sin_degradacion": proj_no_deg["cumulative_savings_kg"][-1],
+        "savings_con_degradacion": proj_deg["cumulative_savings_kg"][-1],
+        "passed": bool(proj_deg["cumulative_savings_kg"][-1] < proj_no_deg["cumulative_savings_kg"][-1]),
+    })
+
+    # Check 17: fv_degradation_pct_per_year con comparison='grid' debe dar
+    # error explicito (la red no es un sistema propio que se degrade)
+    try:
+        _mode_annual_projection({
+            "annual_energy_needed_kwh": 15.0, "comparison": "grid",
+            "fv_degradation_pct_per_year": 5.0,
+        })
+        check17_passed = False
+    except ValueError:
+        check17_passed = True
+    checks.append({
+        "name": "annual_projection_degradation_con_grid_da_error_no_crash",
+        "passed": bool(check17_passed),
+    })
+
+    # Check 18: comparison invalido (ni solar ni grid) debe dar error explicito
+    try:
+        _mode_annual_projection({"annual_energy_needed_kwh": 15.0, "comparison": "nuclear"})
+        check18_passed = False
+    except ValueError:
+        check18_passed = True
+    checks.append({
+        "name": "annual_projection_comparison_invalido_da_error_no_crash",
+        "passed": bool(check18_passed),
+    })
+
     all_passed = all(c["passed"] for c in checks)
     return {"checks": checks, "validation_passed": all_passed}
 
@@ -438,9 +548,10 @@ try:
                 "stove_efficiency opcional, heater_efficiency opcional), wood_vs_grid_heating "
                 "(igual pero contra el factor de emisiones REAL de la matriz electrica "
                 "chilena/SEN en vez de FV puro -- mas realista para calefaccion conectada "
-                "a la red), annual_projection (annual_energy_needed_kwh, years -- proyecta "
-                "el mismo calculo acumulado a varios anos, sin degradacion FV ni ahorro "
-                "economico) y validate."
+                "a la red), annual_projection (annual_energy_needed_kwh, years, comparison "
+                "opcional 'solar' o 'grid', fv_degradation_pct_per_year opcional solo con "
+                "comparison='solar' -- proyecta el calculo acumulado a varios anos, sin "
+                "ahorro economico) y validate."
             ),
             "inputSchema": CARBON_FOOTPRINT_TOOL_SCHEMA,
         },
