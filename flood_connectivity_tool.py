@@ -137,7 +137,14 @@ def _query_depth_at_point(vertices, faces, elevations, water_level, flood_result
     """Interpola la profundidad de inundacion en un punto arbitrario (no
     necesariamente un vertice de la malla), usando coordenadas baricentricas
     del triangulo que lo contiene. Devuelve None si el punto cae fuera de
-    la malla."""
+    la malla.
+
+    IMPORTANTE (conectividad): el punto solo se reporta como inundado si
+    los 3 vertices del triangulo que lo contiene estan en el conjunto
+    conectado (flood_result['depths']). Comparar la elevacion interpolada
+    contra water_level sin este chequeo reproduce el bug de bathtub-fill
+    ingenuo que este tool existe para evitar -- un punto geometricamente
+    bajo pero aislado del rio por una loma NO debe marcarse inundado."""
     depths_by_node = flood_result["depths"]
     for tri in faces:
         i, j, k = int(tri[0]), int(tri[1]), int(tri[2])
@@ -146,12 +153,22 @@ def _query_depth_at_point(vertices, faces, elevations, water_level, flood_result
         if bary is None:
             continue
         wa, wb, wc = bary
+
+        flooded_verts = [str(idx) in depths_by_node for idx in (i, j, k)]
         z_interp = wa * elevations[i] + wb * elevations[j] + wc * elevations[k]
-        if z_interp > water_level:
+
+        if not all(flooded_verts):
+            # Al menos un vertice del triangulo no esta conectado a la
+            # inundacion (aunque su cota sea baja) -> punto NO inundado.
             return {"flooded": False, "depth": 0.0, "elevation_interp": round(z_interp, 6),
-                    "triangle": [i, j, k]}
-        depth = round(water_level - z_interp, 6)
-        return {"flooded": True, "depth": depth, "elevation_interp": round(z_interp, 6),
+                    "triangle": [i, j, k],
+                    "nota": "triangulo no completamente conectado a la inundacion"}
+
+        # Los 3 vertices estan conectados: interpolar PROFUNDIDAD real
+        # (no elevacion) usando los valores ya calculados por el flood-fill.
+        depth = (wa * depths_by_node[str(i)] + wb * depths_by_node[str(j)]
+                 + wc * depths_by_node[str(k)])
+        return {"flooded": True, "depth": round(depth, 6), "elevation_interp": round(z_interp, 6),
                 "triangle": [i, j, k]}
     return None  # punto fuera de la malla
 
@@ -247,14 +264,25 @@ def validate():
                     "detalle": r})
 
     # Check 4: interpolacion baricentrica en un punto interior de un triangulo
+    # totalmente conectado
     v, f, z, s, wl = _isolated_depression_case()
     r = _bathtub_fill_connectivity(v, f, z, s, water_level=10)
     # punto en el centro del triangulo [0,1,3] (cotas 10,10,10) -> deberia
-    # interpolar a 10.0 exacto
+    # interpolar a 10.0 exacto, con profundidad 0
     q = _query_depth_at_point(v, f, z, 10, r, query_xy=(0.33, 0.33))
     check4_ok = (q is not None) and abs(q["elevation_interp"] - 10.0) < 1e-6
     checks.append({"nombre": "interpolacion_baricentrica_punto_consulta",
                     "paso": bool(check4_ok), "detalle": q})
+
+    # Check 5: consulta en un triangulo NO completamente conectado debe dar
+    # flooded=False aunque su elevacion interpolada sea baja (este es el
+    # check que verifica el fix del bug de conectividad en query_point)
+    v, f, z, s, wl = _isolated_depression_case()
+    r = _bathtub_fill_connectivity(v, f, z, s, wl)  # water_level=5, todo seco
+    q5 = _query_depth_at_point(v, f, z, wl, r, query_xy=(1.0, 1.0))  # cerca del nodo 4 (cota 1, bajo)
+    check5_ok = (q5 is not None) and (q5["flooded"] is False)
+    checks.append({"nombre": "query_point_respeta_conectividad_no_falso_positivo",
+                    "paso": bool(check5_ok), "detalle": q5})
 
     todos_pasaron = all(c["paso"] for c in checks)
     return {"checks": checks, "todos_pasaron": todos_pasaron, "validation_passed": todos_pasaron}
