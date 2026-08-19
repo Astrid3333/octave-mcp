@@ -463,6 +463,10 @@ def validate():
     checks.append(("safety_factor_arithmetic_consistency",
                     abs(sigma_max * sf - sigma_y) / sigma_y < tol))
 
+    # Fix: abs(...) < tol contra escalares numpy devuelve numpy.bool_, que
+    # NumPy 2.x nombra igual que el bool nativo (no se distingue a simple
+    # vista) pero json.dumps() no lo serializa. Se normaliza a bool nativo.
+    checks = [(name, bool(ok)) for name, ok in checks]
     n_ok = sum(1 for _, ok in checks if ok)
     return {
         "validation_passed": bool(n_ok == len(checks)),
