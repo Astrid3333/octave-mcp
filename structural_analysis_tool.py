@@ -32,7 +32,7 @@ STRUCTURAL_ANALYSIS_TOOL_SCHEMA = {
         "properties": {
             "mode": {
                 "type": "string",
-                "enum": ["beam_analysis", "truss_analysis", "section_properties", "stress_check"],
+                "enum": ["beam_analysis", "truss_analysis", "section_properties", "stress_check", "validate"],
             },
             "support": {"type": "string", "enum": ["simply_supported", "cantilever"]},
             "length": {"type": "number", "description": "Luz L de la viga (m). beam_analysis."},
@@ -347,8 +347,153 @@ def _stress_check(force, area, allowable_stress):
     }
 
 
+
+def _validate_structural():
+    """Autochequeo con 5 casos de solucion cerrada, uno por sub-modo."""
+    checks = []
+
+    # --- 1) beam_analysis, simplemente apoyada, carga puntual ---
+    r1 = _beam_analysis(
+        support="simply_supported", length=3.0,
+        point_loads=[{"P": 1500.0, "x": 1.5}],
+    )
+    exp_M1, exp_R1 = 1125.0, 750.0
+    checks.append({
+        "name": "beam_simply_supported_max_moment",
+        "expected": exp_M1, "got": r1["max_moment"],
+        "passed": abs(abs(r1["max_moment"]) - exp_M1) < 1e-3,
+    })
+    checks.append({
+        "name": "beam_simply_supported_reactions",
+        "expected": exp_R1, "got": r1["reactions"],
+        "passed": (
+            abs(r1["reactions"]["R_A"] - exp_R1) < 1e-3
+            and abs(r1["reactions"]["R_B"] - exp_R1) < 1e-3
+        ),
+    })
+    checks.append({
+        "name": "beam_simply_supported_max_shear",
+        "expected": exp_R1, "got": r1["max_shear"],
+        "passed": abs(r1["max_shear"] - exp_R1) < 1e-3,
+    })
+
+    # --- 2) beam_analysis, voladizo, carga en la punta ---
+    r2 = _beam_analysis(
+        support="cantilever", length=2.0,
+        point_loads=[{"P": 1000.0, "x": 2.0}],
+    )
+    exp_M2, exp_R2 = 2000.0, 1000.0
+    checks.append({
+        "name": "beam_cantilever_max_moment",
+        "expected": exp_M2, "got": r2["max_moment"],
+        "passed": abs(abs(r2["max_moment"]) - exp_M2) < 1e-3,
+    })
+    checks.append({
+        "name": "beam_cantilever_reactions",
+        "expected": {"R_A": exp_R2, "M_A": exp_M2}, "got": r2["reactions"],
+        "passed": (
+            abs(r2["reactions"]["R_A"] - exp_R2) < 1e-3
+            and abs(r2["reactions"]["M_A"] - exp_M2) < 1e-3
+        ),
+    })
+    checks.append({
+        "name": "beam_cantilever_max_shear",
+        "expected": exp_R2, "got": r2["max_shear"],
+        "passed": abs(r2["max_shear"] - exp_R2) < 1e-3,
+    })
+
+    # --- 3) truss_analysis, triangulo isostatico simple ---
+    r3 = _truss_analysis(
+        nodes={"A": (0.0, 0.0), "B": (4.0, 0.0), "C": (2.0, 2.0)},
+        members=[("A", "B"), ("A", "C"), ("B", "C")],
+        supports={"A": "pin", "B": "roller_y"},
+        loads={"C": (0.0, -1000.0)},
+    )
+    forces = {m["member"]: m["force"] for m in r3["member_forces"]}
+    exp_AB, exp_AC_BC = 500.0, -707.107
+    tol_truss = 0.05
+    checks.append({
+        "name": "truss_member_force_AB",
+        "expected": exp_AB, "got": forces.get("A-B"),
+        "passed": forces.get("A-B") is not None and abs(forces["A-B"] - exp_AB) < tol_truss,
+    })
+    checks.append({
+        "name": "truss_member_force_AC",
+        "expected": exp_AC_BC, "got": forces.get("A-C"),
+        "passed": forces.get("A-C") is not None and abs(forces["A-C"] - exp_AC_BC) < tol_truss,
+    })
+    checks.append({
+        "name": "truss_member_force_BC",
+        "expected": exp_AC_BC, "got": forces.get("B-C"),
+        "passed": forces.get("B-C") is not None and abs(forces["B-C"] - exp_AC_BC) < tol_truss,
+    })
+    exp_reac = 500.0
+    r_ay = r3["reactions"].get("A", {}).get("R_y")
+    r_by = r3["reactions"].get("B", {}).get("R_y")
+    checks.append({
+        "name": "truss_reactions_symmetric",
+        "expected": exp_reac, "got": {"R_Ay": r_ay, "R_By": r_by},
+        "passed": (
+            r_ay is not None and r_by is not None
+            and abs(r_ay - exp_reac) < tol_truss
+            and abs(r_by - exp_reac) < tol_truss
+        ),
+    })
+    checks.append({
+        "name": "truss_equilibrium_residual",
+        "expected": 0.0, "got": r3["equilibrium_check"],
+        "passed": (
+            abs(r3["equilibrium_check"]["sum_fx_residual"]) < 1e-6
+            and abs(r3["equilibrium_check"]["sum_fy_residual"]) < 1e-6
+        ),
+    })
+
+    # --- 4) section_properties, rectangular exacta ---
+    r4 = _section_properties("rectangular", {"b": 0.2, "h": 0.4})
+    exp_I = 0.2 * 0.4 ** 3 / 12
+    exp_area = 0.08
+    checks.append({
+        "name": "section_rectangular_area",
+        "expected": exp_area, "got": r4["area_m2"],
+        "passed": abs(r4["area_m2"] - exp_area) < 1e-6,
+    })
+    checks.append({
+        "name": "section_rectangular_moment_of_inertia",
+        "expected": round(exp_I, 8), "got": r4["moment_of_inertia_m4"],
+        "passed": abs(r4["moment_of_inertia_m4"] - exp_I) < 1e-8,
+    })
+
+    # --- 5) stress_check ---
+    r5 = _stress_check(force=10000.0, area=0.01, allowable_stress=2e6)
+    exp_stress, exp_sf = 1_000_000.0, 2.0
+    checks.append({
+        "name": "stress_check_value",
+        "expected": exp_stress, "got": r5["stress"],
+        "passed": abs(r5["stress"] - exp_stress) < 1e-3,
+    })
+    checks.append({
+        "name": "stress_check_safety_factor",
+        "expected": exp_sf, "got": r5["safety_factor"],
+        "passed": abs(r5["safety_factor"] - exp_sf) < 1e-3,
+    })
+    checks.append({
+        "name": "stress_check_pass_flag",
+        "expected": True, "got": r5["pass"],
+        "passed": r5["pass"] is True,
+    })
+
+    all_passed = all(c["passed"] for c in checks)
+    return {
+        "mode": "validate",
+        "checks": checks,
+        "all_passed": all_passed,
+    }
+
+
 def compute_structural_analysis(mode, **params):
     """Entry point del tool. Despacha según `mode`. Retorna un dict serializable a JSON."""
+    if mode == "validate":
+        return _validate_structural()
     if mode == "beam_analysis":
         return _beam_analysis(
             support=params["support"],
