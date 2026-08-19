@@ -41,6 +41,16 @@ que dependen mucho de la humedad de la lena y el tipo de cocina/salamandra).
 WOOD_HHV_KWH_PER_KG_DEFAULT = 4.5
 WOOD_CO2_KG_PER_KG_DEFAULT = 1.7
 SOLAR_PV_G_CO2_PER_KWH_DEFAULT = 41.0
+GRID_SEN_G_CO2_PER_KWH_DEFAULT = 220.0
+# Factor de emisiones GEI del Sistema Electrico Nacional (SEN) de Chile.
+# Fuente: Coordinador Electrico Nacional, factor oficial 2023 = 238.4 gCO2/kWh
+# (0.2384 tCO2e/MWh); Generadoras de Chile reporta ~200 gCO2/kWh para 2024
+# (70% de generacion renovable). 220 es un punto medio razonable entre ambos
+# anos -- a diferencia del factor de lena/solar, este NO es estable en el
+# tiempo: la matriz chilena se esta descarbonizando rapido (63% de baja desde
+# 2013 segun el mismo gremio), asi que conviene actualizar este default
+# periodicamente o pasar grid_g_co2_per_kwh explicito con el dato del ano en
+# curso (energia.gob.cl/indicadores-ambientales-factor-de-emisiones-gei-del-sistema-electrico-nacional).
 
 
 def _mode_wood_vs_solar_heating(p):
@@ -93,6 +103,67 @@ def _mode_wood_vs_solar_heating(p):
         "wood_co2_kg": round(wood_co2_kg, 4),
         "elec_input_kwh": round(elec_input_kwh, 4),
         "solar_co2_kg": round(solar_co2_kg, 4),
+        "reduction_pct": round(reduction_pct, 2),
+        "report": "\n".join(report_lines),
+    }
+
+
+def _mode_wood_vs_grid_heating(p):
+    """
+    Igual que _mode_wood_vs_solar_heating pero compara contra el factor de
+    emisiones REAL de la matriz electrica chilena (SEN) en vez de asumir
+    electricidad 100% solar. Util para el caso real de calefaccion electrica
+    conectada a la red, no a paneles propios.
+    """
+    energy_needed_kwh = float(p["energy_needed_kwh"])
+    if energy_needed_kwh < 0:
+        raise ValueError("energy_needed_kwh debe ser >= 0")
+
+    stove_efficiency = float(p.get("stove_efficiency", 0.65))
+    heater_efficiency = float(p.get("heater_efficiency", 1.0))
+    wood_hhv_kwh_per_kg = float(p.get("wood_hhv_kwh_per_kg", WOOD_HHV_KWH_PER_KG_DEFAULT))
+    wood_co2_kg_per_kg = float(p.get("wood_co2_kg_per_kg", WOOD_CO2_KG_PER_KG_DEFAULT))
+    grid_g_co2_per_kwh = float(p.get("grid_g_co2_per_kwh", GRID_SEN_G_CO2_PER_KWH_DEFAULT))
+
+    if not (0 < stove_efficiency <= 1):
+        raise ValueError("stove_efficiency debe estar en (0, 1]")
+    if not (0 < heater_efficiency):
+        raise ValueError("heater_efficiency debe ser > 0 (1.0 = resistiva, ~3.0 = bomba de calor)")
+
+    wood_energy_input_kwh = energy_needed_kwh / stove_efficiency
+    wood_kg = wood_energy_input_kwh / wood_hhv_kwh_per_kg
+    wood_co2_kg = wood_kg * wood_co2_kg_per_kg
+
+    elec_input_kwh = energy_needed_kwh / heater_efficiency
+    grid_co2_kg = elec_input_kwh * (grid_g_co2_per_kwh / 1000.0)
+
+    reduction_pct = (
+        (wood_co2_kg - grid_co2_kg) / wood_co2_kg * 100.0 if wood_co2_kg > 0 else 0.0
+    )
+
+    report_lines = [
+        f"Para entregar {energy_needed_kwh:.1f} kWh de energia util:",
+        f"- Via lena: {wood_kg:.2f} kg de lena quemada -> {wood_co2_kg:.2f} kg CO2 "
+        f"(eficiencia de estufa {stove_efficiency*100:.0f}%).",
+        f"- Via electricidad de la red (SEN, factor {grid_g_co2_per_kwh:.0f} gCO2/kWh): "
+        f"{elec_input_kwh:.2f} kWh electricos -> {grid_co2_kg:.2f} kg CO2 "
+        f"(eficiencia de calefaccion {heater_efficiency*100:.0f}%).",
+        f"Reduccion de CO2 usando electricidad de red en vez de lena: {reduction_pct:.1f}%.",
+        "",
+        "Nota: a diferencia del modo wood_vs_solar_heating (que asume electricidad "
+        "100% fotovoltaica), este modo usa el factor de emisiones REAL de la matriz "
+        "electrica chilena (SEN), que mezcla renovables con termoelectrica a gas y "
+        "carbon -- por eso el ahorro de CO2 acá es menor que contra solar puro, y "
+        "cambia ano a ano segun avance la descarbonizacion del sistema.",
+    ]
+
+    return {
+        "energy_needed_kwh": energy_needed_kwh,
+        "wood_kg": round(wood_kg, 4),
+        "wood_co2_kg": round(wood_co2_kg, 4),
+        "elec_input_kwh": round(elec_input_kwh, 4),
+        "grid_co2_kg": round(grid_co2_kg, 4),
+        "grid_g_co2_per_kwh_used": grid_g_co2_per_kwh,
         "reduction_pct": round(reduction_pct, 2),
         "report": "\n".join(report_lines),
     }
@@ -263,6 +334,66 @@ def _validate():
         "passed": bool(check9_passed),
     })
 
+    # Check 10: wood_vs_grid_heating, valores de referencia con defaults,
+    # calculados a mano (mismo patron que el check de solar)
+    rg = _mode_wood_vs_grid_heating({"energy_needed_kwh": 10.0})
+    wood_co2_expected_g = wood_kg_expected * WOOD_CO2_KG_PER_KG_DEFAULT
+    grid_co2_expected = 10.0 * (GRID_SEN_G_CO2_PER_KWH_DEFAULT / 1000.0)
+    checks.append({
+        "name": "grid_defaults_calculo_manual",
+        "wood_co2_expected": round(wood_co2_expected_g, 4), "wood_co2_actual": rg["wood_co2_kg"],
+        "grid_co2_expected": round(grid_co2_expected, 4), "grid_co2_actual": rg["grid_co2_kg"],
+        "passed": bool(
+            abs(rg["wood_co2_kg"] - wood_co2_expected_g) < 1e-3
+            and abs(rg["grid_co2_kg"] - grid_co2_expected) < 1e-3
+        ),
+    })
+
+    # Check 11: wood_vs_grid_heating, la lena sigue emitiendo mas que la red
+    # (aun con matriz mixta, no 100% renovable) para eficiencias tipicas
+    all_grid_lower = True
+    for stove_eff in (0.4, 0.65, 0.8):
+        for heater_eff in (1.0, 2.5, 4.0):
+            rrg = _mode_wood_vs_grid_heating({
+                "energy_needed_kwh": 20.0,
+                "stove_efficiency": stove_eff, "heater_efficiency": heater_eff,
+            })
+            if not (rrg["grid_co2_kg"] < rrg["wood_co2_kg"]):
+                all_grid_lower = False
+    checks.append({
+        "name": "grid_siempre_menor_que_lena_rango_tipico",
+        "passed": bool(all_grid_lower),
+    })
+
+    # Check 12: wood_vs_grid_heating, ahorro vs. red debe ser MENOR o igual
+    # que el ahorro vs. solar puro (la red tiene mas gCO2/kWh que FV solo)
+    r_solar = _mode_wood_vs_solar_heating({"energy_needed_kwh": 20.0})
+    r_grid = _mode_wood_vs_grid_heating({"energy_needed_kwh": 20.0})
+    checks.append({
+        "name": "grid_reduction_menor_o_igual_que_solar",
+        "reduction_pct_solar": r_solar["reduction_pct"], "reduction_pct_grid": r_grid["reduction_pct"],
+        "passed": bool(r_grid["reduction_pct"] <= r_solar["reduction_pct"] + 1e-9),
+    })
+
+    # Check 13: wood_vs_grid_heating, energia cero no revienta
+    rg0 = _mode_wood_vs_grid_heating({"energy_needed_kwh": 0.0})
+    checks.append({
+        "name": "grid_energia_cero_no_revienta",
+        "wood_co2": rg0["wood_co2_kg"], "grid_co2": rg0["grid_co2_kg"],
+        "passed": bool(rg0["wood_co2_kg"] == 0.0 and rg0["grid_co2_kg"] == 0.0 and rg0["reduction_pct"] == 0.0),
+    })
+
+    # Check 14: wood_vs_grid_heating, parametro requerido faltante da error
+    try:
+        _mode_wood_vs_grid_heating({})
+        check14_passed = False
+    except KeyError:
+        check14_passed = True
+    checks.append({
+        "name": "grid_energy_needed_kwh_faltante_da_error_no_crash",
+        "passed": bool(check14_passed),
+    })
+
     all_passed = all(c["passed"] for c in checks)
     return {"checks": checks, "validation_passed": all_passed}
 
@@ -272,12 +403,14 @@ def compute_carbon_footprint(mode, params=None):
 
     if mode == "wood_vs_solar_heating":
         return _mode_wood_vs_solar_heating(params)
+    elif mode == "wood_vs_grid_heating":
+        return _mode_wood_vs_grid_heating(params)
     elif mode == "annual_projection":
         return _mode_annual_projection(params)
     elif mode == "validate":
         return _validate()
     else:
-        raise ValueError(f"Modo desconocido: {mode}. Usar 'wood_vs_solar_heating', 'annual_projection' o 'validate'.")
+        raise ValueError(f"Modo desconocido: {mode}. Usar 'wood_vs_solar_heating', 'wood_vs_grid_heating', 'annual_projection' o 'validate'.")
 
 
 if __name__ == "__main__":
@@ -302,9 +435,12 @@ try:
                 "energia util via combustion de lena vs. electricidad de origen solar "
                 "fotovoltaico -- p.ej. 'cuanto contamina nuestra quema de lena comparada "
                 "con usar paneles solares'. Modo wood_vs_solar_heating (energy_needed_kwh, "
-                "stove_efficiency opcional, heater_efficiency opcional), annual_projection "
-                "(annual_energy_needed_kwh, years -- proyecta el mismo calculo acumulado a "
-                "varios anos, sin degradacion FV ni ahorro economico) y validate."
+                "stove_efficiency opcional, heater_efficiency opcional), wood_vs_grid_heating "
+                "(igual pero contra el factor de emisiones REAL de la matriz electrica "
+                "chilena/SEN en vez de FV puro -- mas realista para calefaccion conectada "
+                "a la red), annual_projection (annual_energy_needed_kwh, years -- proyecta "
+                "el mismo calculo acumulado a varios anos, sin degradacion FV ni ahorro "
+                "economico) y validate."
             ),
             "inputSchema": CARBON_FOOTPRINT_TOOL_SCHEMA,
         },
