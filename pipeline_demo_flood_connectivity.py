@@ -27,6 +27,12 @@ punta a punta con datos consistentes -- NO para generar un informe de
 riesgo real de una direccion concreta. Ver synthetic_elevation.py.
 
 Corre standalone: python3 pipeline_demo_flood_connectivity.py
+
+AVISO PREVIO YA RESUELTO: en corridas anteriores se paso 'max_iterations'
+(nombre incorrecto) a compute_distmesh, que acepta **kwargs y lo ignoro
+silenciosamente, cayendo siempre en su default interno de 500 iteraciones
+(distmesh_tool.py linea 333: params.get("max_iter", 500)). El nombre
+correcto del parametro es 'max_iter'. Corregido en run_demo().
 """
 
 import json
@@ -58,11 +64,11 @@ def _select_river_seeds(points, edge="x_min", tol=1e-3):
 
 
 def run_demo(bbox, h0, elevation_expr, water_level, river_edge="x_min",
-             query_point=None, max_iterations=200):
+             query_point=None, max_iter=200):
     # 1. Malla real
     mesh = compute_distmesh(
         mode="mesh_2d", domain="rectangle", bbox=bbox, h0=h0,
-        max_iterations=max_iterations,
+        max_iter=max_iter,
     )
 
     if not mesh.get("converged", True):
