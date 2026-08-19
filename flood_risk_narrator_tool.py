@@ -1,228 +1,253 @@
 """
 flood_risk_narrator_tool.py
 
-Traductor de la salida numerica de un modelo de inundacion (puntos
-evaluados, puntos inundados, profundidades) a un reporte en lenguaje
-natural: nivel de riesgo, resumen del escenario y recomendaciones
-concretas -- pensado para que una comunidad sin conocimientos
-tecnicos pueda leer el resultado de flood_modeling_tool sin tener
-que interpretar JSON.
+Narra en lenguaje natural el riesgo de inundación a partir de la salida
+REAL de flood_modeling_tool en modo manning_normal_depth:
 
-OJO -- contrato de entrada explicito, NO adivina el shape real de
-flood_modeling_tool: no hay acceso al codigo fuente de esa tool
-desde este sandbox, asi que en vez de asumir nombres de campos (y
-arriesgar el mismo tipo de bug silencioso que ya paso en este repo
-con run_octave_fn/resp -- ver notas de paleography_tool y
-archaeoastronomy), esta tool define su propio contrato documentado
-abajo. Para conectarla de verdad a la salida real de
-flood_modeling_tool hace falta un adaptador chico (mapear los campos
-reales a este shape) -- pendiente hasta ver el output real de esa
-tool.
+    {
+        "normal_depth_m": float,
+        "top_width_m": float,
+        "velocity_m_s": float,
+        ...
+    }
 
-Contrato de entrada esperado (params) para mode="narrate":
-{
-  "location_name": str,              # opcional, ej. "Rio X, sector Y"
-  "n_points_total": int,             # puntos/nodos evaluados en la grilla
-  "n_points_flooded": int,           # cuantos de esos quedaron inundados
-  "depth_min_m": float,
-  "depth_mean_m": float,
-  "depth_max_m": float,
-  "scenario_label": str,             # opcional, ej. "lluvia 24h percentil 95"
-  "precipitation_total_mm": float,   # opcional, tipicamente de hydrometeo_data
-  "language": str,                   # opcional, default "es" -- unico idioma
-                                      # implementado por ahora, ver nota abajo
-}
+(No de flood_connectivity_tool, que trabaja con puntos/nodos inundados
+sobre un DEM -- esa es una forma de salida completamente distinta.)
 
-Nota sobre idioma: la vision original habla de "el idioma de la
-comunidad". Esta primera version solo genera texto en espanol
-(language="es") -- cualquier otro valor devuelve error explicito en
-vez de fallar en silencio o devolver espanol disfrazado de otro
-idioma. Agregar mas idiomas es extender _RECOMMENDATIONS_* y
-_format_report_* con un caso nuevo, sin tocar la logica de
-clasificacion de riesgo.
+Clasifica el peligro con la fórmula de "Hazard Rating" (HR) usada por la
+guía de evaluación de riesgo de inundación del Defra/Environment Agency
+del Reino Unido (2005/2006), estándar bien documentado en literatura de
+riesgo hidráulico:
+
+    HR = d * (v + 0.5) + DF
+
+donde:
+    d  = profundidad de agua (m)
+    v  = velocidad del flujo (m/s)
+    DF = factor de escombros/detritos (0 = agua limpia, 0.5 = típico con
+         escombros/objetos flotantes, 1.0 = alto contenido de escombros
+         o estructuras vulnerables cerca)
+
+Bandas de clasificación (mismas fuentes):
+    HR < 0.75          -> bajo
+    0.75 <= HR < 1.25   -> medio
+    1.25 <= HR < 2.0    -> alto
+    HR >= 2.0           -> crítico
+
+Se registra vía tool_registry (patrón self-registrante, no requiere
+tocar TOOLS[]/dispatch manual en server.py -- solo el import en
+server.py, igual que hydrometeo_data_tool).
 """
 
-import json
-from tool_registry import register_tool
+import math
 
-# Umbrales de riesgo -- deliberadamente simples y editables, NO
-# vienen de una norma tecnica especifica (ej. no son los umbrales
-# oficiales de alguna guia de defensa civil). Punto de partida
-# razonable, no un valor autoritativo -- ajustar si Astrid tiene
-# umbrales locales mejores.
-CRITICO_DEPTH_M = 2.0
-CRITICO_FRACTION = 0.5
-ALTO_DEPTH_M = 1.0
-ALTO_FRACTION = 0.3
-MEDIO_DEPTH_M = 0.3
-MEDIO_FRACTION = 0.1
+RISK_LEVELS = ["bajo", "medio", "alto", "crítico"]
 
-_RECOMMENDATIONS_ES = {
-    "critico": [
-        "Evaluar evacuacion preventiva de las zonas mas bajas antes de que suba el nivel.",
-        "Cortar o asegurar el suministro electrico en las areas con riesgo antes de que llegue el agua.",
-        "Tener confirmada de antemano una via de escape hacia terreno alto.",
+RECOMMENDATIONS = {
+    "bajo": [
+        "Monitorear la evolución de las lluvias y el nivel del cauce.",
+        "Verificar que desagües y alcantarillas cercanas estén despejados.",
+    ],
+    "medio": [
+        "Mover bienes de valor y documentos a un nivel elevado.",
+        "Monitorear el nivel del río o el caudal con la frecuencia que permitan los datos disponibles.",
+        "Evitar cruzar el cauce o zonas bajas a pie o en vehículo.",
     ],
     "alto": [
         "Mover bienes de valor y documentos a un nivel elevado.",
-        "Monitorear el nivel del rio o el caudal con la frecuencia que permitan los datos disponibles.",
-        "Identificar de antemano a las personas mayores o con movilidad reducida que necesitarian ayuda para evacuar.",
+        "Identificar de antemano a las personas mayores o con movilidad reducida que necesitarían ayuda para evacuar.",
+        "Evitar por completo el contacto con el flujo: a esta profundidad y velocidad puede arrastrar a una persona de pie.",
+        "Tener lista una vía de evacuación alternativa a la zona baja.",
     ],
-    "medio": [
-        "Revisar canaletas y drenajes para que no haya obstrucciones antes de una lluvia fuerte.",
-        "Tener un plan simple de a quien avisar y adonde ir si el nivel sigue subiendo.",
-    ],
-    "bajo": [
-        "Sin accion urgente segun este escenario -- igual conviene revisar el pronostico de lluvia si se espera un evento fuerte.",
+    "crítico": [
+        "Evacuar la zona antes de que el nivel siga subiendo.",
+        "No intentar cruzar el flujo a pie ni en vehículo bajo ninguna circunstancia.",
+        "Contactar a los organismos de emergencia locales (ONEMI/SENAPRED) si hay personas en la zona de riesgo.",
+        "Asumir riesgo estructural para construcciones livianas cercanas al cauce.",
     ],
 }
 
 
-def _classify_risk(fraction_flooded, depth_mean_m, depth_max_m):
-    if depth_max_m >= CRITICO_DEPTH_M or fraction_flooded >= CRITICO_FRACTION:
-        return "critico"
-    if depth_max_m >= ALTO_DEPTH_M or fraction_flooded >= ALTO_FRACTION:
-        return "alto"
-    if depth_max_m >= MEDIO_DEPTH_M or fraction_flooded >= MEDIO_FRACTION:
+def _classify(hazard_rating):
+    if hazard_rating < 0.75:
+        return "bajo"
+    elif hazard_rating < 1.25:
         return "medio"
-    return "bajo"
+    elif hazard_rating < 2.0:
+        return "alto"
+    else:
+        return "crítico"
 
 
-def _format_report_es(p, risk_level, fraction_flooded):
-    loc = p.get("location_name") or "la zona evaluada"
-    scenario = p.get("scenario_label")
-    lines = [f"Riesgo de inundacion para {loc}: {risk_level.upper()}."]
-    if scenario:
-        lines.append(f"Escenario: {scenario}.")
+def _narrate(location_name, depth_m, velocity_m_s, hazard_rating, risk_level, top_width_m=None):
+    lines = []
+    lines.append(f"Riesgo de inundación para {location_name}: {risk_level.upper()}.")
     lines.append(
-        f"De {p['n_points_total']} puntos evaluados, {p['n_points_flooded']} "
-        f"quedarian inundados ({fraction_flooded * 100:.0f}%)."
+        f"Profundidad normal estimada: {depth_m:.2f} m. Velocidad de flujo: {velocity_m_s:.2f} m/s."
     )
-    lines.append(
-        f"Profundidad estimada: promedio {p['depth_mean_m']:.2f} m, "
-        f"maxima {p['depth_max_m']:.2f} m."
-    )
-    precip = p.get("precipitation_total_mm")
-    if precip is not None:
-        lines.append(f"Lluvia acumulada considerada: {precip:.1f} mm.")
+    if top_width_m is not None:
+        lines.append(f"Ancho superficial estimado del flujo: {top_width_m:.2f} m.")
+    lines.append(f"Índice de peligrosidad (Hazard Rating, Defra/EA): {hazard_rating:.2f}.")
     lines.append("")
     lines.append("Recomendaciones:")
-    lines.extend(f"- {rec}" for rec in _RECOMMENDATIONS_ES[risk_level])
+    for rec in RECOMMENDATIONS[risk_level]:
+        lines.append(f"- {rec}")
     return "\n".join(lines)
 
 
 def compute_flood_risk_narrator(mode, params=None):
+    # El handler registrado via tool_registry llama con un único dict
+    # posicional (ej: handler({'mode': 'validate', 'params': {...}})),
+    # mientras que las llamadas directas (import + compute_fn(...)) y los
+    # checks internos de validate() usan la firma clásica de dos
+    # argumentos (mode, params). Se normalizan ambas formas acá mismo,
+    # mismo patrón que compute_hydrometeo_data.
+    if isinstance(mode, dict):
+        args = mode
+        params = args.get("params", {})
+        mode = args.get("mode")
+
     params = params or {}
 
-    if mode == "validate":
-        return _validate()
+    if mode == "classify_from_manning":
+        required = ["depth_m", "velocity_m_s", "location_name"]
+        missing = [k for k in required if k not in params]
+        if missing:
+            return {"error": f"faltan parámetros requeridos: {missing}"}
 
-    if mode != "narrate":
-        return {"error": f"modo desconocido: {mode}. Modos validos: narrate, validate"}
+        depth_m = float(params["depth_m"])
+        velocity_m_s = float(params["velocity_m_s"])
+        location_name = params["location_name"]
+        debris_factor = float(params.get("debris_factor", 0.0))
+        top_width_m = params.get("top_width_m")
 
-    required = ["n_points_total", "n_points_flooded", "depth_min_m", "depth_mean_m", "depth_max_m"]
-    missing = [k for k in required if k not in params]
-    if missing:
-        return {"error": f"faltan params requeridos: {missing}"}
+        if depth_m < 0 or velocity_m_s < 0:
+            return {"error": "depth_m y velocity_m_s deben ser >= 0"}
 
-    language = params.get("language", "es")
-    if language != "es":
-        return {"error": f"idioma '{language}' no implementado todavia -- solo 'es' por ahora"}
+        hazard_rating = depth_m * (velocity_m_s + 0.5) + debris_factor
+        risk_level = _classify(hazard_rating)
+        report = _narrate(
+            location_name, depth_m, velocity_m_s, hazard_rating, risk_level, top_width_m
+        )
 
-    n_total = params["n_points_total"]
-    n_flooded = params["n_points_flooded"]
-    fraction_flooded = (n_flooded / n_total) if n_total else 0.0
+        return {
+            "location_name": location_name,
+            "depth_m": depth_m,
+            "velocity_m_s": velocity_m_s,
+            "top_width_m": top_width_m,
+            "debris_factor": debris_factor,
+            "hazard_rating": round(hazard_rating, 4),
+            "risk_level": risk_level,
+            "report": report,
+        }
 
-    risk_level = _classify_risk(fraction_flooded, params["depth_mean_m"], params["depth_max_m"])
-    report_text = _format_report_es(params, risk_level, fraction_flooded)
+    elif mode == "validate":
+        checks = []
 
-    return {
-        "risk_level": risk_level,
-        "fraction_flooded": round(fraction_flooded, 4),
-        "report_text": report_text,
-    }
+        # Caso 1: agua baja y lenta -> bajo. HR = 0.3*(0.5+0.5)+0 = 0.3
+        r = compute_flood_risk_narrator(
+            "classify_from_manning",
+            {"depth_m": 0.3, "velocity_m_s": 0.5, "location_name": "test"},
+        )
+        checks.append({
+            "check": "bajo_riesgo_agua_baja_lenta",
+            "expected_level": "bajo",
+            "actual_level": r["risk_level"],
+            "expected_hr": 0.3,
+            "actual_hr": r["hazard_rating"],
+            "passed": r["risk_level"] == "bajo" and math.isclose(r["hazard_rating"], 0.3, abs_tol=1e-6),
+        })
+
+        # Caso 2: HR = 1.0*(1.0+0.5)+0 = 1.5 -> alto
+        r = compute_flood_risk_narrator(
+            "classify_from_manning",
+            {"depth_m": 1.0, "velocity_m_s": 1.0, "location_name": "test"},
+        )
+        checks.append({
+            "check": "alto_riesgo_profundo_moderado",
+            "expected_level": "alto",
+            "actual_level": r["risk_level"],
+            "expected_hr": 1.5,
+            "actual_hr": r["hazard_rating"],
+            "passed": r["risk_level"] == "alto" and math.isclose(r["hazard_rating"], 1.5, abs_tol=1e-6),
+        })
+
+        # Caso 3: HR = 2.0*(2.0+0.5)+0 = 5.0 -> crítico
+        r = compute_flood_risk_narrator(
+            "classify_from_manning",
+            {"depth_m": 2.0, "velocity_m_s": 2.0, "location_name": "test"},
+        )
+        checks.append({
+            "check": "critico_riesgo_extremo",
+            "expected_level": "crítico",
+            "actual_level": r["risk_level"],
+            "expected_hr": 5.0,
+            "actual_hr": r["hazard_rating"],
+            "passed": r["risk_level"] == "crítico" and math.isclose(r["hazard_rating"], 5.0, abs_tol=1e-6),
+        })
+
+        # Caso 4: debris_factor eleva la clasificación. HR = 0.5*2.0+0.5 = 1.5 -> alto
+        r = compute_flood_risk_narrator(
+            "classify_from_manning",
+            {"depth_m": 0.5, "velocity_m_s": 1.5, "location_name": "test", "debris_factor": 0.5},
+        )
+        checks.append({
+            "check": "debris_factor_eleva_clasificacion",
+            "expected_level": "alto",
+            "actual_level": r["risk_level"],
+            "expected_hr": 1.5,
+            "actual_hr": r["hazard_rating"],
+            "passed": r["risk_level"] == "alto" and math.isclose(r["hazard_rating"], 1.5, abs_tol=1e-6),
+        })
+
+        # Caso 5: agua estancada (d=0, v=0) no revienta, HR=0, bajo
+        r = compute_flood_risk_narrator(
+            "classify_from_manning",
+            {"depth_m": 0.0, "velocity_m_s": 0.0, "location_name": "test"},
+        )
+        checks.append({
+            "check": "cero_no_revienta",
+            "expected_level": "bajo",
+            "actual_level": r.get("risk_level"),
+            "passed": r.get("risk_level") == "bajo" and r.get("hazard_rating") == 0.0,
+        })
+
+        # Caso 6: params incompletos da error explícito, no crash
+        r = compute_flood_risk_narrator("classify_from_manning", {"depth_m": 1.0})
+        checks.append({
+            "check": "params_incompletos_da_error_no_crash",
+            "passed": "error" in r,
+        })
+
+        all_passed = all(c["passed"] for c in checks)
+        return {"validation_passed": all_passed, "checks": checks}
+
+    else:
+        return {"error": f"modo no soportado: {mode}. Usar 'classify_from_manning' o 'validate'."}
 
 
-def _validate():
-    checks = []
-
-    critico_profundidad = compute_flood_risk_narrator("narrate", {
-        "n_points_total": 100, "n_points_flooded": 60,
-        "depth_min_m": 0.1, "depth_mean_m": 1.5, "depth_max_m": 2.5,
-    })
-    checks.append({"check": "critico_por_profundidad_maxima", "passed": critico_profundidad["risk_level"] == "critico"})
-
-    critico_fraccion = compute_flood_risk_narrator("narrate", {
-        "n_points_total": 100, "n_points_flooded": 55,
-        "depth_min_m": 0.05, "depth_mean_m": 0.4, "depth_max_m": 0.6,
-    })
-    checks.append({"check": "critico_por_fraccion_inundada", "passed": critico_fraccion["risk_level"] == "critico"})
-
-    alto = compute_flood_risk_narrator("narrate", {
-        "n_points_total": 100, "n_points_flooded": 35,
-        "depth_min_m": 0.1, "depth_mean_m": 0.6, "depth_max_m": 1.1,
-    })
-    checks.append({"check": "alto_por_profundidad_maxima", "passed": alto["risk_level"] == "alto"})
-
-    bajo = compute_flood_risk_narrator("narrate", {
-        "n_points_total": 100, "n_points_flooded": 2,
-        "depth_min_m": 0.0, "depth_mean_m": 0.05, "depth_max_m": 0.1,
-    })
-    checks.append({"check": "bajo_riesgo_minimo", "passed": bajo["risk_level"] == "bajo"})
-
-    faltan = compute_flood_risk_narrator("narrate", {"n_points_total": 10})
-    checks.append({"check": "params_incompletos_da_error_no_crash", "passed": "error" in faltan})
-
-    idioma_no_soportado = compute_flood_risk_narrator("narrate", {
-        "n_points_total": 10, "n_points_flooded": 1,
-        "depth_min_m": 0.0, "depth_mean_m": 0.1, "depth_max_m": 0.1,
-        "language": "en",
-    })
-    checks.append({"check": "idioma_no_implementado_da_error_explicito", "passed": "error" in idioma_no_soportado})
-
-    checks.append({
-        "check": "reporte_incluye_recomendaciones",
-        "passed": "Recomendaciones" in critico_profundidad["report_text"],
-    })
-
-    cero_puntos = compute_flood_risk_narrator("narrate", {
-        "n_points_total": 0, "n_points_flooded": 0,
-        "depth_min_m": 0.0, "depth_mean_m": 0.0, "depth_max_m": 0.0,
-    })
-    checks.append({
-        "check": "cero_puntos_totales_no_divide_por_cero",
-        "passed": cero_puntos.get("risk_level") == "bajo" and "error" not in cero_puntos,
-    })
-
-    all_passed = all(c["passed"] for c in checks)
-    return {"validation_passed": all_passed, "checks": checks}
-
-
-FLOOD_RISK_NARRATOR_TOOL_SCHEMA = {
+FLOOD_RISK_NARRATOR_SCHEMA = {
     "name": "flood_risk_narrator",
     "description": (
-        "Convierte la salida numerica de un modelo de inundacion (puntos evaluados, "
-        "puntos inundados, profundidades) en un reporte de riesgo en lenguaje natural "
-        "con recomendaciones, pensado para comunidades sin conocimientos tecnicos. "
-        "Contrato de entrada documentado en el docstring del modulo -- requiere un "
-        "adaptador para conectarse a la salida real de flood_modeling_tool."
+        "Clasifica el riesgo de inundación (bajo/medio/alto/crítico) y genera un reporte en "
+        "lenguaje natural a partir de profundidad y velocidad de flujo -- p.ej. la salida real "
+        "de flood_modeling_tool en modo manning_normal_depth (normal_depth_m, velocity_m_s)."
     ),
     "inputSchema": {
         "type": "object",
         "properties": {
-            "mode": {"type": "string", "enum": ["narrate", "validate"]},
+            "mode": {
+                "type": "string",
+                "enum": ["classify_from_manning", "validate"],
+            },
             "params": {
                 "type": "object",
                 "properties": {
-                    "location_name": {"type": "string"},
-                    "n_points_total": {"type": "integer"},
-                    "n_points_flooded": {"type": "integer"},
-                    "depth_min_m": {"type": "number"},
-                    "depth_mean_m": {"type": "number"},
-                    "depth_max_m": {"type": "number"},
-                    "scenario_label": {"type": "string"},
-                    "precipitation_total_mm": {"type": "number"},
-                    "language": {"type": "string", "description": "solo 'es' implementado por ahora"},
+                    "depth_m": {"type": "number", "description": "Profundidad de agua en metros (normal_depth_m de flood_modeling_tool)"},
+                    "velocity_m_s": {"type": "number", "description": "Velocidad del flujo en m/s"},
+                    "top_width_m": {"type": "number", "description": "Ancho superficial del flujo en metros (opcional)"},
+                    "location_name": {"type": "string", "description": "Nombre del lugar/cauce a narrar"},
+                    "debris_factor": {"type": "number", "description": "0 = agua limpia, 0.5 = escombros típicos, 1.0 = alto contenido de escombros (default 0.0)"},
                 },
             },
         },
@@ -230,12 +255,18 @@ FLOOD_RISK_NARRATOR_TOOL_SCHEMA = {
     },
 }
 
-register_tool(
-    name="flood_risk_narrator",
-    schema=FLOOD_RISK_NARRATOR_TOOL_SCHEMA,
-    handler=lambda args: compute_flood_risk_narrator(args.get("mode"), args.get("params")),
-)
+
+try:
+    from tool_registry import register_tool
+    register_tool(
+        "flood_risk_narrator",
+        FLOOD_RISK_NARRATOR_SCHEMA,
+        compute_flood_risk_narrator,
+    )
+except ImportError:
+    pass
 
 
 if __name__ == "__main__":
-    print(json.dumps(compute_flood_risk_narrator("validate"), ensure_ascii=False, indent=2))
+    import json
+    print(json.dumps(compute_flood_risk_narrator("validate"), indent=2, ensure_ascii=False))
