@@ -26,3 +26,4 @@ submotors/*/target/
 
 # backups de patches
 *.bak.*
+CCcovariance/
