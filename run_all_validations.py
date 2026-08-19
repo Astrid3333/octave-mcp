@@ -48,6 +48,37 @@ KNOWN_NON_STANDARD_VALIDATE = {
     "run_math_pipeline": "mode=validate ejecuta un pipeline default, no un autochequeo",
 }
 
+# Tools cuyo autochequeo interno existe y es funcionalmente equivalente a
+# mode=validate, pero vive bajo otro nombre de modo (nunca se estandarizo
+# el nombre "validate" en estas). Auditadas a mano el 2026-08-18: cada una
+# fue invocada y confirmada como autochequeo real, no un modo de computo.
+ALTERNATE_VALIDATE_MODE = {
+    "tritbraid": "validate_physics",
+    "scalar_field_cosmology_tool": "self_test",
+    "vacuum_energy_density_tool": "self_test",
+    "quantum_cosmology_tool": "self_test",
+    "cosmological_mcmc_tool": "mock_recovery",
+    # Estas 4 SI aceptan mode="validate" y responden con un autochequeo
+    # real (via el campo "ok", ver VALIDATION_FIELD_ALIASES) -- pero su
+    # inputSchema no declara "validate" en el enum de mode, asi que el
+    # chequeo automatico normal las descartaba antes de intentar nada.
+    # Se mapean a si mismas para saltar solo el chequeo de enum.
+    "plague_sir": "validate",
+    "settlement_clusters": "validate",
+    "historical_extractor": "validate",
+    "abstract_algebra": "validate",
+}
+
+# Nombres de campo alternativos para "el autochequeo paso" -- distintas
+# tools nunca convergieron en una sola convencion. all_params_within_2sigma
+# es especifico de cosmological_mcmc_tool (su autochequeo es una
+# recuperacion de parametros conocidos desde datos sinteticos, no una
+# lista de checks booleanos).
+VALIDATION_FIELD_ALIASES = (
+    "validation_passed", "all_passed", "ok", "all_pass",
+    "todos_correctos", "all_params_within_2sigma",
+)
+
 
 def build_requests(tools):
     """Devuelve (requests, tool_id_map) donde requests es la lista completa
@@ -66,9 +97,13 @@ def build_requests(tools):
         name = t["name"]
         mode_prop = t.get("inputSchema", {}).get("properties", {}).get("mode", {})
         enum = mode_prop.get("enum")
+        mode_to_call = "validate"
         if enum is None or "validate" not in enum:
-            skipped.append((name, "sin modo validate en el schema"))
-            continue
+            if name in ALTERNATE_VALIDATE_MODE:
+                mode_to_call = ALTERNATE_VALIDATE_MODE[name]
+            else:
+                skipped.append((name, "sin modo validate en el schema"))
+                continue
         if name in KNOWN_NON_STANDARD_VALIDATE:
             skipped.append((name, KNOWN_NON_STANDARD_VALIDATE[name]))
             continue
@@ -76,7 +111,7 @@ def build_requests(tools):
             "jsonrpc": "2.0",
             "id": next_id,
             "method": "tools/call",
-            "params": {"name": name, "arguments": {"mode": "validate", "params": {}}},
+            "params": {"name": name, "arguments": {"mode": mode_to_call, "params": {}}},
         })
         tool_id_map[next_id] = name
         next_id += 1
@@ -156,11 +191,14 @@ def main():
             errored.append((name, f"formato de respuesta inesperado: {e}"))
             continue
 
-        # algunas tools usan "validation_passed", otras usan "all_passed"
-        # para el mismo concepto -- se aceptan ambos nombres de campo.
-        vp = parsed.get("validation_passed")
-        if vp is None:
-            vp = parsed.get("all_passed")
+        # algunas tools usan "validation_passed", otras usan "all_passed",
+        # "ok", "all_pass", "todos_correctos", u otro campo especifico
+        # (ver VALIDATION_FIELD_ALIASES) -- se aceptan todos como sinonimos.
+        vp = None
+        for _field in VALIDATION_FIELD_ALIASES:
+            if _field in parsed:
+                vp = parsed.get(_field)
+                break
         if vp is True:
             passed.append((name, parsed.get("checks")))
         elif vp is False:
