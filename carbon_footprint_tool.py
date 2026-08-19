@@ -18,7 +18,7 @@ Modos:
 Factores usados (valores de referencia estandar, no especificos de ningun
 proveedor):
   - Poder calorifico de lena seca:      ~4.5 kWh/kg  (~16 MJ/kg)
-  - CO2 por combustion de lena:         ~1.83 kg CO2/kg lena
+  - CO2 por combustion de lena:         ~1.7 kg CO2/kg lena
         (fraccion de carbono ~50% en masa, oxidacion completa a CO2;
         cifra de combustion bruta -- ver nota_biogenica abajo)
   - Emision de ciclo de vida de FV:      ~41 g CO2eq/kWh
@@ -39,7 +39,7 @@ que dependen mucho de la humedad de la lena y el tipo de cocina/salamandra).
 """
 
 WOOD_HHV_KWH_PER_KG_DEFAULT = 4.5
-WOOD_CO2_KG_PER_KG_DEFAULT = 1.83
+WOOD_CO2_KG_PER_KG_DEFAULT = 1.7
 SOLAR_PV_G_CO2_PER_KWH_DEFAULT = 41.0
 
 
