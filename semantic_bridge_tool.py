@@ -149,3 +149,11 @@ if __name__ == "__main__":
     assert d["validation_passed"], "Validacion fallo, ver detalle arriba"
     print("\nTodos los chequeos de semantic_bridge (semantic_bridge_tool.py) pasaron OK sobre datos de prueba.")
     print("NOTA: este self-test usa una lista de tools de juguete, no el catalogo real (eso requiere server.py).")
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+register_tool("semantic_bridge", SEMANTIC_BRIDGE_TOOL_SCHEMA, lambda args, _f=compute_semantic_bridge: _f(**args))

@@ -157,3 +157,11 @@ if __name__ == "__main__":
     r2 = compute_reaction_diffusion(mode="gray_scott", nx=60, ny=60, feed=0.035, kill=0.065, T=3000, dt=1.0, seed=42, n_snapshots=3)
     print({k: v for k, v in r2.items() if k != "snapshots"})
     print("v_std por snapshot:", [s["v_std"] for s in r2["snapshots"]])
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+register_tool("reaction_diffusion", REACTION_DIFFUSION_TOOL_SCHEMA, lambda args, _f=compute_reaction_diffusion: _f(**args))

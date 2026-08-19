@@ -652,3 +652,11 @@ if __name__ == "__main__":
     print("PLS cv_r2:", round(val_res["pls"]["cv_r2"], 4),
           "PCR cv_r2:", round(val_res["pcr"]["cv_r2"], 4))
     print("\nOK - todos los tests corrieron sin excepciones.")
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+register_tool("chemometrics_tool", CHEMOMETRICS_TOOL_SCHEMA, lambda args, _f=compute_chemometrics: _f(**args))

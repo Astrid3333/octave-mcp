@@ -250,3 +250,11 @@ def compute_earthworks(operation=None, mode=None, **params):
 if __name__ == "__main__":
     import json
     print(json.dumps(compute_earthworks(mode="validate"), ensure_ascii=False, indent=2))
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+register_tool("earthworks", EARTHWORKS_TOOL_SCHEMA, lambda args, _f=compute_earthworks: _f(**args))

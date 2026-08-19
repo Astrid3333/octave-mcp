@@ -559,3 +559,11 @@ if __name__ == "__main__":
     print("Esperado: x=0 inestable, x=1 inestable, x=1/2 estable (ESS mixto, x*=V/C=0.5)")
 
     print("\nOK - todos los modos corrieron sin excepciones.")
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+register_tool("game_theory", GAME_THEORY_TOOL_SCHEMA, lambda args, _f=compute_game_theory: _f(**args))

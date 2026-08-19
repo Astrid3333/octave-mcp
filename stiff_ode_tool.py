@@ -322,3 +322,11 @@ if __name__ == "__main__":
             print(sys_name, solver, "-> ERROR:", r["error"], r.get("stderr", ""))
         else:
             print(sys_name, solver, "-> OK, n_internal_steps =", r["n_internal_steps"], "| y_final =", [row[-1] for row in r["y"]])
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+register_tool("integrate_stiff_ode", STIFF_ODE_TOOL_SCHEMA, lambda args, _f=integrate_stiff_ode: _f(**args))

@@ -303,3 +303,11 @@ COSMOLOGICAL_MCMC_TOOL_SCHEMA = {
         "required": ["mode"],
     },
 }
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+register_tool("cosmological_mcmc_tool", COSMOLOGICAL_MCMC_TOOL_SCHEMA, lambda args, _f=compute_cosmological_mcmc_tool: _f(**args))

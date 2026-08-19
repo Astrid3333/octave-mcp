@@ -311,3 +311,11 @@ if __name__ == "__main__":
     print("\n=== Benchmark de cuadratura via lenguaje natural ===")
     r4 = interpret_math_query("comparar metodos de cuadratura para sin(x) entre 0 y 3.1416")
     print(json.dumps(r4["steps"], indent=2, ensure_ascii=False))
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+register_tool("math_interpreter", MATH_INTERPRETER_TOOL_SCHEMA, lambda args, _f=interpret_math_query: _f(**args))

@@ -512,3 +512,11 @@ if __name__ == "__main__":
                        "bayesian_checks": d["bayesian_checks"],
                        "model_comparison_checks": d["model_comparison_checks"],
                        "posterior_predictive_checks": d["posterior_predictive_checks"]}, indent=2))
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+register_tool("advanced_probability_tool", ADVANCED_PROBABILITY_TOOL_SCHEMA, lambda args, _f=compute_advanced_probability: _f(**args))

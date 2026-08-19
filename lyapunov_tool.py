@@ -311,3 +311,11 @@ if __name__ == "__main__":
     for sys_name in ("chen_lee", "burke_shaw", "lorenz", "rossler"):
         r = compute_lyapunov_exponent(system=sys_name, n_steps=15000)
         print(sys_name, "->", r.get("lambda1"), "|", r.get("interpretacion"))
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+register_tool("compute_lyapunov_exponent", LYAPUNOV_TOOL_SCHEMA, lambda args, _f=compute_lyapunov_exponent: _f(**args))

@@ -512,3 +512,11 @@ if __name__ == "__main__":
     print(r4["explanation"], "| known_tool:", r4["known_tool"])
 
     print("\nOK - todos los casos corrieron sin excepciones.")
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+register_tool("math_explainer", MATH_EXPLAINER_TOOL_SCHEMA, lambda args, _f=interpret_and_explain: _f(**args))

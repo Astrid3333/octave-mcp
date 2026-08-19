@@ -192,3 +192,11 @@ VIRAL_LATTICE_TOOL_SCHEMA = {
         "required": ["mode"],
     },
 }
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+register_tool("viral_lattice_tool", VIRAL_LATTICE_TOOL_SCHEMA, lambda args, _f=compute_viral_lattice_tool: _f(**args))

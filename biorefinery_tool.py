@@ -825,3 +825,11 @@ if __name__ == "__main__":
         "feed": {"C": 49.5, "H": 6.0, "O": 43.0},
         "producto": {"C": 85.0, "H": 13.5, "O": 1.0},
     }))
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+register_tool("biorefinery_tool", BIOREFINERY_TOOL_SCHEMA, lambda args, _f=compute_biorefinery: _f(**args))

@@ -390,3 +390,11 @@ QUANTUM_INFORMATION_TOOL_SCHEMA = {
         "required": ["mode"],
     },
 }
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+register_tool("quantum_information", QUANTUM_INFORMATION_TOOL_SCHEMA, lambda args, _f=compute_quantum_information: _f(**args))

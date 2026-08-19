@@ -331,7 +331,7 @@ def _validate_lyapunov_v2(octave_bin: str = "octave", timeout_s: int = 60):
 
 # --- Schema para registro manual (patrón types.Tool / allowlist) ---
 LYAPUNOV_TOOL_SCHEMA = {
-    "name": "compute_lyapunov_exponent",
+    "name": "compute_lyapunov_v2",
     "description": (
         "Calcula el exponente de Lyapunov máximo (λ1) de un sistema dinámico "
         "(presets: chen_lee, burke_shaw, lorenz, rossler, o ecuaciones custom) "
@@ -379,3 +379,12 @@ if __name__ == "__main__":
     for sys_name in ("chen_lee", "burke_shaw", "lorenz", "rossler"):
         r = compute_lyapunov_exponent(system=sys_name, n_steps=15000)
         print(sys_name, "->", r.get("lambda1"), "|", r.get("interpretacion"))
+
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+register_tool("compute_lyapunov_v2", LYAPUNOV_TOOL_SCHEMA, lambda args: compute_lyapunov_exponent(**args))

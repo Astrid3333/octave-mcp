@@ -324,3 +324,13 @@ if __name__ == "__main__":
     print("\n=== Caso logístico (para stiff_ode_tool) ===")
     r3 = auto_differentiate("r*x*(1 - x/K)", "x", order=1)
     print(json.dumps(r3, indent=2, ensure_ascii=False))
+
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+register_tool("compute_gradient_hessian", GRADIENT_HESSIAN_TOOL_SCHEMA, lambda args: compute_gradient_hessian(**args))
+register_tool("compute_jacobian", JACOBIAN_TOOL_SCHEMA, lambda args: compute_jacobian(**args))

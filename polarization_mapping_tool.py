@@ -182,3 +182,11 @@ POLARIZATION_MAPPING_SCHEMA = {
         "required": ["mode"],
     },
 }
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+register_tool("polarization_mapping", POLARIZATION_MAPPING_SCHEMA, lambda args, _f=compute_polarization_mapping: _f(**args))

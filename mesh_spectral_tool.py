@@ -311,3 +311,11 @@ if __name__ == "__main__":
     ]
     print(json.dumps(compute_mesh_spectral_tool("spectrum", vertices=verts, faces=faces, k=3), indent=2))
     print(json.dumps(compute_mesh_spectral_tool("laplacian_info", vertices=verts, faces=faces), indent=2))
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+register_tool("mesh_spectral_tool", MESH_SPECTRAL_TOOL_SCHEMA, lambda args, _f=compute_mesh_spectral_tool: _f(**args))

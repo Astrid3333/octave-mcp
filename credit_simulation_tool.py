@@ -382,3 +382,11 @@ CREDIT_SIMULATION_TOOL_SCHEMA = {
 if __name__ == "__main__":
     import json
     print(json.dumps(compute_credit_simulation_tool("validate"), indent=2, ensure_ascii=False))
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+register_tool("credit_simulation_tool", CREDIT_SIMULATION_TOOL_SCHEMA, lambda args, _f=compute_credit_simulation_tool: _f(**args))

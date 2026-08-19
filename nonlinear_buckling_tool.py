@@ -261,3 +261,11 @@ def compute_nonlinear_buckling(mode, params=None):
 if __name__ == "__main__":
     import json
     print(json.dumps(compute_nonlinear_buckling("validate"), indent=2, ensure_ascii=False))
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+register_tool("nonlinear_buckling_tool", NONLINEAR_BUCKLING_TOOL_SCHEMA, lambda args, _f=compute_nonlinear_buckling: _f(**args))

@@ -299,3 +299,11 @@ SEMICLASSICAL_COSMOLOGY_TOOL_SCHEMA = {
         "required": ["mode", "params"],
     },
 }
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+register_tool("semiclassical_cosmology_tool", SEMICLASSICAL_COSMOLOGY_TOOL_SCHEMA, lambda args, _f=compute_semiclassical_cosmology_tool: _f(**args))

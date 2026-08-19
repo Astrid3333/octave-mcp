@@ -442,3 +442,12 @@ def handle_electromagnetic_tool(arguments):
 
 if __name__ == "__main__":
     print(json.dumps(validate(), indent=2))
+
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+register_tool("electromagnetic_tool", ELECTROMAGNETIC_TOOL_SCHEMA, handle_electromagnetic_tool)

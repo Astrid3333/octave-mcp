@@ -563,3 +563,11 @@ DISTMESH_TOOL_SCHEMA = {
 
 if __name__ == "__main__":
     print(json.dumps(compute_distmesh(mode="validate"), indent=2))
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+register_tool("distmesh_tool", DISTMESH_TOOL_SCHEMA, lambda args, _f=compute_distmesh: _f(**args))

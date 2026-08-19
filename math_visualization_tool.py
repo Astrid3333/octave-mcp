@@ -268,3 +268,11 @@ if __name__ == "__main__":
     print("keys:", list(r4.keys()), "| max_magnitude:", round(r4["max_magnitude"], 3))
 
     print("\nOK - todos los modos corrieron sin excepciones.")
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+register_tool("math_visualization", MATH_VISUALIZATION_TOOL_SCHEMA, lambda args, _f=compute_math_visualization: _f(**args))

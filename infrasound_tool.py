@@ -180,3 +180,11 @@ INFRASOUND_TOOL_SCHEMA = {
         "required": ["mode"],
     },
 }
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+register_tool("infrasound_tool", INFRASOUND_TOOL_SCHEMA, lambda args, _f=compute_infrasound_tool: _f(**args))

@@ -338,3 +338,11 @@ def compute_thermal_conduction(mode, params=None):
 if __name__ == "__main__":
     import json
     print(json.dumps(compute_thermal_conduction("validate"), indent=2))
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+register_tool("thermal_conduction_tool", THERMAL_CONDUCTION_TOOL_SCHEMA, lambda args, _f=compute_thermal_conduction: _f(**args))

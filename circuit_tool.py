@@ -386,3 +386,11 @@ CIRCUIT_TOOL_SCHEMA = {
 if __name__ == "__main__":
     import json
     print(json.dumps(validate(), ensure_ascii=False, indent=2))
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+register_tool("circuit_tool", CIRCUIT_TOOL_SCHEMA, lambda args, _f=compute_circuit_tool: _f(**args))

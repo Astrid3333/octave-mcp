@@ -448,3 +448,11 @@ if __name__ == "__main__":
     import json
     d = compute_thermal_advanced("validate")
     print(json.dumps({"checks": d["checks"], "validation_passed": d["validation_passed"]}, indent=2))
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+register_tool("thermal_advanced_tool", THERMAL_ADVANCED_TOOL_SCHEMA, lambda args, _f=compute_thermal_advanced: _f(**args))

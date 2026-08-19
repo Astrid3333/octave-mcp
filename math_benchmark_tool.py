@@ -398,3 +398,11 @@ MATH_BENCHMARK_TOOL_SCHEMA = {
         "required": [],
     },
 }
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+register_tool("math_benchmark", MATH_BENCHMARK_TOOL_SCHEMA, lambda args, _f=compute_math_benchmark: _f(**args))

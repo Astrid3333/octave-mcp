@@ -366,3 +366,10 @@ MATH_ERROR_ANALYZER_TOOL_SCHEMA = {
     },
 }
 
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+register_tool("math_error_analyzer", MATH_ERROR_ANALYZER_TOOL_SCHEMA, lambda args, _f=compute_math_error_analysis: _f(**args))

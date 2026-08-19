@@ -228,3 +228,11 @@ def compute_budgeting(mode, **params):
 if __name__ == "__main__":
     import json
     print(json.dumps(compute_budgeting(mode="validate"), ensure_ascii=False, indent=2))
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+register_tool("budgeting_tool", BUDGETING_TOOL_SCHEMA, lambda args, _f=compute_budgeting: _f(**args))

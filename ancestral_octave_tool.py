@@ -173,3 +173,18 @@ def _validate_ancestral_octave(run_octave_fn) -> dict:
         "checks": checks,
         "not_covered": ["quipu_encode", "ifa_cast", "ifa_cast_random", "etak_deadreckoning"],
     }
+
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+def _handle(args):
+    # import perezoso: run_octave vive en server.py, que a su vez importa este
+    # modulo -- importar a nivel de modulo causaria import circular.
+    from server import run_octave
+    return compute_ancestral_octave(**args, run_octave_fn=run_octave)
+
+register_tool("ancestral_octave", ANCESTRAL_OCTAVE_SCHEMA, _handle)

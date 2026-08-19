@@ -312,3 +312,11 @@ LSCM_TOOL_SCHEMA = {
         "required": ["mode"],
     },
 }
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+register_tool("lscm_tool", LSCM_TOOL_SCHEMA, lambda args, _f=compute_lscm_tool: _f(**args))

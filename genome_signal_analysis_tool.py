@@ -178,3 +178,11 @@ GENOME_SIGNAL_ANALYSIS_SCHEMA = {
         "required": ["mode"],
     },
 }
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+register_tool("genome_signal_analysis", GENOME_SIGNAL_ANALYSIS_SCHEMA, lambda args, _f=compute_genome_signal_analysis: _f(**args))

@@ -259,3 +259,11 @@ if __name__ == "__main__":
     print(json.dumps(compute_number_theory("primality_test", "known_cases"), indent=2, ensure_ascii=False))
     print(json.dumps(compute_number_theory("rsa_toy", "classic_rsa_example"), indent=2, ensure_ascii=False))
     print(json.dumps(compute_number_theory("elliptic_curve_add", "hankerson_curve_example"), indent=2, ensure_ascii=False))
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+register_tool("number_theory", NUMBER_THEORY_SCHEMA, lambda args, _f=compute_number_theory: _f(**args))

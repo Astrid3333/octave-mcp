@@ -270,3 +270,11 @@ if __name__ == "__main__":
         print(f"--- {p} ---")
         print(f"  envelope[3:7] = {[round(e,3) for e in env[3:7]]}")
         print(f"  inst_freq[3:7] = {[round(fr,2) for fr in freq[3:7]]}")
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+register_tool("compute_hilbert_transform", HILBERT_TOOL_SCHEMA, lambda args, _f=compute_hilbert_transform: _f(**args))

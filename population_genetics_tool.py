@@ -243,3 +243,11 @@ def _validate_population_genetics():
     checks.append({"name": "genetic_drift: N grande mantiene frecuencia cerca de p0 (poca deriva)", "passed": abs(final_mean - 0.4) < 0.02, "got": final_mean})
 
     return {"mode": "validate", "validation_passed": all(c["passed"] for c in checks), "checks": checks}
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+register_tool("population_genetics", POPULATION_GENETICS_TOOL_SCHEMA, lambda args, _f=compute_population_genetics: _f(**args))

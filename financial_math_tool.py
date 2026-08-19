@@ -563,3 +563,11 @@ FINANCIAL_MATH_TOOL_SCHEMA = {
         "required": ["mode"],
     },
 }
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+register_tool("financial_math", FINANCIAL_MATH_TOOL_SCHEMA, lambda args, _f=compute_financial_math: _f(**args))

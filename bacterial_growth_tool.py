@@ -177,3 +177,11 @@ BACTERIAL_GROWTH_TOOL_SCHEMA = {
         "required": ["mode"],
     },
 }
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+register_tool("bacterial_growth_tool", BACTERIAL_GROWTH_TOOL_SCHEMA, lambda args, _f=compute_bacterial_growth_tool: _f(**args))

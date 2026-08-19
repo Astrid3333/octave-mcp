@@ -171,3 +171,11 @@ GEOMETRIC_ALGEBRA_PROTEIN_SCHEMA = {
         "required": ["mode"],
     },
 }
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+register_tool("geometric_algebra_protein", GEOMETRIC_ALGEBRA_PROTEIN_SCHEMA, lambda args, _f=compute_geometric_algebra_protein: _f(**args))

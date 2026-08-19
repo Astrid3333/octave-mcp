@@ -369,3 +369,11 @@ if __name__ == "__main__":
     print("explained_variance_ratio:", [round(v, 3) for v in r6["explained_variance_ratio"]])
 
     print("\nOK - todos los modos corrieron sin excepciones.")
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+register_tool("machine_learning_math", MACHINE_LEARNING_TOOL_SCHEMA, lambda args, _f=compute_machine_learning_math: _f(**args))

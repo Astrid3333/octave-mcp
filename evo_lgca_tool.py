@@ -279,3 +279,11 @@ EVO_LGCA_TOOL_SCHEMA = {
         "required": ["mode"],
     },
 }
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+register_tool("evo_LGCA_tool", EVO_LGCA_TOOL_SCHEMA, lambda args, _f=compute_evo_lgca_tool: _f(**args))

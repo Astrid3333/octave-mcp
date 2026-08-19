@@ -185,3 +185,11 @@ MESH_PDE_TOOL_SCHEMA = {
         "required": ["mode"],
     },
 }
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+register_tool("mesh_pde_tool", MESH_PDE_TOOL_SCHEMA, lambda args, _f=compute_mesh_pde_tool: _f(**args))

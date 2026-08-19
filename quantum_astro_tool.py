@@ -342,3 +342,11 @@ QUANTUM_ASTRO_TOOL_SCHEMA = {
         "required": ["mode", "params"],
     },
 }
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+register_tool("quantum_astro_tool", QUANTUM_ASTRO_TOOL_SCHEMA, lambda args, _f=compute_quantum_astro_tool: _f(**args))

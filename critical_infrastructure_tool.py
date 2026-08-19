@@ -421,3 +421,15 @@ if __name__ == "__main__":
             req.get("mode", "validate"), req.get("params", {})
         )
         print(json.dumps(result, ensure_ascii=False, indent=2))
+
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+def _handle(args):
+    return compute_critical_infrastructure(args.get("mode"), args.get("params"))
+
+register_tool("critical_infrastructure_tool", CRITICAL_INFRASTRUCTURE_TOOL_SCHEMA, _handle)

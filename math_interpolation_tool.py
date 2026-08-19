@@ -279,3 +279,11 @@ MATH_INTERPOLATION_TOOL_SCHEMA = {
         "required": [],
     },
 }
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+register_tool("math_interpolation", MATH_INTERPOLATION_TOOL_SCHEMA, lambda args, _f=compute_math_interpolation: _f(**args))

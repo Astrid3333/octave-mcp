@@ -268,3 +268,11 @@ if __name__ == "__main__":
     import json
     r = compute_forced_vibration("validate")
     print(json.dumps(r, indent=2, ensure_ascii=False))
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+register_tool("forced_vibration_tool", FORCED_VIBRATION_TOOL_SCHEMA, lambda args, _f=compute_forced_vibration: _f(**args))

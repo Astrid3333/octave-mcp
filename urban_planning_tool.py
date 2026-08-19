@@ -300,3 +300,15 @@ if __name__ == "__main__":
         req = json.loads(line)
         result = compute_urban_planning(req.get("mode", "validate"), req.get("params", {}))
         print(json.dumps(result, ensure_ascii=False, indent=2))
+
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+def _handle(args):
+    return compute_urban_planning(args.get("mode"), args.get("params"))
+
+register_tool("urban_planning_tool", URBAN_PLANNING_TOOL_SCHEMA, _handle)

@@ -250,3 +250,30 @@ if __name__ == "__main__":
     import json
     print(json.dumps(compute_tritbraid(mode="validate_physics"), indent=2, ensure_ascii=False))
     print(json.dumps(compute_tritbraid(mode="run_program", program="1,2,M,0,M,2,M"), indent=2, ensure_ascii=False))
+
+
+TRITBRAID_TOOL_SCHEMA = {
+    "name": "tritbraid",
+    "description": "DSL TritBraid: secuencias de trenzas de Fibonacci que colapsan a un trit ternario (-1,0,+1). Tokens del programa: 0=identidad, 1=sigma1 (diagonal, no mezcla canales), 2=sigma2 (mezcla via matriz F), M=medicion (colapso proyectivo, regla de Born). Modes: run_program (ejecuta el programa dado y devuelve traza completa), validate_physics (verifica unitariedad, invariancia bajo identidad/sigma1, y mezcla)",
+    "inputSchema": {
+        "type": "object",
+        "properties": {
+            "mode": {"type": "string"},
+            "program": {"type": "string"},
+            "seed": {"type": "integer"},
+            "initial_state": {"type": "array"},
+        },
+    },
+}
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+def _handle(args):
+    tb_kwargs = {k: v for k, v in args.items() if k in ("mode", "program", "seed", "initial_state")}
+    return compute_tritbraid(**tb_kwargs)
+
+register_tool("tritbraid", TRITBRAID_TOOL_SCHEMA, _handle)

@@ -419,3 +419,16 @@ if __name__ == "__main__":
         "el area promedio de grano deberia crecer monotonamente"
     print("\nValidacion estructural (n_grains no-creciente, area no-decreciente) OK.")
     print("\nTodas las validaciones de statistical_physics_tool pasaron.")
+
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+def _handle(args):
+    _params = args.get("params") or {}
+    return compute_statistical_physics(mode=args["mode"], **_params)
+
+register_tool("statistical_physics_tool", STATISTICAL_PHYSICS_TOOL_SCHEMA, _handle)

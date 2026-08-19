@@ -266,3 +266,11 @@ def compute_construction_scheduling(mode, **params):
 if __name__ == "__main__":
     import json
     print(json.dumps(compute_construction_scheduling(mode="validate"), ensure_ascii=False, indent=2))
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+register_tool("construction_scheduling_tool", CONSTRUCTION_SCHEDULING_TOOL_SCHEMA, lambda args, _f=compute_construction_scheduling: _f(**args))

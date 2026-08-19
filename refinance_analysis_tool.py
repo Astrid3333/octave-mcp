@@ -356,3 +356,11 @@ if __name__ == "__main__":
     result = compute_refinance_analysis_tool("validate")
     print(json.dumps(result, indent=2, ensure_ascii=False))
     sys.exit(0 if result["validation_passed"] else 1)
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+register_tool("refinance_analysis_tool", REFINANCE_ANALYSIS_TOOL_SCHEMA, lambda args, _f=compute_refinance_analysis_tool: _f(**args))

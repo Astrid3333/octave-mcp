@@ -208,3 +208,11 @@ if __name__ == "__main__":
     seq = list("ABABABABAB" * 5)
     print(compute_information_theory(mode="sequence_entropy", sequence=seq, order=1))
     print(compute_information_theory(mode="sequence_entropy", sequence=seq, order=2))
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+register_tool("information_theory", INFORMATION_THEORY_TOOL_SCHEMA, lambda args, _f=compute_information_theory: _f(**args))

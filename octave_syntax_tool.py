@@ -179,3 +179,11 @@ if __name__ == "__main__":
     assert r4["valid"] is False, f"se esperaba valid=False, dio: {r4}"
 
     print("\nTodas las validaciones (1 codigo valido, 3 casos con errores de sintaxis distintos) corrieron sin excepciones.")
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+register_tool("octave_syntax", OCTAVE_SYNTAX_TOOL_SCHEMA, lambda args, _f=compute_octave_syntax: _f(**args))

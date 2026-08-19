@@ -339,3 +339,11 @@ TOPOLOGY_OPTIMIZATION_TOOL_SCHEMA = {
 if __name__ == "__main__":
     import json
     print(json.dumps(validate(), ensure_ascii=False, indent=2)[:3000])
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+register_tool("topology_optimization_tool", TOPOLOGY_OPTIMIZATION_TOOL_SCHEMA, lambda args, _f=compute_topology_optimization_tool: _f(**args))

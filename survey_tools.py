@@ -678,3 +678,17 @@ SURVEY_AREA_VOLUME_TOOL_SCHEMA = {
         "required": ["mode"],
     },
 }
+
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+register_tool("survey_angles_tool", SURVEY_ANGLES_TOOL_SCHEMA, lambda args: compute_survey_angles(**args))
+register_tool("survey_distance_tool", SURVEY_DISTANCE_TOOL_SCHEMA, lambda args: compute_survey_distance(**args))
+register_tool("survey_curvature_tool", SURVEY_CURVATURE_TOOL_SCHEMA, lambda args: compute_survey_curvature(**args))
+register_tool("traverse_adjustment_tool", TRAVERSE_ADJUSTMENT_TOOL_SCHEMA, lambda args: compute_traverse_adjustment(**args))
+register_tool("survey_curves_tool", SURVEY_CURVES_TOOL_SCHEMA, lambda args: compute_survey_curves(**args))
+register_tool("survey_area_volume_tool", SURVEY_AREA_VOLUME_TOOL_SCHEMA, lambda args: compute_survey_area_volume(**args))

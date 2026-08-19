@@ -262,3 +262,11 @@ ACOUSTICS_TOOL_SCHEMA = {
 if __name__ == "__main__":
     import json
     print(json.dumps(compute_acoustics_tool("validate"), indent=2, ensure_ascii=False))
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+register_tool("acoustics_tool", ACOUSTICS_TOOL_SCHEMA, lambda args, _f=compute_acoustics_tool: _f(**args))

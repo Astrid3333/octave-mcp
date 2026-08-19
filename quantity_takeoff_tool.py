@@ -319,3 +319,11 @@ def compute_quantity_takeoff(operation=None, mode=None, **params):
 if __name__ == "__main__":
     import json
     print(json.dumps(compute_quantity_takeoff(mode="validate"), ensure_ascii=False, indent=2))
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+register_tool("quantity_takeoff", QUANTITY_TAKEOFF_TOOL_SCHEMA, lambda args, _f=compute_quantity_takeoff: _f(**args))

@@ -146,3 +146,11 @@ OPTICAL_SEQUENCE_ID_SCHEMA = {
         "required": ["mode"],
     },
 }
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+register_tool("optical_sequence_id", OPTICAL_SEQUENCE_ID_SCHEMA, lambda args, _f=compute_optical_sequence_id: _f(**args))
