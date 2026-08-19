@@ -24,7 +24,7 @@ FINITE_ELEMENT_TOOL_SCHEMA = {
     "inputSchema": {
         "type": "object",
         "properties": {
-            "mode": {"type": "string", "enum": ["bar_1d", "beam_bending", "truss_2d"]},
+            "mode": {"type": "string", "enum": ["bar_1d", "beam_bending", "truss_2d", "validate"]},
             "params": {"type": "object", "description": "Parametros especificos de cada modo, ver docstrings."},
         },
         "required": ["mode"],
@@ -130,6 +130,8 @@ def _truss_2d(nodes, elements, E, A, loads, fixed_dofs):
 
 def compute_finite_element(mode, params=None):
     params = params or {}
+    if mode == "validate":
+        return _validate_finite_element()
     if mode == "bar_1d":
         return _bar_1d(**params)
     elif mode == "beam_bending":
@@ -139,6 +141,39 @@ def compute_finite_element(mode, params=None):
     else:
         raise ValueError(f"modo desconocido: {mode}. Use bar_1d | beam_bending | truss_2d")
 
+
+
+def _validate_finite_element():
+    checks = []
+    r1 = _bar_1d(E=200e9, A=0.001, L=2.0, P=1000.0)
+    checks.append({
+        "name": "bar_1d_relative_error_pct",
+        "expected": "< 0.5",
+        "got": round(float(r1["relative_error_pct"]), 6),
+        "passed": bool(r1["relative_error_pct"] < 0.5),
+    })
+    r2 = _beam_bending(E=200e9, I=8e-6, L=3.0, P=500.0)
+    checks.append({
+        "name": "beam_bending_relative_error_pct",
+        "expected": "< 0.5",
+        "got": round(float(r2["relative_error_pct"]), 6),
+        "passed": bool(r2["relative_error_pct"] < 0.5),
+    })
+    r3 = _truss_2d(
+        nodes=[[0, 0], [1, 0], [0.5, 0.866]],
+        elements=[[0, 1], [1, 2], [0, 2]],
+        E=200e9, A=0.0005,
+        loads={5: -1000.0},
+        fixed_dofs=[0, 1, 2, 3],
+    )
+    checks.append({
+        "name": "truss_2d_equilibrium_residual_max",
+        "expected": "< 1e-6",
+        "got": r3["equilibrium_residual_max"],
+        "passed": bool(r3["equilibrium_residual_max"] < 1e-6),
+    })
+    all_passed = all(c["passed"] for c in checks)
+    return {"mode": "validate", "checks": checks, "all_passed": all_passed}
 
 if __name__ == "__main__":
     r1 = compute_finite_element("bar_1d", {"E": 200e9, "A": 0.001, "L": 2.0, "P": 1000.0})
@@ -153,3 +188,11 @@ if __name__ == "__main__":
         "fixed_dofs": [0, 1, 2, 3],
     })
     print("truss_2d equilibrium residual max =", r3["equilibrium_residual_max"])
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+register_tool("finite_element_tool", FINITE_ELEMENT_TOOL_SCHEMA, lambda args, _f=compute_finite_element: _f(**args))

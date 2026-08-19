@@ -15,3 +15,14 @@ health_check_output.json
 # Rust submotors
 submotors/*/target/
 .venv-pyscf/
+# artefactos accidentales (salida PostScript de ImageMagick con nombres que
+# coinciden con módulos stdlib de Python)
+/json
+/os
+/subprocess
+/tempfile
+/shutil
+/np
+
+# backups de patches
+*.bak.*

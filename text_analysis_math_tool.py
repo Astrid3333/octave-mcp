@@ -262,7 +262,40 @@ def compute_stylometry(text_a, text_b, top_n=200):
     }
 
 
+
+def _validate_text_analysis_math():
+    checks = []
+    r1 = compute_edit_distance("gato", "gata", method="levenshtein")
+    checks.append({
+        "name": "levenshtein_gato_gata_distance",
+        "expected": 1, "got": r1["distance"],
+        "passed": r1["distance"] == 1,
+    })
+    checks.append({
+        "name": "levenshtein_gato_gata_normalized",
+        "expected": 0.25, "got": r1["normalized_distance"],
+        "passed": abs(r1["normalized_distance"] - 0.25) < 1e-6,
+    })
+
+    r2 = compute_edit_distance("", "abc", method="levenshtein")
+    checks.append({
+        "name": "levenshtein_empty_vs_abc_distance",
+        "expected": 3, "got": r2["distance"],
+        "passed": r2["distance"] == 3,
+    })
+    checks.append({
+        "name": "levenshtein_empty_vs_abc_similarity",
+        "expected": 0.0, "got": r2["similarity"],
+        "passed": abs(r2["similarity"] - 0.0) < 1e-6,
+    })
+
+    all_passed = all(c["passed"] for c in checks)
+    return {"mode": "validate", "checks": checks, "all_passed": all_passed}
+
+
 def compute_text_analysis_math(mode, **kwargs):
+    if mode == "validate":
+        return _validate_text_analysis_math()
     if mode == "edit_distance":
         return compute_edit_distance(
             kwargs["text_a"], kwargs["text_b"],
@@ -300,7 +333,7 @@ TEXT_ANALYSIS_MATH_TOOL_SCHEMA = {
         "properties": {
             "mode": {
                 "type": "string",
-                "enum": ["edit_distance", "ngram_model", "frequency_laws", "stylometry"],
+                "enum": ["edit_distance", "ngram_model", "frequency_laws", "stylometry", "validate"],
             },
             "text_a": {"type": "string", "description": "edit_distance, stylometry"},
             "text_b": {"type": "string", "description": "edit_distance, stylometry"},
@@ -314,3 +347,11 @@ TEXT_ANALYSIS_MATH_TOOL_SCHEMA = {
         "required": ["mode"],
     },
 }
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+register_tool("text_analysis_math", TEXT_ANALYSIS_MATH_TOOL_SCHEMA, lambda args, _f=compute_text_analysis_math: _f(**args))

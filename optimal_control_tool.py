@@ -109,8 +109,45 @@ def compute_dynamic_programming(transition_probs, rewards, gamma=0.95, tol=1e-6,
     }
 
 
+
+def _validate_optimal_control():
+    checks = []
+    # LQR escalar: A=0, B=1, Q=1, R=1 -> Riccati algebraica -P^2+1=0,
+    # raiz positiva P=1; K=R^-1*B*P=1; lazo cerrado A-BK=-1 (estable).
+    r = compute_lqr(A=[[0.0]], B=[[1.0]], Q=[[1.0]], R=[[1.0]], x0=[1.0], T=5.0, n_steps=200)
+
+    K = r["gain_matrix_K"][0][0]
+    P = r["riccati_solution_P"][0][0]
+    checks.append({
+        "name": "lqr_scalar_riccati_P",
+        "expected": 1.0, "got": P,
+        "passed": abs(P - 1.0) < 1e-4,
+    })
+    checks.append({
+        "name": "lqr_scalar_gain_K",
+        "expected": 1.0, "got": K,
+        "passed": abs(K - 1.0) < 1e-4,
+    })
+    eig = r["closed_loop_eigenvalues"][0]
+    checks.append({
+        "name": "lqr_scalar_closed_loop_eigenvalue",
+        "expected": {"real": -1.0, "imag": 0.0}, "got": eig,
+        "passed": abs(eig["real"] - (-1.0)) < 1e-4 and abs(eig["imag"]) < 1e-6,
+    })
+    checks.append({
+        "name": "lqr_scalar_stable",
+        "expected": True, "got": r["closed_loop_stable"],
+        "passed": r["closed_loop_stable"] is True,
+    })
+
+    all_passed = all(c["passed"] for c in checks)
+    return {"mode": "validate", "checks": checks, "all_passed": all_passed}
+
+
 def compute_optimal_control(mode, **kwargs):
     """Dispatcher unico para el tool MCP optimal_control, segun 'mode'."""
+    if mode == "validate":
+        return _validate_optimal_control()
     fns = {
         "lqr": compute_lqr,
         "pontryagin_lq": compute_pontryagin_lq,
@@ -127,7 +164,7 @@ OPTIMAL_CONTROL_TOOL_SCHEMA = {
     "inputSchema": {
         "type": "object",
         "properties": {
-            "mode": {"type": "string", "enum": ["lqr", "pontryagin_lq", "dynamic_programming"]},
+            "mode": {"type": "string", "enum": ["lqr", "pontryagin_lq", "dynamic_programming", "validate"]},
             "A": {"type": "array"}, "B": {"type": "array"}, "Q": {"type": "array"}, "R": {"type": "array"},
             "x0": {}, "T": {"type": "number"}, "n_steps": {"type": "integer"},
             "a": {"type": "number"}, "b": {"type": "number"}, "q": {"type": "number"}, "r": {"type": "number"},
@@ -152,3 +189,11 @@ if __name__ == "__main__":
         gamma=0.9,
     )
     print(r3)
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+register_tool("optimal_control", OPTIMAL_CONTROL_TOOL_SCHEMA, lambda args, _f=compute_optimal_control: _f(**args))

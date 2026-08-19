@@ -166,8 +166,44 @@ def compute_kriging(sample_coordinates, sample_values, target_coordinates,
     }
 
 
+
+def _validate_spatial_statistics():
+    checks = []
+    # 4 puntos colineales equiespaciados, values=[1,2,3,4], knn k=1.
+    # Vecino mas cercano por punto (fijo por la geometria y el desempate
+    # estable de np.argsort): 0->1, 1->0, 2->1, 3->2.
+    # z_dev = values - 2.5 = [-1.5, -0.5, 0.5, 1.5]
+    # S0 = 4 (cuatro pesos 1 en la matriz W)
+    # num = n * sum(W * outer(z_dev, z_dev))
+    #     = 4 * [z0*z1 + z1*z0 + z2*z1 + z3*z2]
+    #     = 4 * [0.75 + 0.75 - 0.25 + 0.75] = 4 * 2.0 = 8.0
+    # den = S0 * sum(z_dev^2) = 4 * 5.0 = 20.0
+    # I = 8.0 / 20.0 = 0.4 exacto; E[I] = -1/(n-1) = -1/3 exacto
+    coords = [[0.0, 0.0], [1.0, 0.0], [2.0, 0.0], [3.0, 0.0]]
+    values = [1.0, 2.0, 3.0, 4.0]
+    r = compute_morans_i(values, coords, weight_type="knn", k=1)
+
+    exp_I = 0.4
+    exp_E_I = -1.0 / 3.0
+    checks.append({
+        "name": "morans_i_collinear_exact",
+        "expected": round(exp_I, 6), "got": r["morans_i"],
+        "passed": abs(r["morans_i"] - exp_I) < 1e-4,
+    })
+    checks.append({
+        "name": "morans_i_expected_under_null",
+        "expected": round(exp_E_I, 6), "got": r["expected_i_under_null"],
+        "passed": abs(r["expected_i_under_null"] - exp_E_I) < 1e-4,
+    })
+
+    all_passed = all(c["passed"] for c in checks)
+    return {"mode": "validate", "checks": checks, "all_passed": all_passed}
+
+
 def compute_spatial_statistics(mode, **kwargs):
     """Dispatcher unico para el tool MCP spatial_statistics, segun 'mode'."""
+    if mode == "validate":
+        return _validate_spatial_statistics()
     fns = {
         "morans_i": compute_morans_i,
         "gearys_c": compute_gearys_c,
@@ -185,7 +221,7 @@ SPATIAL_STATISTICS_TOOL_SCHEMA = {
     "inputSchema": {
         "type": "object",
         "properties": {
-            "mode": {"type": "string", "enum": ["morans_i", "gearys_c", "semivariogram", "kriging"]},
+            "mode": {"type": "string", "enum": ["morans_i", "gearys_c", "semivariogram", "kriging", "validate"]},
             "values": {"type": "array"}, "coordinates": {"type": "array"},
             "weight_type": {"type": "string", "enum": ["inverse_distance", "knn", "threshold"]},
             "k": {"type": "integer"}, "threshold": {"type": "number"},
@@ -217,3 +253,11 @@ if __name__ == "__main__":
     sample_vals = [1.0, 5.0, 5.0, 9.0, 5.0]
     targets = [[1, 1], [3, 3], [2, 0]]
     print(compute_spatial_statistics(mode="kriging", sample_coordinates=sample_coords, sample_values=sample_vals, target_coordinates=targets, model="spherical"))
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+register_tool("spatial_statistics", SPATIAL_STATISTICS_TOOL_SCHEMA, lambda args, _f=compute_spatial_statistics: _f(**args))

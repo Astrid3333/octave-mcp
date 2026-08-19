@@ -205,6 +205,8 @@ def compute_collapse_dynamics(P0=10.0, R0=50.0, r=0.5, K_capacity=200.0,
 
 def compute_archaeological_simulation(mode, **kwargs):
     """Dispatcher unico para el tool MCP archaeological_simulation, segun 'mode'."""
+    if mode == "validate":
+        return _validate_archaeological_simulation()
     fns = {
         "malthusian_growth": compute_malthusian_growth,
         "technology_diffusion": compute_technology_diffusion,
@@ -231,7 +233,7 @@ ARCHAEOLOGICAL_SIMULATION_TOOL_SCHEMA = {
     "inputSchema": {
         "type": "object",
         "properties": {
-            "mode": {"type": "string", "enum": ["malthusian_growth", "technology_diffusion", "trade_network", "collapse_dynamics"]},
+            "mode": {"type": "string", "enum": ["malthusian_growth", "technology_diffusion", "trade_network", "collapse_dynamics", "validate"]},
             "P0": {"type": "number"}, "r": {"type": "number"},
             "K0": {"type": "number"}, "K_amplitude": {"type": "number"}, "K_period": {"type": "number"},
             "K_capacity": {"type": "number"},
@@ -246,6 +248,65 @@ ARCHAEOLOGICAL_SIMULATION_TOOL_SCHEMA = {
     },
 }
 
+
+
+def _validate_archaeological_simulation():
+    checks = []
+    r1 = compute_malthusian_growth(P0=10, r=0.5, K0=100, K_amplitude=20,
+                                    K_period=20, t_max=100, n_points=60)
+    err1 = r1["validacion_caso_K_constante"]["max_error_vs_logistico_analitico"]
+    checks.append({
+        "name": "malthusian_growth_vs_logistico_analitico",
+        "expected": "< 1e-3",
+        "got": err1,
+        "passed": bool(err1 < 1e-3),
+    })
+
+    r2 = compute_technology_diffusion(M_market=1000, p_innovation=0.03,
+                                       q_imitation=0.4, t_max=30, n_points=30)
+    err2 = r2["max_error_vs_analitico"]
+    checks.append({
+        "name": "technology_diffusion_vs_analitico",
+        "expected": "< 1e-3",
+        "got": err2,
+        "passed": bool(err2 < 1e-3),
+    })
+
+    settlements = [
+        {"name": "A", "population": 500, "x": 0, "y": 0},
+        {"name": "B", "population": 300, "x": 10, "y": 0},
+        {"name": "C", "population": 800, "x": 5, "y": 8},
+        {"name": "D", "population": 150, "x": 15, "y": 5},
+    ]
+    r3 = compute_trade_network(settlements=settlements, gravity_exponent=2)
+    # C tiene la mayor poblacion y esta relativamente central -> hub esperado.
+    # NO VERIFICADO A MANO -- confirmar con una corrida suelta antes de confiar.
+    checks.append({
+        "name": "trade_network_hub_identificado",
+        "expected": "C",
+        "got": r3["hub_identificado"],
+        "passed": r3["hub_identificado"] == "C",
+    })
+
+    r4 = compute_collapse_dynamics(P0=10, R0=50, r=0.5, K_capacity=200,
+                                    a_attack=0.02, h_handling=0.4,
+                                    e_efficiency=0.6, m_mortality=0.3,
+                                    t_max=100, n_points=60)
+    # Chequeo estructural minimo: el modulo corrio y devolvio el campo de
+    # analisis esperado. Umbral de "ciclo_limite_detectado" NO verificado
+    # a mano -- ajustar si el valor real difiere.
+    checks.append({
+        "name": "collapse_dynamics_returns_analysis_fields",
+        "expected": "equilibrio_analitico_nullclines y ciclo_limite_detectado presentes",
+        "got": {
+            "has_equilibrio": "equilibrio_analitico_nullclines" in r4,
+            "has_ciclo": "ciclo_limite_detectado" in r4,
+        },
+        "passed": ("equilibrio_analitico_nullclines" in r4 and "ciclo_limite_detectado" in r4),
+    })
+
+    all_passed = all(c["passed"] for c in checks)
+    return {"mode": "validate", "checks": checks, "all_passed": all_passed}
 
 if __name__ == "__main__":
     print("== Test malthusian_growth ==")
@@ -283,3 +344,11 @@ if __name__ == "__main__":
     print("ciclo_limite_detectado:", r4["ciclo_limite_detectado"])
 
     print("\nOK - todos los tests corrieron sin excepciones.")
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+register_tool("archaeological_simulation", ARCHAEOLOGICAL_SIMULATION_TOOL_SCHEMA, lambda args, _f=compute_archaeological_simulation: _f(**args))

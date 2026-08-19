@@ -32,7 +32,7 @@ GLM_TOOL_SCHEMA = {
     "inputSchema": {
         "type": "object",
         "properties": {
-            "mode": {"type": "string", "enum": ["logistic_regression", "poisson_regression", "ridge_lasso"]},
+            "mode": {"type": "string", "enum": ["logistic_regression", "poisson_regression", "ridge_lasso", "validate"]},
             "params": {"type": "object", "description": "Parametros especificos de cada modo, ver docstrings."},
         },
         "required": ["mode"],
@@ -284,6 +284,8 @@ def _ridge_lasso(method, X, y, lambdas=None, k_folds=5, standardize=True, seed=0
 # ---------------------------------------------------------------------------
 def compute_glm(mode, params=None):
     params = dict(params or {})
+    if mode == "validate":
+        return _validate_glm()
     if mode == "logistic_regression":
         return _logistic_regression(**params)
     elif mode == "poisson_regression":
@@ -293,6 +295,100 @@ def compute_glm(mode, params=None):
     else:
         raise ValueError(f"modo desconocido: {mode}. Use logistic_regression | poisson_regression | ridge_lasso")
 
+
+
+def _validate_glm():
+    checks = []
+    rng = np.random.default_rng(0)
+
+    # --- logistic_regression vs sklearn (mismo caso que el __main__) ---
+    try:
+        from sklearn.linear_model import LogisticRegression as SkLogistic
+        n = 500
+        X = rng.normal(0, 1, (n, 2))
+        true_beta = np.array([0.5, -1.2, 2.0])
+        eta = true_beta[0] + X @ true_beta[1:]
+        p_true = 1 / (1 + np.exp(-eta))
+        y = (rng.uniform(0, 1, n) < p_true).astype(float)
+        r = _logistic_regression(X.tolist(), y.tolist())
+        sk = SkLogistic(penalty=None, max_iter=1000).fit(X, y)
+        intercept_diff = abs(r["coefficients"][0] - sk.intercept_[0])
+        coef_diff = float(np.max(np.abs(np.array(r["coefficients"][1:]) - sk.coef_[0])))
+        checks.append({
+            "name": "logistic_regression_vs_sklearn",
+            "expected": "diffs < 1e-2",
+            "got": {"intercept_diff": round(float(intercept_diff), 6), "max_coef_diff": round(coef_diff, 6)},
+            "passed": bool(intercept_diff < 1e-2 and coef_diff < 1e-2),
+        })
+    except ImportError as e:
+        checks.append({"name": "logistic_regression_vs_sklearn", "expected": "sklearn disponible",
+                        "got": str(e), "passed": False})
+
+    # --- poisson_regression vs sklearn ---
+    try:
+        from sklearn.linear_model import PoissonRegressor
+        true_beta_p = np.array([0.3, 0.5, -0.2])
+        eta_p = true_beta_p[0] + X @ true_beta_p[1:]
+        mu_p = np.exp(np.clip(eta_p, -10, 10))
+        y_p = rng.poisson(mu_p).astype(float)
+        r = _poisson_regression(X.tolist(), y_p.tolist())
+        sk_p = PoissonRegressor(alpha=0.0, max_iter=1000).fit(X, y_p)
+        intercept_diff_p = abs(r["coefficients"][0] - sk_p.intercept_)
+        coef_diff_p = float(np.max(np.abs(np.array(r["coefficients"][1:]) - sk_p.coef_)))
+        checks.append({
+            "name": "poisson_regression_vs_sklearn",
+            "expected": "diffs < 1e-3",
+            "got": {"intercept_diff": round(float(intercept_diff_p), 6), "max_coef_diff": round(coef_diff_p, 6)},
+            "passed": bool(intercept_diff_p < 1e-3 and coef_diff_p < 1e-3),
+        })
+    except ImportError as e:
+        checks.append({"name": "poisson_regression_vs_sklearn", "expected": "sklearn disponible",
+                        "got": str(e), "passed": False})
+
+    # --- ridge_lasso (ridge) vs sklearn, ecuacion normal en escala estandarizada ---
+    try:
+        from sklearn.linear_model import Ridge as SkRidge
+        from sklearn.preprocessing import StandardScaler
+        n2 = 200
+        X2 = rng.normal(0, 1, (n2, 5))
+        true_beta2 = np.array([1.5, 0.0, -2.0, 0.0, 3.0])
+        y2 = X2 @ true_beta2 + rng.normal(0, 1, n2)
+        r = _ridge_lasso("ridge", X2.tolist(), y2.tolist(),
+                          lambdas=[0.01, 0.1, 1.0, 10.0, 100.0], k_folds=5)
+        scaler = StandardScaler().fit(X2)
+        X2s = scaler.transform(X2)
+        y2c = y2 - y2.mean()
+        sk_ridge = SkRidge(alpha=r["best_lambda"], fit_intercept=False).fit(X2s, y2c)
+        ridge_diff = float(np.max(np.abs(np.array(r["coefficients_standardized"]) - sk_ridge.coef_)))
+        checks.append({
+            "name": "ridge_vs_sklearn",
+            "expected": "max diff < 1e-3",
+            "got": {"max_coef_diff": round(ridge_diff, 6), "best_lambda": r["best_lambda"]},
+            "passed": bool(ridge_diff < 1e-3),
+        })
+
+        # lasso: CV estandar (lambda.min) minimiza error de prediccion, no
+        # garantiza ceros exactos -- se compara magnitud relativa en vez de
+        # contar no-nulos. true_beta2 = [1.5, 0.0, -2.0, 0.0, 3.0]
+        r_lasso = _ridge_lasso("lasso", X2.tolist(), y2.tolist(),
+                                lambdas=[0.001, 0.01, 0.1, 1.0], k_folds=5)
+        coefs_lasso = np.array(r_lasso["coefficients_standardized"])
+        true_nonzero_idx = [0, 2, 4]
+        true_zero_idx = [1, 3]
+        signal_mag = float(np.abs(coefs_lasso[true_nonzero_idx]).min())
+        noise_mag = float(np.abs(coefs_lasso[true_zero_idx]).max())
+        checks.append({
+            "name": "lasso_sparsity_recovery",
+            "expected": "coef en variables nulas << coef en variables con senal (noise < 0.1 * signal)",
+            "got": {"min_signal_coef": round(signal_mag, 6), "max_noise_coef": round(noise_mag, 6)},
+            "passed": bool(noise_mag < 0.1 * signal_mag),
+        })
+    except ImportError as e:
+        checks.append({"name": "ridge_vs_sklearn", "expected": "sklearn disponible",
+                        "got": str(e), "passed": False})
+
+    all_passed = all(c["passed"] for c in checks)
+    return {"mode": "validate", "checks": checks, "all_passed": all_passed}
 
 if __name__ == "__main__":
     rng = np.random.default_rng(0)
@@ -363,3 +459,11 @@ if __name__ == "__main__":
           "n_nonzero=", r["n_nonzero_coefficients"], "(esperado: 3 de 5, los no nulos de true_beta2)")
 
     print("\nTodas las validaciones cruzadas contra sklearn corrieron sin excepciones.")
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+register_tool("glm_tool", GLM_TOOL_SCHEMA, lambda args, _f=compute_glm: _f(**args))

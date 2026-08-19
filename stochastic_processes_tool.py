@@ -128,8 +128,35 @@ def compute_markov_chain(transition_matrix, initial_state=None, n_steps=20, targ
     return result
 
 
+
+def _validate_stochastic_processes():
+    checks = []
+    # Cadena de 2 estados, transition_matrix=[[0.9,0.1],[0.3,0.7]].
+    # Estacionaria exacta: pi0*0.9+pi1*0.3=pi0 y pi0+pi1=1 -> pi=[0.75,0.25].
+    r = compute_markov_chain(
+        transition_matrix=[[0.9, 0.1], [0.3, 0.7]],
+        n_steps=100,
+    )
+    exp_stationary = [0.75, 0.25]
+    checks.append({
+        "name": "markov_chain_stationary_distribution",
+        "expected": exp_stationary, "got": r["stationary_distribution"],
+        "passed": all(abs(a - b) < 1e-3 for a, b in zip(r["stationary_distribution"], exp_stationary)),
+    })
+    checks.append({
+        "name": "markov_chain_converged",
+        "expected": True, "got": r["converged_to_stationary"],
+        "passed": r["converged_to_stationary"] is True,
+    })
+
+    all_passed = all(c["passed"] for c in checks)
+    return {"mode": "validate", "checks": checks, "all_passed": all_passed}
+
+
 def compute_stochastic_processes(mode, **kwargs):
     """Dispatcher unico para el tool MCP stochastic_processes, segun 'mode'."""
+    if mode == "validate":
+        return _validate_stochastic_processes()
     fns = {
         "brownian_motion": compute_brownian_motion,
         "ornstein_uhlenbeck": compute_ornstein_uhlenbeck,
@@ -146,7 +173,7 @@ STOCHASTIC_PROCESSES_TOOL_SCHEMA = {
     "inputSchema": {
         "type": "object",
         "properties": {
-            "mode": {"type": "string", "enum": ["brownian_motion", "ornstein_uhlenbeck", "markov_chain"]},
+            "mode": {"type": "string", "enum": ["brownian_motion", "ornstein_uhlenbeck", "markov_chain", "validate"]},
             "T": {"type": "number"}, "n_steps": {"type": "integer"}, "n_paths": {"type": "integer"},
             "mu": {"type": "number"}, "sigma": {"type": "number"}, "x0": {"type": "number"},
             "kind": {"type": "string", "enum": ["standard", "geometric"]}, "seed": {"type": "integer"},
@@ -166,3 +193,11 @@ if __name__ == "__main__":
     print({k: v for k, v in r2.items() if k != "trajectory_mean"})
     r3 = compute_stochastic_processes(mode="markov_chain", transition_matrix=[[0.9, 0.1], [0.3, 0.7]], initial_state=0, n_steps=30, target_state=1)
     print(r3)
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+register_tool("stochastic_processes", STOCHASTIC_PROCESSES_TOOL_SCHEMA, lambda args, _f=compute_stochastic_processes: _f(**args))

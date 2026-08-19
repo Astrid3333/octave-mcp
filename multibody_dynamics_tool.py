@@ -26,7 +26,7 @@ MULTIBODY_DYNAMICS_TOOL_SCHEMA = {
     "inputSchema": {
         "type": "object",
         "properties": {
-            "mode": {"type": "string", "enum": ["compound_pendulum", "rigid_body_euler", "two_link_manipulator"]},
+            "mode": {"type": "string", "enum": ["compound_pendulum", "rigid_body_euler", "two_link_manipulator", "validate"]},
             "params": {"type": "object", "description": "Parametros especificos de cada modo, ver docstrings."},
         },
         "required": ["mode"],
@@ -126,6 +126,8 @@ def _two_link_manipulator(m1=1.0, m2=1.0, l1=1.0, l2=1.0, g=9.81, theta0=None, t
 
 def compute_multibody_dynamics(mode, params=None):
     params = params or {}
+    if mode == "validate":
+        return _validate_multibody_dynamics()
     if mode == "compound_pendulum":
         return _compound_pendulum(**params)
     elif mode == "rigid_body_euler":
@@ -136,6 +138,33 @@ def compute_multibody_dynamics(mode, params=None):
         raise ValueError(f"modo desconocido: {mode}. Use compound_pendulum | rigid_body_euler | two_link_manipulator")
 
 
+
+def _validate_multibody_dynamics():
+    checks = []
+    r1 = _compound_pendulum(m=2.0, L=1.5)
+    checks.append({
+        "name": "compound_pendulum_relative_error_pct",
+        "expected": "< 1.0",
+        "got": round(float(r1["relative_error_pct"]), 6),
+        "passed": bool(r1["relative_error_pct"] < 1.0),
+    })
+    r2 = _rigid_body_euler(I1=3.0, I2=2.0, I3=1.0)
+    checks.append({
+        "name": "rigid_body_euler_energy_drift",
+        "expected": "< 1e-3",
+        "got": round(float(r2["energy_drift_relative"]), 8),
+        "passed": bool(r2["energy_drift_relative"] < 1e-3),
+    })
+    r3 = _two_link_manipulator()
+    checks.append({
+        "name": "two_link_manipulator_energy_drift",
+        "expected": "< 1e-3",
+        "got": round(float(r3["energy_drift_relative"]), 8),
+        "passed": bool(r3["energy_drift_relative"] < 1e-3),
+    })
+    all_passed = all(c["passed"] for c in checks)
+    return {"mode": "validate", "checks": checks, "all_passed": all_passed}
+
 if __name__ == "__main__":
     r1 = compute_multibody_dynamics("compound_pendulum", {"m": 2.0, "L": 1.5})
     print("compound_pendulum err%% =", r1["relative_error_pct"])
@@ -143,3 +172,11 @@ if __name__ == "__main__":
     print("rigid_body_euler energy drift =", r2["energy_drift_relative"])
     r3 = compute_multibody_dynamics("two_link_manipulator", {})
     print("two_link_manipulator energy drift =", r3["energy_drift_relative"])
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+register_tool("multibody_dynamics_tool", MULTIBODY_DYNAMICS_TOOL_SCHEMA, lambda args, _f=compute_multibody_dynamics: _f(**args))

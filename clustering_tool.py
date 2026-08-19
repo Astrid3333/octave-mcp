@@ -199,6 +199,8 @@ def _pca_extended(X, n_components=2, standardize=True, feature_names=None):
 
 
 def compute_clustering(mode, **params):
+    if mode == "validate":
+        return _validate_clustering()
     if mode == "kmeans":
         return _kmeans(**params)
     elif mode == "hierarchical":
@@ -212,6 +214,59 @@ def compute_clustering(mode, **params):
 # ---------------------------------------------------------------------------
 # Validacion cruzada contra sklearn
 # ---------------------------------------------------------------------------
+
+
+def _validate_clustering():
+    checks = []
+    try:
+        from sklearn.cluster import KMeans as SKKMeans, AgglomerativeClustering
+        from sklearn.metrics import adjusted_rand_score
+        from sklearn.decomposition import PCA as SKPCA
+
+        rng = np.random.default_rng(42)
+        c1 = rng.normal(loc=[0, 0], scale=0.5, size=(40, 2))
+        c2 = rng.normal(loc=[5, 5], scale=0.5, size=(40, 2))
+        c3 = rng.normal(loc=[0, 5], scale=0.5, size=(40, 2))
+        X = np.vstack([c1, c2, c3])
+
+        mine = _kmeans(X, k=3, random_state=42)
+        sk = SKKMeans(n_clusters=3, n_init=10, random_state=42).fit(X)
+        inertia_diff = abs(mine["inertia"] - sk.inertia_)
+        checks.append({
+            "name": "kmeans_inertia_vs_sklearn",
+            "expected": "diff < 1e-3",
+            "got": round(float(inertia_diff), 8),
+            "passed": bool(inertia_diff < 1e-3),
+        })
+
+        for method in ["single", "complete", "average"]:
+            mine_h = _hierarchical(X, linkage=method, n_clusters=3)
+            sk_h = AgglomerativeClustering(n_clusters=3, linkage=method).fit(X)
+            ari = adjusted_rand_score(mine_h["labels"], sk_h.labels_)
+            checks.append({
+                "name": f"hierarchical_{method}_ari_vs_sklearn",
+                "expected": ">= 0.95",
+                "got": round(float(ari), 6),
+                "passed": bool(ari >= 0.95),
+            })
+
+        mine_p = _pca_extended(X, n_components=2, standardize=True)
+        sk_p = SKPCA(n_components=2).fit((X - X.mean(0)) / X.std(0, ddof=1))
+        evr_diff = float(np.max(np.abs(
+            np.array(mine_p["explained_variance_ratio"]) - sk_p.explained_variance_ratio_
+        )))
+        checks.append({
+            "name": "pca_explained_variance_vs_sklearn",
+            "expected": "max diff < 1e-6",
+            "got": round(evr_diff, 8),
+            "passed": bool(evr_diff < 1e-6),
+        })
+    except ImportError as e:
+        checks.append({"name": "clustering_vs_sklearn", "expected": "sklearn disponible",
+                        "got": str(e), "passed": False})
+
+    all_passed = all(c["passed"] for c in checks)
+    return {"mode": "validate", "checks": checks, "all_passed": all_passed}
 
 if __name__ == "__main__":
     from sklearn.cluster import KMeans as SKKMeans, AgglomerativeClustering
@@ -266,9 +321,22 @@ CLUSTERING_TOOL_SCHEMA = {
     "inputSchema": {
         "type": "object",
         "properties": {
-            "mode": {"type": "string", "enum": ["kmeans", "hierarchical", "pca_extended"]},
+            "mode": {"type": "string", "enum": ["kmeans", "hierarchical", "pca_extended", "validate"]},
             "params": {"type": "object", "description": "Parametros especificos de cada modo, ver docstrings."},
         },
         "required": ["mode"],
     },
 }
+
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+def _handle(args):
+    _params = args.get("params") or {}
+    return compute_clustering(mode=args["mode"], **_params)
+
+register_tool("clustering_tool", CLUSTERING_TOOL_SCHEMA, _handle)

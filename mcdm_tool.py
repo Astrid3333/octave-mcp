@@ -169,8 +169,37 @@ def compute_weighted_sum(decision_matrix, weights, criteria_types, method="sum",
     return result
 
 
+
+def _validate_mcdm():
+    checks = []
+    # A domina en todo (benefit alto, cost bajo), B es dominada en todo.
+    r = compute_weighted_sum(
+        decision_matrix=[[1, 10], [10, 1]],
+        weights=[1, 1],
+        criteria_types=["benefit", "cost"],
+        method="sum",
+    )
+    exp_scores = [0.0, 1.0]
+    exp_ranking = [2, 1]
+    checks.append({
+        "name": "weighted_sum_dominant_scores",
+        "expected": exp_scores, "got": r["scores"],
+        "passed": all(abs(a - b) < 1e-6 for a, b in zip(r["scores"], exp_scores)),
+    })
+    checks.append({
+        "name": "weighted_sum_dominant_ranking",
+        "expected": exp_ranking, "got": r["ranking"],
+        "passed": r["ranking"] == exp_ranking,
+    })
+
+    all_passed = all(c["passed"] for c in checks)
+    return {"mode": "validate", "checks": checks, "all_passed": all_passed}
+
+
 def compute_mcdm(mode, **kwargs):
     """Dispatcher unico para el tool MCP mcdm, segun 'mode'."""
+    if mode == "validate":
+        return _validate_mcdm()
     fns = {
         "ahp": compute_ahp,
         "topsis": compute_topsis,
@@ -187,7 +216,7 @@ MCDM_TOOL_SCHEMA = {
     "inputSchema": {
         "type": "object",
         "properties": {
-            "mode": {"type": "string", "enum": ["ahp", "topsis", "weighted_sum"]},
+            "mode": {"type": "string", "enum": ["ahp", "topsis", "weighted_sum", "validate"]},
             "pairwise_matrix": {"type": "array"}, "criteria_names": {"type": "array"},
             "decision_matrix": {"type": "array"}, "weights": {"type": "array"},
             "criteria_types": {"type": "array"}, "alternative_names": {"type": "array"},
@@ -245,3 +274,11 @@ if __name__ == "__main__":
     assert r_wpm["ranked_alternatives"][-1] == "C"
 
     print("\nTodas las validaciones (AHP consistente, TOPSIS/WSM/WPM con dominancia correcta) corrieron sin excepciones.")
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+register_tool("mcdm", MCDM_TOOL_SCHEMA, lambda args, _f=compute_mcdm: _f(**args))
