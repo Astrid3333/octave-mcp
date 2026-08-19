@@ -98,6 +98,62 @@ def _mode_wood_vs_solar_heating(p):
     }
 
 
+def _mode_annual_projection(p):
+    """
+    Proyeccion multi-anual del modo wood_vs_solar_heating: repite el mismo
+    calculo puntual ano a ano (energia y factores de emision constantes,
+    sin degradacion de paneles FV ni cambios en la matriz electrica -- eso
+    queda fuera de alcance de este modo) y acumula kg CO2 y ahorro.
+    """
+    annual_energy_needed_kwh = float(p["annual_energy_needed_kwh"])
+    years = int(p.get("years", 20))
+    if years < 0:
+        raise ValueError("years debe ser >= 0")
+
+    base_params = dict(p)
+    base_params["energy_needed_kwh"] = annual_energy_needed_kwh
+    base_params.pop("annual_energy_needed_kwh", None)
+    base_params.pop("years", None)
+    base = _mode_wood_vs_solar_heating(base_params)
+
+    wood_co2_per_year = base["wood_co2_kg"]
+    solar_co2_per_year = base["solar_co2_kg"]
+    savings_per_year_kg = wood_co2_per_year - solar_co2_per_year
+
+    cumulative_wood = [round(wood_co2_per_year * y, 4) for y in range(1, years + 1)]
+    cumulative_solar = [round(solar_co2_per_year * y, 4) for y in range(1, years + 1)]
+    cumulative_savings = [round(savings_per_year_kg * y, 4) for y in range(1, years + 1)]
+
+    milestone_years = [y for y in (1, 5, 10, 20) if y <= years]
+    milestones = [
+        {
+            "year": y,
+            "cumulative_wood_co2_kg": round(wood_co2_per_year * y, 2),
+            "cumulative_solar_co2_kg": round(solar_co2_per_year * y, 2),
+            "cumulative_savings_kg": round(savings_per_year_kg * y, 2),
+        }
+        for y in milestone_years
+    ]
+
+    return {
+        "annual_energy_needed_kwh": annual_energy_needed_kwh,
+        "years": years,
+        "wood_co2_per_year_kg": round(wood_co2_per_year, 4),
+        "solar_co2_per_year_kg": round(solar_co2_per_year, 4),
+        "savings_per_year_kg": round(savings_per_year_kg, 4),
+        "cumulative_wood_co2_kg": cumulative_wood,
+        "cumulative_solar_co2_kg": cumulative_solar,
+        "cumulative_savings_kg": cumulative_savings,
+        "milestones": milestones,
+        "note": (
+            "Modelo lineal: asume energia anual y factores de emision constantes "
+            "ano a ano (sin degradacion de paneles FV ni cambios en la matriz "
+            "electrica). No incluye ahorro economico -- este tool no tiene precios "
+            "de referencia de lena/electricidad."
+        ),
+    }
+
+
 def _validate():
     checks = []
 
@@ -168,6 +224,45 @@ def _validate():
         "passed": bool(check5_passed),
     })
 
+    # Check 6: annual_projection, year 1 debe coincidir exactamente con el
+    # calculo puntual base (misma energia, mismos defaults)
+    base_single = _mode_wood_vs_solar_heating({"energy_needed_kwh": 15.0})
+    proj = _mode_annual_projection({"annual_energy_needed_kwh": 15.0, "years": 10})
+    checks.append({
+        "name": "annual_projection_year1_matches_single_calc",
+        "single_wood_co2": base_single["wood_co2_kg"], "proj_wood_co2_per_year": proj["wood_co2_per_year_kg"],
+        "passed": bool(abs(base_single["wood_co2_kg"] - proj["wood_co2_per_year_kg"]) < 1e-6),
+    })
+
+    # Check 7: annual_projection, linealidad acumulada -- el ahorro acumulado
+    # en el ultimo ano debe ser exactamente savings_per_year_kg * years
+    expected_final_savings = round(proj["savings_per_year_kg"] * 10, 4)
+    checks.append({
+        "name": "annual_projection_cumulative_linear",
+        "expected": expected_final_savings, "actual": proj["cumulative_savings_kg"][-1],
+        "passed": bool(abs(proj["cumulative_savings_kg"][-1] - expected_final_savings) < 1e-6),
+    })
+
+    # Check 8: annual_projection con years=0 no revienta -- listas vacias,
+    # sin division por cero ni index error
+    proj0 = _mode_annual_projection({"annual_energy_needed_kwh": 15.0, "years": 0})
+    checks.append({
+        "name": "annual_projection_years_cero_no_revienta",
+        "years": proj0["years"], "cumulative_len": len(proj0["cumulative_savings_kg"]),
+        "passed": bool(proj0["years"] == 0 and len(proj0["cumulative_savings_kg"]) == 0),
+    })
+
+    # Check 9: annual_energy_needed_kwh faltante da error explicito, no crash
+    try:
+        _mode_annual_projection({})
+        check9_passed = False
+    except KeyError:
+        check9_passed = True
+    checks.append({
+        "name": "annual_projection_energia_faltante_da_error_no_crash",
+        "passed": bool(check9_passed),
+    })
+
     all_passed = all(c["passed"] for c in checks)
     return {"checks": checks, "validation_passed": all_passed}
 
@@ -177,10 +272,12 @@ def compute_carbon_footprint(mode, params=None):
 
     if mode == "wood_vs_solar_heating":
         return _mode_wood_vs_solar_heating(params)
+    elif mode == "annual_projection":
+        return _mode_annual_projection(params)
     elif mode == "validate":
         return _validate()
     else:
-        raise ValueError(f"Modo desconocido: {mode}. Usar 'wood_vs_solar_heating' o 'validate'.")
+        raise ValueError(f"Modo desconocido: {mode}. Usar 'wood_vs_solar_heating', 'annual_projection' o 'validate'.")
 
 
 if __name__ == "__main__":
@@ -205,7 +302,9 @@ try:
                 "energia util via combustion de lena vs. electricidad de origen solar "
                 "fotovoltaico -- p.ej. 'cuanto contamina nuestra quema de lena comparada "
                 "con usar paneles solares'. Modo wood_vs_solar_heating (energy_needed_kwh, "
-                "stove_efficiency opcional, heater_efficiency opcional) y validate."
+                "stove_efficiency opcional, heater_efficiency opcional), annual_projection "
+                "(annual_energy_needed_kwh, years -- proyecta el mismo calculo acumulado a "
+                "varios anos, sin degradacion FV ni ahorro economico) y validate."
             ),
             "inputSchema": CARBON_FOOTPRINT_TOOL_SCHEMA,
         },
