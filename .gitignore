@@ -27,3 +27,15 @@ submotors/*/target/
 # backups de patches
 *.bak.*
 CCcovariance/
+
+# scripts de patch/diagnostico de una sola sesion, ya aplicados
+patch_group_*.py
+patch_grupo_*.py
+patch_lote*.py
+patch_run_all_validations*.py
+patch_structural_analysis_validate.py
+discover_schemas.py
+probe_*.py
+classify_*.py
+verify_exempt*.py
+wire_crystallography.sh
