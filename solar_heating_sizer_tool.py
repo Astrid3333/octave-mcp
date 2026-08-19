@@ -199,7 +199,20 @@ SOLAR_HEATING_SIZER_TOOL_SCHEMA = {
                     "beta_deg": {"type": "number", "description": "Inclinacion del panel; default: abs(latitude_deg) + 15"},
                     "gamma_deg": {"type": "number", "description": "Azimut del panel; default: 0 (hemisferio norte) o 180 (hemisferio sur)"},
                     "altitude_km": {"type": "number", "default": 0.0},
-                    "climate": {"type": "string", "enum": sorted(HOTTEL_CLIMATES), "default": "midlatitude_winter"},
+                    "climate": {"type": "string", "enum": sorted(HOTTEL_CLIMATES), "default": "midlatitude_winter",
+                        "description": (
+                            "Perfil de turbidez atmosferica de Hottel (1976), no clima "
+                            "geografico/bioma -- ver solar_radiation_tool para el detalle "
+                            "completo de bandas de latitud y estacion. Default aqui es "
+                            "'midlatitude_winter' (no 'midlatitude_summer' como en "
+                            "solar_radiation_tool) porque este tool dimensiona contra el "
+                            "peor dia del ano por diseno: la atmosfera mas clara de invierno "
+                            "da MAS irradiancia directa relativa que un dia de verano turbio, "
+                            "asi que subir el default a 'summer' aqui subestimaria el peor "
+                            "caso real. Ajustar solo si el sitio esta fuera de la banda "
+                            "23-66 grados de latitud (usar 'tropical' o 'subarctic_summer' "
+                            "segun corresponda)."
+                        )},
                     "albedo": {"type": "number", "default": 0.2},
                     "eta_system": {"type": "number", "default": 0.80, "description": "Eficiencia combinada cableado+suciedad+temperatura+MPPT+inversor"},
                     "years": {"type": "integer", "default": 20, "description": "Horizonte de proyeccion de CO2 evitado"},

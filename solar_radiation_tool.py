@@ -528,7 +528,22 @@ SOLAR_RADIATION_TOOL_SCHEMA = {
             "description": "Azimut del plano, 0=mirando al ecuador (default segun hemisferio de latitude_deg)."},
         "altitude_km": {"type": "number", "default": 0.0, "description": "Altitud del sitio sobre el nivel del mar."},
         "climate": {"type": "string", "enum": sorted(HOTTEL_CLIMATES), "default": "midlatitude_summer",
-            "description": "Tipo de clima para el modelo Hottel de cielo despejado."},
+            "description": (
+                "Perfil de turbidez atmosferica de Hottel (1976) para el modelo de "
+                "cielo despejado -- NO es un clima geografico/bioma, es una clasificacion "
+                "de que tan clara esta la atmosfera tipicamente, segun banda de latitud y "
+                "estacion. Elegir por banda de latitud + estacion del sitio, no por nombre "
+                "descriptivo local: 'tropical' (0-23 lat aprox, cualquier estacion), "
+                "'midlatitude_summer' (23-66 lat aprox, verano de ese hemisferio -- mas "
+                "turbidez/humedad, default de este tool), 'midlatitude_winter' (23-66 lat "
+                "aprox, invierno de ese hemisferio -- atmosfera mas clara/seca, mayor "
+                "irradiancia directa relativa), 'subarctic_summer' (>66 lat aprox, unico "
+                "perfil de esa banda, valido solo en meses de luz solar). Ojo con el "
+                "hemisferio: para sitios en el hemisferio sur, el 'verano' u 'invierno' "
+                "del perfil corresponde a la estacion real del sitio, no al nombre en si "
+                "-- ej. julio en Chiloe (lat ~-42) es invierno austral, entonces "
+                "corresponde 'midlatitude_winter' aunque el string no diga 'sur'."
+            )},
         "albedo": {"type": "number", "default": 0.2, "description": "Reflectancia del suelo (0-1)."},
         "period": {"type": "string", "default": "annual",
             "description": "optimize_tilt: 'annual' (12 dias representativos de Klein) o un day_of_year especifico como string."},
