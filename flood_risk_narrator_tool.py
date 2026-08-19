@@ -95,6 +95,33 @@ def _narrate(location_name, depth_m, velocity_m_s, hazard_rating, risk_level, to
     return "\n".join(lines)
 
 
+def _adapt_from_flood_modeling(fm_output):
+    """
+    Traduce el dict real devuelto por compute_flood_modeling(mode=
+    'manning_normal_depth', ...) al shape que espera este tool.
+
+    Contrato real confirmado en vivo (flood_modeling_tool.py):
+        {
+            "Q_design_m3_s": ..., "bottom_width_m": ..., "side_slope": ...,
+            "manning_n": ..., "slope": ...,
+            "normal_depth_m": ..., "top_width_m": ..., "wetted_area_m2": ...,
+            "wetted_perimeter_m": ..., "hydraulic_radius_m": ...,
+            "velocity_m_s": ...,
+            "Q_check_m3_s": ..., "Q_error_pct": ...
+        }
+    """
+    required = ["normal_depth_m", "velocity_m_s"]
+    missing = [k for k in required if k not in fm_output]
+    if missing:
+        return None, f"la salida de flood_modeling_tool no tiene los campos requeridos: {missing}"
+
+    return {
+        "depth_m": fm_output["normal_depth_m"],
+        "velocity_m_s": fm_output["velocity_m_s"],
+        "top_width_m": fm_output.get("top_width_m"),
+    }, None
+
+
 def compute_flood_risk_narrator(mode, params=None):
     # El handler registrado via tool_registry llama con un único dict
     # posicional (ej: handler({'mode': 'validate', 'params': {...}})),
@@ -140,6 +167,22 @@ def compute_flood_risk_narrator(mode, params=None):
             "risk_level": risk_level,
             "report": report,
         }
+
+    elif mode == "classify_from_flood_modeling":
+        required = ["flood_modeling_output", "location_name"]
+        missing = [k for k in required if k not in params]
+        if missing:
+            return {"error": f"faltan parámetros requeridos: {missing}"}
+
+        adapted, err = _adapt_from_flood_modeling(params["flood_modeling_output"])
+        if err:
+            return {"error": err}
+
+        adapted["location_name"] = params["location_name"]
+        if "debris_factor" in params:
+            adapted["debris_factor"] = params["debris_factor"]
+
+        return compute_flood_risk_narrator("classify_from_manning", adapted)
 
     elif mode == "validate":
         checks = []
@@ -212,7 +255,43 @@ def compute_flood_risk_narrator(mode, params=None):
             "passed": r.get("risk_level") == "bajo" and r.get("hazard_rating") == 0.0,
         })
 
-        # Caso 6: params incompletos da error explícito, no crash
+        # Caso 6: adaptador contra fixture real de flood_modeling_tool
+        # (Q=45 m3/s, sección trapezoidal, salida real confirmada en vivo)
+        fm_output = {
+            "Q_design_m3_s": 45.0, "bottom_width_m": 8.0, "side_slope": 1.5,
+            "manning_n": 0.035, "slope": 0.001,
+            "normal_depth_m": 2.73106, "top_width_m": 16.1932,
+            "wetted_area_m2": 33.0365, "wetted_perimeter_m": 17.847,
+            "hydraulic_radius_m": 1.8511, "velocity_m_s": 1.3621,
+            "Q_check_m3_s": 45.0, "Q_error_pct": 0.0,
+        }
+        r = compute_flood_risk_narrator(
+            "classify_from_flood_modeling",
+            {"flood_modeling_output": fm_output, "location_name": "test"},
+        )
+        # HR = 2.73106*(1.3621+0.5) = 2.73106*1.8621 ~ 5.0865 -> critico
+        expected_hr = 2.73106 * (1.3621 + 0.5)
+        checks.append({
+            "check": "adaptador_flood_modeling_fixture_real",
+            "expected_level": "crítico",
+            "actual_level": r.get("risk_level"),
+            "expected_hr": round(expected_hr, 4),
+            "actual_hr": r.get("hazard_rating"),
+            "passed": r.get("risk_level") == "crítico"
+                      and math.isclose(r.get("hazard_rating", -1), expected_hr, abs_tol=1e-3),
+        })
+
+        # Caso 6b: adaptador con campos faltantes da error, no crash
+        r = compute_flood_risk_narrator(
+            "classify_from_flood_modeling",
+            {"flood_modeling_output": {"normal_depth_m": 1.0}, "location_name": "test"},
+        )
+        checks.append({
+            "check": "adaptador_campos_faltantes_da_error_no_crash",
+            "passed": "error" in r,
+        })
+
+        # Caso 7: params incompletos da error explícito, no crash
         r = compute_flood_risk_narrator("classify_from_manning", {"depth_m": 1.0})
         checks.append({
             "check": "params_incompletos_da_error_no_crash",
@@ -238,14 +317,15 @@ FLOOD_RISK_NARRATOR_SCHEMA = {
         "properties": {
             "mode": {
                 "type": "string",
-                "enum": ["classify_from_manning", "validate"],
+                "enum": ["classify_from_manning", "classify_from_flood_modeling", "validate"],
             },
             "params": {
                 "type": "object",
                 "properties": {
-                    "depth_m": {"type": "number", "description": "Profundidad de agua en metros (normal_depth_m de flood_modeling_tool)"},
-                    "velocity_m_s": {"type": "number", "description": "Velocidad del flujo en m/s"},
+                    "depth_m": {"type": "number", "description": "Profundidad de agua en metros (normal_depth_m de flood_modeling_tool) -- modo classify_from_manning"},
+                    "velocity_m_s": {"type": "number", "description": "Velocidad del flujo en m/s -- modo classify_from_manning"},
                     "top_width_m": {"type": "number", "description": "Ancho superficial del flujo en metros (opcional)"},
+                    "flood_modeling_output": {"type": "object", "description": "Dict de salida completo de compute_flood_modeling(mode='manning_normal_depth', ...) -- modo classify_from_flood_modeling"},
                     "location_name": {"type": "string", "description": "Nombre del lugar/cauce a narrar"},
                     "debris_factor": {"type": "number", "description": "0 = agua limpia, 0.5 = escombros típicos, 1.0 = alto contenido de escombros (default 0.0)"},
                 },
