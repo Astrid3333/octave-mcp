@@ -154,8 +154,51 @@ def compute_graph_metrics(edges, directed=False, weighted=False, nodes=None):
     return result
 
 
+
+def _validate_network_science():
+    checks = []
+    edges_k3 = [("A", "B"), ("B", "C"), ("A", "C")]
+    r = compute_centrality(edges_k3, measures=["degree", "betweenness", "closeness", "pagerank"])
+    deg = r["measures"]["degree"]
+    bet = r["measures"]["betweenness"]
+    clo = r["measures"]["closeness"]
+    pr = r["measures"]["pagerank"]
+
+    checks.append({
+        "name": "k3_degree_all_2",
+        "expected": 2, "got": deg,
+        "passed": len(deg) == 3 and all(v == 2 for v in deg.values()),
+    })
+    checks.append({
+        "name": "k3_betweenness_all_zero",
+        "expected": 0.0, "got": bet,
+        "passed": all(abs(v) < 1e-9 for v in bet.values()),
+    })
+    checks.append({
+        "name": "k3_closeness_all_one",
+        "expected": 1.0, "got": clo,
+        "passed": all(abs(v - 1.0) < 1e-6 for v in clo.values()),
+    })
+    checks.append({
+        "name": "k3_pagerank_uniform_third",
+        "expected": round(1 / 3, 6), "got": pr,
+        "passed": all(abs(v - 1 / 3) < 1e-3 for v in pr.values()),
+    })
+    checks.append({
+        "name": "k3_node_edge_counts",
+        "expected": {"n_nodes": 3, "n_edges": 3},
+        "got": {"n_nodes": r["n_nodes"], "n_edges": r["n_edges"]},
+        "passed": r["n_nodes"] == 3 and r["n_edges"] == 3,
+    })
+
+    all_passed = all(c["passed"] for c in checks)
+    return {"mode": "validate", "checks": checks, "all_passed": all_passed}
+
+
 def compute_network_science(mode, **kwargs):
     """Dispatcher unico para el tool MCP network_science, segun 'mode'."""
+    if mode == "validate":
+        return _validate_network_science()
     fns = {
         "centrality": compute_centrality,
         "community_detection": compute_community_detection,
@@ -173,7 +216,7 @@ NETWORK_SCIENCE_TOOL_SCHEMA = {
     "inputSchema": {
         "type": "object",
         "properties": {
-            "mode": {"type": "string", "enum": ["centrality", "community_detection", "growth_model", "graph_metrics"]},
+            "mode": {"type": "string", "enum": ["centrality", "community_detection", "growth_model", "graph_metrics", "validate"]},
             "edges": {"type": "array"},
             "nodes": {"type": "array"},
             "directed": {"type": "boolean"}, "weighted": {"type": "boolean"},
@@ -201,3 +244,11 @@ if __name__ == "__main__":
     print(compute_network_science(mode="graph_metrics", edges=edges_toy))
     print(compute_network_science(mode="growth_model", model="barabasi_albert", n=200, m=2, seed=42))
     print(compute_network_science(mode="growth_model", model="erdos_renyi", n=200, p=0.02, seed=42))
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+register_tool("network_science", NETWORK_SCIENCE_TOOL_SCHEMA, lambda args, _f=compute_network_science: _f(**args))

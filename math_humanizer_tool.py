@@ -22,7 +22,7 @@ MATH_HUMANIZER_TOOL_SCHEMA = {
     "inputSchema": {
         "type": "object",
         "properties": {
-            "mode": {"type": "string", "enum": ["explain_concept", "list_concepts"]},
+            "mode": {"type": "string", "enum": ["explain_concept", "list_concepts", "validate"]},
             "concept": {"type": "string", "description": "Nombre del concepto (ver list_concepts). explain_concept."},
         },
         "required": ["mode"],
@@ -225,11 +225,70 @@ def _list_concepts():
     return {"mode": "list_concepts", "concepts": sorted(_CONCEPTS.keys())}
 
 
+
+def _validate_math_humanizer():
+    checks = []
+    lst = _list_concepts()
+    concepts = lst.get("concepts", [])
+    checks.append({
+        "name": "list_concepts_non_empty",
+        "expected": ">0", "got": len(concepts),
+        "passed": len(concepts) > 0,
+    })
+
+    sample_ok = False
+    sample_concept = None
+    if concepts:
+        sample_concept = concepts[0]
+        try:
+            r = _explain_concept(sample_concept)
+            sample_ok = (
+                isinstance(r, dict)
+                and bool(r.get("everyday_analogy"))
+                and bool(r.get("philosophical_connection"))
+                and bool(r.get("deeper_note"))
+            )
+        except Exception:
+            sample_ok = False
+    checks.append({
+        "name": "explain_concept_sample_non_empty_fields",
+        "expected": "dict con everyday_analogy/philosophical_connection/deeper_note no vacios",
+        "got": sample_concept,
+        "passed": sample_ok,
+    })
+
+    try:
+        _explain_concept("concepto_inexistente_xyz_no_deberia_existir")
+        unknown_raises = False
+    except ValueError:
+        unknown_raises = True
+    except Exception:
+        unknown_raises = False
+    checks.append({
+        "name": "explain_concept_unknown_raises_valueerror",
+        "expected": True, "got": unknown_raises,
+        "passed": unknown_raises,
+    })
+
+    all_passed = all(c["passed"] for c in checks)
+    return {"mode": "validate", "checks": checks, "all_passed": all_passed}
+
+
 def compute_math_humanizer(mode, **params):
     """Entry point del tool. Despacha según `mode`. Retorna un dict serializable a JSON."""
+    if mode == "validate":
+        return _validate_math_humanizer()
     if mode == "explain_concept":
         return _explain_concept(params["concept"])
     if mode == "list_concepts":
         return _list_concepts()
 
     raise ValueError(f"mode no soportado: {mode}. Usar: explain_concept | list_concepts")
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+register_tool("math_humanizer_tool", MATH_HUMANIZER_TOOL_SCHEMA, lambda args, _f=compute_math_humanizer: _f(**args))

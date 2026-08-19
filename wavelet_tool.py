@@ -126,8 +126,40 @@ def compute_transient_detection(signal, sampling_rate, wavelet="db4", level=None
     }
 
 
+
+def _validate_wavelet():
+    checks = []
+    signal = [5.0] * 16
+    r = compute_dwt(signal, wavelet="haar", level=1)
+
+    energy0 = r["energy_per_detail_level"][0] if r["energy_per_detail_level"] else None
+    checks.append({
+        "name": "constant_signal_detail_energy_zero",
+        "expected": 0.0, "got": energy0,
+        "passed": energy0 is not None and abs(energy0) < 1e-8,
+    })
+    checks.append({
+        "name": "constant_signal_reconstruction_rmse_zero",
+        "expected": 0.0, "got": r["reconstruction_rmse"],
+        "passed": abs(r["reconstruction_rmse"]) < 1e-8,
+    })
+
+    exp_approx = 5.0 * (2 ** 0.5)
+    got_approx = r["approximation_coeffs_sample"][0] if r["approximation_coeffs_sample"] else None
+    checks.append({
+        "name": "constant_signal_haar_approx_coeff",
+        "expected": round(exp_approx, 6), "got": got_approx,
+        "passed": got_approx is not None and abs(got_approx - exp_approx) < 1e-4,
+    })
+
+    all_passed = all(c["passed"] for c in checks)
+    return {"mode": "validate", "checks": checks, "all_passed": all_passed}
+
+
 def compute_wavelet(mode, **kwargs):
     """Dispatcher unico para el tool MCP wavelet, segun 'mode'."""
+    if mode == "validate":
+        return _validate_wavelet()
     fns = {
         "cwt": compute_cwt,
         "dwt": compute_dwt,
@@ -145,7 +177,7 @@ WAVELET_TOOL_SCHEMA = {
     "inputSchema": {
         "type": "object",
         "properties": {
-            "mode": {"type": "string", "enum": ["cwt", "dwt", "denoise", "transient_detection"]},
+            "mode": {"type": "string", "enum": ["cwt", "dwt", "denoise", "transient_detection", "validate"]},
             "signal": {"type": "array"}, "sampling_rate": {"type": "number"},
             "wavelet": {"type": "string"}, "scales": {"type": "array"}, "n_scales": {"type": "integer"},
             "level": {"type": "integer"}, "mode_boundary": {"type": "string"},
@@ -176,3 +208,11 @@ if __name__ == "__main__":
     print({k: v for k, v in r3.items() if k != "denoised_signal_sample"})
     r4 = compute_wavelet(mode="transient_detection", signal=noisy.tolist(), sampling_rate=fs, wavelet="db4", energy_threshold_std=2.5)
     print(r4)
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+register_tool("wavelet", WAVELET_TOOL_SCHEMA, lambda args, _f=compute_wavelet: _f(**args))

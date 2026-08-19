@@ -179,8 +179,58 @@ def compute_graph_percolation(edges, p, seed=None, nodes=None):
     }
 
 
+
+def _validate_percolation_theory():
+    checks = []
+    L = 10
+
+    r_full = compute_site_percolation(L=L, p=1.0, seed=1)
+    checks.append({
+        "name": "site_percolation_p1_all_occupied",
+        "expected": L * L, "got": r_full["n_occupied_sites"],
+        "passed": r_full["n_occupied_sites"] == L * L,
+    })
+    checks.append({
+        "name": "site_percolation_p1_single_cluster",
+        "expected": 1, "got": r_full["n_clusters"],
+        "passed": r_full["n_clusters"] == 1,
+    })
+    checks.append({
+        "name": "site_percolation_p1_giant_fraction_one",
+        "expected": 1.0, "got": r_full["giant_cluster_fraction"],
+        "passed": abs(r_full["giant_cluster_fraction"] - 1.0) < 1e-9,
+    })
+    checks.append({
+        "name": "site_percolation_p1_percolates_true",
+        "expected": True, "got": r_full["percolates"],
+        "passed": r_full["percolates"] is True,
+    })
+
+    r_empty = compute_site_percolation(L=L, p=0.0, seed=1)
+    checks.append({
+        "name": "site_percolation_p0_none_occupied",
+        "expected": 0, "got": r_empty["n_occupied_sites"],
+        "passed": r_empty["n_occupied_sites"] == 0,
+    })
+    checks.append({
+        "name": "site_percolation_p0_no_clusters",
+        "expected": 0, "got": r_empty["n_clusters"],
+        "passed": r_empty["n_clusters"] == 0,
+    })
+    checks.append({
+        "name": "site_percolation_p0_percolates_false",
+        "expected": False, "got": r_empty["percolates"],
+        "passed": r_empty["percolates"] is False,
+    })
+
+    all_passed = all(c["passed"] for c in checks)
+    return {"mode": "validate", "checks": checks, "all_passed": all_passed}
+
+
 def compute_percolation_theory(mode, **kwargs):
     """Dispatcher unico para el tool MCP percolation_theory, segun 'mode'."""
+    if mode == "validate":
+        return _validate_percolation_theory()
     fns = {
         "site_percolation": compute_site_percolation,
         "bond_percolation": compute_bond_percolation,
@@ -198,7 +248,7 @@ PERCOLATION_THEORY_TOOL_SCHEMA = {
     "inputSchema": {
         "type": "object",
         "properties": {
-            "mode": {"type": "string", "enum": ["site_percolation", "bond_percolation", "critical_threshold", "graph_percolation"]},
+            "mode": {"type": "string", "enum": ["site_percolation", "bond_percolation", "critical_threshold", "graph_percolation", "validate"]},
             "L": {"type": "integer"}, "p": {"type": "number"}, "seed": {"type": "integer"},
             "connectivity": {"type": "integer"},
             "p_min": {"type": "number"}, "p_max": {"type": "number"}, "n_p": {"type": "integer"},
@@ -222,3 +272,11 @@ if __name__ == "__main__":
         edges=[["a","b"],["b","c"],["c","d"],["d","a"],["a","c"]],
         p=0.6, seed=42,
     ))
+
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+
+register_tool("percolation_theory", PERCOLATION_THEORY_TOOL_SCHEMA, lambda args, _f=compute_percolation_theory: _f(**args))
