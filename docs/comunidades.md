@@ -28,7 +28,7 @@ Imagina poder decirle a una computadora: *"Quiero calcular cuánta energía sola
 | **Energía eólica** | `wind_power_curve_tool` | Estimar generación eólica según curva de potencia del aerogenerador. |
 | **Almacenamiento** | `battery_sizing_tool` | Dimensionar baterías para sistemas solares/eólicos comunitarios. |
 | **Potencial renovable (general)** | `renewable_potential_tool` | Evaluar potencial combinado solar/eólico para una zona. |
-| **Riesgos** | `flood_modeling_tool`, `wildfire_risk_tool`, `flood_connectivity_tool` | Simular inundaciones e incendios forestales para planificar evacuaciones. `flood_connectivity_tool` calcula el area de inundacion real sobre una malla del terreno (via `distmesh_tool`), propagando el agua solo por caminos conectados al rio -- evita marcar como inundada una zona baja pero aislada por una loma. Requiere que la elevacion del terreno se cargue por separado (todavia no hay una tool que la traiga automaticamente desde una fuente publica). |
+| **Riesgos** | `flood_modeling_tool`, `wildfire_risk_tool`, `flood_connectivity_tool` | Simular inundaciones e incendios forestales para planificar evacuaciones. `flood_connectivity_tool` calcula el area de inundacion real sobre una malla del terreno (via `distmesh_tool`), propagando el agua solo por caminos conectados al rio -- evita marcar como inundada una zona baja pero aislada por una loma. La elevacion del terreno se obtiene automaticamente de una fuente publica real (`terrain_elevation_tool`, dataset SRTM ~90m de resolucion) -- no hace falta cargarla a mano. |
 | **Salud** | `plague_sir` | Modelar propagación de enfermedades. |
 | **Educación** | `math_humanizer_tool` | Explicar conceptos matemáticos con analogías cotidianas. |
 | **Construcción** | `structural_analysis_tool` | Calcular resistencia de vigas para construcciones seguras. |
@@ -66,10 +66,9 @@ Imagina poder decirle a una computadora: *"Quiero calcular cuánta energía sola
 
 2. Con esta información, puedo:
    - Calcular la escorrentía (cuánta agua bajará).
-   - Simular el área que se inundaría (nota: hoy esto requiere que me
-     pases o carguemos juntos la elevación del terreno de tu zona --
-     todavía no hay una conexión automática a un mapa de elevación
-     público).
+   - Simular el área que se inundaría (con datos de elevación
+     reales, traídos automáticamente de un mapa público -- no hace
+     falta que me los pases a mano).
    - Mostrarte un mapa de riesgo.
 
 3. Herramientas que usaré:
