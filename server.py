@@ -34,7 +34,6 @@ import ocas_symbolic_tool  # auto-registra via tool_registry, no requiere mas ed
 import pipeline_orchestrator_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import ternary_arithmetic_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import terrain_elevation_tool  # auto-registra via tool_registry, no requiere mas ediciones
-import terrain_elevation_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import flood_connectivity_tool  # auto-registra via tool_registry, no requiere mas ediciones
 from lyapunov_tool import compute_lyapunov_exponent, LYAPUNOV_TOOL_SCHEMA
 from stiff_ode_tool import integrate_stiff_ode, STIFF_ODE_TOOL_SCHEMA
