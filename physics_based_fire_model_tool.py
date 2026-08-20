@@ -175,4 +175,10 @@ PHYSICS_BASED_FIRE_MODEL_TOOL_SCHEMA = {
 
 
 from tool_registry import register_tool
-register_tool("physics_based_fire_model", PHYSICS_BASED_FIRE_MODEL_TOOL_SCHEMA, physics_based_fire_model)
+register_tool(
+    "physics_based_fire_model",
+    PHYSICS_BASED_FIRE_MODEL_TOOL_SCHEMA,
+    handler=lambda args: physics_based_fire_model(
+        mode=args.get("mode", "spread_2d"), **args.get("params", {})
+    ),
+)
