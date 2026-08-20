@@ -34,6 +34,7 @@ from tool_registry import register_tool
 
 ARCHIVE_API_URL = "https://archive-api.open-meteo.com/v1/archive"
 FLOOD_API_URL = "https://flood-api.open-meteo.com/v1/flood"
+FORECAST_API_URL = "https://api.open-meteo.com/v1/forecast"
 
 
 def _http_get_json(url, params, timeout=20):
@@ -89,6 +90,22 @@ def _summarize_discharge(data):
     }
 
 
+def _summarize_current_weather(data):
+    current = data.get("current", {})
+    units = data.get("current_units", {})
+    wind_kmh = current.get("wind_speed_10m")
+    return {
+        "source": "open-meteo forecast api (current conditions)",
+        "time": current.get("time"),
+        "wind_speed_10m_kmh": wind_kmh,
+        "wind_speed_10m_mph": round(wind_kmh * 0.621371, 2) if wind_kmh is not None else None,
+        "wind_direction_10m_deg": current.get("wind_direction_10m"),
+        "relative_humidity_2m_pct": current.get("relative_humidity_2m"),
+        "temperature_2m_c": current.get("temperature_2m"),
+        "units_raw": units,
+    }
+
+
 def _fetch_precipitation_history(lat, lon, start_date, end_date):
     data = _http_get_json(ARCHIVE_API_URL, {
         "latitude": lat,
@@ -112,6 +129,16 @@ def _fetch_river_discharge(lat, lon, start_date, end_date):
     return _summarize_discharge(data)
 
 
+def _fetch_current_weather(lat, lon):
+    data = _http_get_json(FORECAST_API_URL, {
+        "latitude": lat,
+        "longitude": lon,
+        "current": "temperature_2m,relative_humidity_2m,wind_speed_10m,wind_direction_10m",
+        "timezone": "auto",
+    })
+    return _summarize_current_weather(data)
+
+
 def _mock_precipitation_response():
     # Forma documentada de archive-api.open-meteo.com (daily.precipitation_sum)
     return {
@@ -128,6 +155,20 @@ def _mock_discharge_response():
             "time": ["2026-01-01", "2026-01-02", "2026-01-03"],
             "river_discharge": [45.2, 47.8, 44.9],
         }
+    }
+
+
+def _mock_current_weather_response():
+    # Forma documentada de api.open-meteo.com/v1/forecast con "current="
+    return {
+        "current": {
+            "time": "2026-08-19T15:00",
+            "temperature_2m": 22.5,
+            "relative_humidity_2m": 38,
+            "wind_speed_10m": 18.0,
+            "wind_direction_10m": 270,
+        },
+        "current_units": {"wind_speed_10m": "km/h", "relative_humidity_2m": "%"},
     }
 
 
@@ -176,6 +217,20 @@ def _validate():
         "passed": abs(con_nulos["total_mm"] - 4.0) < 1e-6,
     })
 
+    weather = _summarize_current_weather(_mock_current_weather_response())
+    checks.append({
+        "check": "current_weather_wind_kmh_a_mph_correcto",
+        "expected": round(18.0 * 0.621371, 2),
+        "actual": weather["wind_speed_10m_mph"],
+        "passed": abs(weather["wind_speed_10m_mph"] - round(18.0 * 0.621371, 2)) < 1e-6,
+    })
+    checks.append({
+        "check": "current_weather_humidity_pasa_directo",
+        "expected": 38,
+        "actual": weather["relative_humidity_2m_pct"],
+        "passed": weather["relative_humidity_2m_pct"] == 38,
+    })
+
     all_passed = all(c["passed"] for c in checks)
     return {
         "validation_passed": all_passed,
@@ -211,25 +266,36 @@ def compute_hydrometeo_data(mode, params=None):
         except (urllib.error.URLError, urllib.error.HTTPError) as e:
             return {"error": f"fallo la llamada a Open-Meteo ({mode}): {e}"}
 
+    if mode == "current_weather":
+        lat = params.get("lat")
+        lon = params.get("lon")
+        if lat is None or lon is None:
+            return {"error": "faltan params requeridos: lat, lon"}
+        try:
+            return _fetch_current_weather(lat, lon)
+        except (urllib.error.URLError, urllib.error.HTTPError) as e:
+            return {"error": f"fallo la llamada a Open-Meteo (current_weather): {e}"}
+
     return {
-        "error": f"modo desconocido: {mode}. Modos validos: precipitation_history, river_discharge, validate"
+        "error": f"modo desconocido: {mode}. Modos validos: precipitation_history, river_discharge, current_weather, validate"
     }
 
 
 HYDROMETEO_DATA_TOOL_SCHEMA = {
     "name": "hydrometeo_data",
     "description": (
-        "Datos publicos de lluvia (historico diario, ERA5 reanalysis via Open-Meteo) "
-        "y caudal de rios (historico via modelo GloFAS, Open-Meteo Flood API), sin "
-        "API key. Pensada para alimentar flood_modeling_tool / water_resource_tool "
-        "con datos reales en vez de valores puestos a mano."
+        "Datos publicos de lluvia (historico diario, ERA5 reanalysis via Open-Meteo), "
+        "caudal de rios (historico via modelo GloFAS, Open-Meteo Flood API), y clima "
+        "actual (viento/humedad/temperatura via Open-Meteo Forecast API), sin API key. "
+        "Pensada para alimentar flood_modeling_tool / water_resource_tool / "
+        "wildfire_risk_tool con datos reales en vez de valores puestos a mano."
     ),
     "inputSchema": {
         "type": "object",
         "properties": {
             "mode": {
                 "type": "string",
-                "enum": ["precipitation_history", "river_discharge", "validate"],
+                "enum": ["precipitation_history", "river_discharge", "current_weather", "validate"],
             },
             "params": {
                 "type": "object",
