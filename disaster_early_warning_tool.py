@@ -139,10 +139,19 @@ def _assess_flood(channel_geometry, discharge_summary, location_name, debris_fac
         }),
     )
 
+    _q_is_override = channel_geometry.get("Q") is not None
     return {
         "skipped": False,
         "Q_used_m3s": Q,
-        "Q_source": "channel_geometry.Q (override manual)" if channel_geometry.get("Q") is not None else "hydrometeo_data_tool.river_discharge (mean historico)",
+        "Q_source": "channel_geometry.Q (override manual)" if _q_is_override else "hydrometeo_data_tool.river_discharge (mean historico)",
+        "Q_design_note": (
+            None if _q_is_override else
+            "Q_used_m3s es la media historica de caudal de los ultimos 31 dias "
+            "(hydrometeo_data_tool.river_discharge), NO un caudal de diseño hidrologico "
+            "real (percentil de crecida, periodo de retorno, etc.) -- mismo criterio que "
+            "confidence_flag/wind_source_note en el resto del pipeline, usar con precaucion "
+            "para dimensionamiento serio de infraestructura."
+        ),
         "flood_modeling": modeling,
         "flood_risk_narration": narration if ok_narr else {"error": narration},
     }
@@ -355,7 +364,10 @@ DISASTER_EARLY_WARNING_TOOL_SCHEMA = {
         "'channel_geometry' (bottom_width_m/manning_n/slope) y la de incendio "
         "requiere 'fuel' (fuel_model + moisture) -- ninguno de esos datos sale de "
         "una API publica, son conocimiento local que el usuario debe aportar. Si "
-        "se omiten, esa rama se skipea con motivo explicito en vez de fallar."
+        "se omiten, esa rama se skipea con motivo explicito en vez de fallar. "
+        "Cuando no se pasa un Q de override, el caudal de diseño usado en la rama "
+        "de inundacion es la media historica de 31 dias de hydrometeo_data_tool "
+        "(ver Q_design_note en el output), NO un caudal de diseño hidrologico real."
     ),
     "inputSchema": {
         "type": "object",
