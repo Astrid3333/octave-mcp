@@ -156,4 +156,9 @@ except ImportError:
     def register_tool(name, schema, handler):
         pass
 
-register_tool("semantic_bridge", SEMANTIC_BRIDGE_TOOL_SCHEMA, lambda args, _f=compute_semantic_bridge: _f(**args))
+def _semantic_bridge_handler(args):
+    from server import TOOLS
+    return compute_semantic_bridge(args.get("mode"), args.get("params"), tools=TOOLS)
+
+
+register_tool("semantic_bridge", SEMANTIC_BRIDGE_TOOL_SCHEMA, _semantic_bridge_handler)

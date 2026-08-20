@@ -349,4 +349,9 @@ except ImportError:
     def register_tool(name, schema, handler):
         pass
 
-register_tool("knowledge_graph_tool", KNOWLEDGE_GRAPH_TOOL_SCHEMA, lambda args, _f=compute_knowledge_graph: _f(**args))
+def _knowledge_graph_handler(args):
+    from server import TOOLS
+    return compute_knowledge_graph(args.get("mode"), args.get("params"), tools=TOOLS)
+
+
+register_tool("knowledge_graph_tool", KNOWLEDGE_GRAPH_TOOL_SCHEMA, _knowledge_graph_handler)
