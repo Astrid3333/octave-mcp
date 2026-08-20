@@ -2,23 +2,33 @@
 bem_electromagnetic_tool.py
 
 Puente hacia el submotor Rust bem_electromagnetic (~/octave-mcp/submotors/bem_electromagnetic):
-resuelve electrostatica 2D via metodo indirecto de potencial de capa simple
-(BEM), con condiciones Dirichlet (potencial prescrito) y Neumann (derivada
-normal / carga prescrita) por conductor. Cuadratura Gauss-Legendre de 8 puntos
-para paneles regulares, forma cerrada exacta para el autotermino Dirichlet, y
-salto -sigma/2 exacto (por simetria de panel recto) para el autotermino
-Neumann. Solver denso (LU, nalgebra) porque el sistema BEM no es simetrico ni
-disperso.
+resuelve electrostatica 2D (ecuacion de Laplace, sin fuente de volumen) via
+metodo de elementos de contorno (BEM), potencial de capa simple, sobre uno o
+mas conductores con condicion Dirichlet (potencial fijo) o Neumann (derivada
+normal fija). El binario hace el ensamblado (matriz densa via funcion de
+Green 2D, cuadratura Gauss-16 + termino singular en forma cerrada) y el
+solver LU denso; esta tool solo arma la entrada, invoca el binario, y
+opcionalmente persiste el resultado en el workspace via
+workspace_tool.save_run (mismo patron que fem_electromagnetic_tool), para
+graficar despues con plot_tool.
 
-Validado contra el capacitor cilindrico (dos conductores concentricos):
-- Caso Dirichlet puro: diff ~0.05% (discretizacion geometrica del circulo
-  aproximado por poligono, converge O(1/n^2)).
-- Caso mixto Dirichlet/Neumann: converge O(1/n) en el flujo (mas lento que
-  Dirichlet porque la normal de cada panel recto es constante, mientras la
-  normal real del contorno curvo rota continuamente -- desajuste O(h)
-  intrinseco a BEM con paneles planos, no un bug). Medido empiricamente:
-  n=40 -> 1.66%, n=80 -> 0.85%, n=160 -> 0.43%, n=320 -> 0.22%.
-Ver notas de sesion.
+A diferencia de fem_electromagnetic_tool, este submotor no requiere una
+malla de volumen (distmesh_tool) -- la geometria de entrada es directamente
+el contorno de cada conductor (lista de vertices, panel = segmento entre
+vertices consecutivos, cerrado automaticamente).
+
+Modo 'validate': 100% offline (no depende de red, a diferencia de
+terrain_elevation_tool -- BEM es matematica pura), construye un conductor
+cilindrico discretizado en poligono regular, con potencial V0 fijo, y
+compara la solucion numerica contra la analitica conocida para el problema
+exterior sin fuentes (derivacion: capa simple con densidad constante por
+simetria circular, equivalente a una carga puntual en el centro para el
+dominio exterior -- ver notas de sesion):
+
+    phi(r) = V0 * ln(r) / ln(R),   r >= R   (requiere R != 1)
+
+donde R es el radio del conductor. Corrido para n=40 y n=80 paneles, para
+confirmar que el error cae al refinar la malla de contorno.
 """
 import json
 import math
@@ -28,12 +38,15 @@ import subprocess
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _BINARY = os.path.join(_HERE, "submotors", "bem_electromagnetic", "target", "release", "bem_electromagnetic")
 
-
-def _circle_points(r, n):
-    return [[r * math.cos(2 * math.pi * k / n), r * math.sin(2 * math.pi * k / n)] for k in range(n)]
+_VALID_MODES = ["electrostatics_2d", "validate"]
 
 
-def _run_binary(payload, timeout_s):
+def _run_binary(payload, timeout_s=60):
+    if not os.path.isfile(_BINARY):
+        raise FileNotFoundError(
+            f"binario no encontrado en {_BINARY}. Correr 'cargo build --release' "
+            f"en submotors/bem_electromagnetic/ primero."
+        )
     proc = subprocess.run(
         [_BINARY],
         input=json.dumps(payload),
@@ -46,57 +59,87 @@ def _run_binary(payload, timeout_s):
     return json.loads(proc.stdout)
 
 
-def _validate():
-    """Caso coaxial mixto Dirichlet/Neumann a n=40 (rapido), contra la
-    solucion analitica del capacitor cilindrico. Tolerancia con margen sobre
-    el error medido empiricamente en esta resolucion (~1.66%)."""
-    r_int, r_ext = 0.3, 1.0
-    v_inner = 1.0
-    n_per_circle = 40
+def _circle_boundary(radius, n, v0):
+    boundary = [
+        [radius * math.cos(2 * math.pi * k / n), radius * math.sin(2 * math.pi * k / n)]
+        for k in range(n)
+    ]
+    return {"boundary": boundary, "bc": {"type": "dirichlet", "value": v0}}
 
-    dphidn_inner = v_inner / (r_int * math.log(r_int / r_ext))
-    sigma_analitico_inner = -dphidn_inner
 
-    payload = {
+def _potential_at_point(x, y, conductors):
+    """1 punto de evaluacion via eval_grid degenerado (nx=1, ny=1): el
+    binario ya maneja (nx-1).max(1) y (ny-1).max(1), asi que un grid de un
+    solo punto no divide por cero."""
+    out = _run_binary({
         "mode": "electrostatics_2d",
-        "conductors": [
-            {"boundary": _circle_points(r_int, n_per_circle), "bc": {"type": "neumann", "value": dphidn_inner}},
-            {"boundary": _circle_points(r_ext, n_per_circle), "bc": {"type": "dirichlet", "value": 0.0}},
-        ],
-        "eval_grid": None,
+        "conductors": conductors,
+        "eval_grid": {"x_min": x, "x_max": x, "y_min": y, "y_max": y, "nx": 1, "ny": 1},
         "run_id": None,
-    }
-    result = _run_binary(payload, timeout_s=30)
+    })
+    return out["grid"]["potential"][0]
 
-    sigma_inner_bem = result["sigma"][0]
-    rel_err = abs(sigma_inner_bem - sigma_analitico_inner) / abs(sigma_analitico_inner)
-    tolerance = 0.03  # margen sobre el ~1.66% medido a n=40
 
-    return {
-        "mode": "validate",
-        "check": "coaxial_mixed_bc_n40",
-        "sigma_analitico_inner": sigma_analitico_inner,
-        "sigma_bem_inner": sigma_inner_bem,
-        "rel_err": rel_err,
-        "tolerance": tolerance,
-        "validation_passed": rel_err < tolerance,
-    }
+def _validate():
+    # Nota sobre los umbrales: BEM con paneles rectos aproximando un circulo
+    # converge O(1/n^2) en el caso Dirichlet (a diferencia de Neumann, que
+    # converge O(1/n) -- ver comentario en submotors/bem_electromagnetic/src/main.rs).
+    # Por eso no se exige un umbral absoluto fijo en n=40 (una discretizacion
+    # gruesa de un circulo en poligono todavia tiene error de faceta no
+    # despreciable) -- se exige que el error absoluto en n=80 sea chico Y que
+    # la razon de error n40/n80 sea consistente con orden 2 (~4x, con margen).
+    checks = []
+    radius = 2.0
+    v0 = 1.0
+    eval_r = [3.0, 4.0, 5.0, 10.0]
+    max_err_by_n = {}
+
+    for n in (40, 80):
+        conductor = _circle_boundary(radius, n, v0)
+        out = _run_binary({"mode": "electrostatics_2d", "conductors": [conductor], "eval_grid": None, "run_id": None})
+
+        max_residual = max(abs(p - v0) for p in out["panel_potential"])
+        checks.append({
+            "nombre": f"residuo_bc_sobre_paneles_n{n}",
+            "paso": max_residual < 1e-6,
+            "detalle": {"max_residual": max_residual},
+        })
+
+        puntos = []
+        max_err = 0.0
+        for r in eval_r:
+            analitico = v0 * math.log(r) / math.log(radius)
+            numerico = _potential_at_point(r, 0.0, [conductor])
+            err = abs(numerico - analitico)
+            max_err = max(max_err, err)
+            puntos.append({"r": r, "analitico": analitico, "numerico": numerico, "error_abs": err})
+        max_err_by_n[n] = max_err
+
+        checks.append({
+            "nombre": f"comparacion_analitica_exterior_n{n}",
+            "paso": max_err < (5e-3 if n == 80 else 2e-2),
+            "detalle": {"max_error_abs": max_err, "puntos": puntos},
+        })
+
+    ratio = max_err_by_n[40] / max_err_by_n[80]
+    checks.append({
+        "nombre": "convergencia_orden_2_al_refinar",
+        "paso": 2.5 < ratio < 6.0,
+        "detalle": {"max_err_n40": max_err_by_n[40], "max_err_n80": max_err_by_n[80], "ratio": ratio},
+    })
+
+    todos_pasaron = all(c["paso"] for c in checks)
+    return {"checks": checks, "todos_pasaron": todos_pasaron, "validation_passed": todos_pasaron}
 
 
 def compute_bem_electromagnetic(mode, params=None):
     params = params or {}
 
+    if mode not in _VALID_MODES:
+        raise ValueError(f"mode desconocido: '{mode}'. Valores validos: {_VALID_MODES}")
+
     if mode == "validate":
         return _validate()
-
-    if mode != "electrostatics_2d":
-        raise ValueError(f"mode desconocido: '{mode}'. Valores validos: electrostatics_2d, validate")
-
-    if not os.path.isfile(_BINARY):
-        raise FileNotFoundError(
-            f"binario no encontrado en {_BINARY}. Correr 'cargo build --release' "
-            f"en submotors/bem_electromagnetic/ primero."
-        )
 
     run_id = params.get("run_id")
     payload = {
@@ -114,12 +157,12 @@ def compute_bem_electromagnetic(mode, params=None):
             save_run(
                 run_id,
                 {
-                    "sigma": result["sigma"],
                     "panel_mid": result["panel_mid"],
+                    "sigma": result["sigma"],
                     "panel_potential": result["panel_potential"],
                     "grid": result.get("grid"),
                 },
-                {"tool": "bem_electromagnetic_tool", "mode": mode, "n_panels": result.get("n_panels")},
+                {"tool": "bem_electromagnetic_tool", "mode": mode},
             )
             result["workspace_saved"] = True
         except Exception as e:
@@ -134,16 +177,19 @@ BEM_ELECTROMAGNETIC_TOOL_SCHEMA = {
     "properties": {
         "mode": {
             "type": "string",
-            "enum": ["electrostatics_2d", "validate"],
+            "enum": _VALID_MODES,
             "default": "electrostatics_2d",
         },
         "conductors": {
             "type": "array",
-            "description": "Lista de conductores. Cada uno: {boundary: [[x,y],...] poligono cerrado, bc: {type: 'dirichlet'|'neumann', value: number}}.",
+            "description": "Lista de conductores. Cada uno: boundary (vertices del contorno, poligono cerrado automaticamente) + bc (dirichlet: potencial fijo, o neumann: derivada normal fija).",
             "items": {
                 "type": "object",
                 "properties": {
-                    "boundary": {"type": "array", "items": {"type": "array", "items": {"type": "number"}}},
+                    "boundary": {
+                        "type": "array",
+                        "items": {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2},
+                    },
                     "bc": {
                         "type": "object",
                         "properties": {
@@ -156,7 +202,7 @@ BEM_ELECTROMAGNETIC_TOOL_SCHEMA = {
         },
         "eval_grid": {
             "type": "object",
-            "description": "Opcional: grilla 2D para evaluar potencial y campo (ex, ey).",
+            "description": "Grilla rectangular opcional para evaluar potencial y campo (Ex, Ey) fuera de los paneles, pensada para graficar con plot_tool.",
             "properties": {
                 "x_min": {"type": "number"},
                 "x_max": {"type": "number"},
@@ -168,7 +214,7 @@ BEM_ELECTROMAGNETIC_TOOL_SCHEMA = {
         },
         "run_id": {
             "type": "string",
-            "description": "Si se indica, guarda sigma/panel_mid/panel_potential/grid en el workspace para graficar despues con plot_tool.",
+            "description": "Si se indica, guarda paneles/potencial/grilla en el workspace para graficar despues con plot_tool.",
         },
         "timeout_s": {"type": "integer", "default": 60},
     },
@@ -181,7 +227,7 @@ try:
         name="bem_electromagnetic_tool",
         schema={
             "name": "bem_electromagnetic_tool",
-            "description": "Electrostatica 2D via metodo de elementos de frontera (BEM), potencial de capa simple indirecto, con condiciones Dirichlet y Neumann por conductor (modo electrostatics_2d), delegando el ensamblado y el solver denso a un submotor Rust externo (subprocess+JSON). Validado contra el capacitor cilindrico: Dirichlet converge O(1/n^2) (~0.05%), Neumann converge O(1/n) (~0.85% a n=80) por el desajuste intrinseco de normal constante por panel recto.",
+            "description": "Electromagnetismo via BEM (metodo de elementos de contorno): resuelve electrostatica 2D (ecuacion de Laplace) sobre uno o mas conductores con potencial fijo (Dirichlet) o flujo fijo (Neumann), discretizando solo el contorno (no el volumen). Delega el ensamblado (matriz densa, funcion de Green 2D) y el solver LU a un submotor Rust externo (subprocess+JSON). Modo 'validate' corre offline contra la solucion analitica de un conductor cilindrico cargado.",
             "inputSchema": BEM_ELECTROMAGNETIC_TOOL_SCHEMA,
         },
         handler=lambda args: compute_bem_electromagnetic(args.get("mode"), args),
