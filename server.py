@@ -33,6 +33,7 @@ import math_pipeline_tool  # auto-registra via tool_registry, no requiere mas ed
 import ocas_symbolic_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import pipeline_orchestrator_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import ternary_arithmetic_tool  # auto-registra via tool_registry, no requiere mas ediciones
+import mission_runner_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import disaster_early_warning_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import terrain_elevation_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import hydrometeo_data_tool  # auto-registra via tool_registry, no requiere mas ediciones
