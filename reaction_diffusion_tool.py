@@ -11,18 +11,23 @@ periodicas/Neumann.
 import numpy as np
 
 
-def compute_fisher_kpp(L=200, nx=400, r=1.0, D=1.0, T=50.0, dt=None,
+def compute_fisher_kpp(L=200, nx=400, r=1.0, D=1.0, c_wind=0.0, T=50.0, dt=None,
                         initial_width=10, seed=None):
     """
-    du/dt = D*d2u/dx2 + r*u*(1-u). Frente de onda viajera con velocidad
-    analitica c = 2*sqrt(r*D) (resultado clasico de Fisher/Kolmogorov 1937) -
-    sirve de benchmark de validacion directo contra la simulacion numerica.
+    du/dt = D*d2u/dx2 - c_wind*du/dx + r*u*(1-u). Frente de onda viajera con
+    velocidad analitica c = c_wind + 2*sqrt(r*D) (c_wind>0 empuja el frente
+    hacia +x) - sirve de benchmark de validacion directo contra la
+    simulacion numerica. Termino advectivo discretizado con esquema upwind
+    (backward si c_wind>=0, forward si c_wind<0) para evitar oscilaciones
+    espurias de diferencias centradas en adveccion pura.
     Condicion inicial: pulso localizado en el centro del dominio (colonia
     fungica puntual iniciando su avance).
     """
     dx = L / nx
     if dt is None:
-        dt = 0.2 * dx ** 2 / D  # CFL conservador para estabilidad explicita
+        dt_diff = 0.2 * dx ** 2 / D
+        dt_adv = 0.8 * dx / abs(c_wind) if c_wind != 0 else np.inf
+        dt = min(dt_diff, dt_adv)
     n_steps = int(T / dt)
     x = np.linspace(0, L, nx)
     u = np.zeros(nx)
@@ -37,14 +42,23 @@ def compute_fisher_kpp(L=200, nx=400, r=1.0, D=1.0, T=50.0, dt=None,
         lap[1:-1] = (u[2:] - 2 * u[1:-1] + u[:-2]) / dx ** 2
         lap[0] = (u[1] - u[0]) / dx ** 2
         lap[-1] = (u[-2] - u[-1]) / dx ** 2
-        u = u + dt * (D * lap + r * u * (1 - u))
+
+        adv = np.zeros_like(u)
+        if c_wind >= 0:
+            adv[1:] = (u[1:] - u[:-1]) / dx
+            adv[0] = (u[1] - u[0]) / dx
+        else:
+            adv[:-1] = (u[1:] - u[:-1]) / dx
+            adv[-1] = (u[-1] - u[-2]) / dx
+
+        u = u + dt * (D * lap - c_wind * adv + r * u * (1 - u))
         u = np.clip(u, 0, 1)
         if step % track_every == 0:
             above = np.where(u > 0.5)[0]
             if len(above) > 0:
                 front_positions.append({"t": round(step * dt, 4), "front_x": round(float(x[above[-1]]), 4)})
 
-    analytic_speed = 2 * np.sqrt(r * D)
+    analytic_speed = c_wind + 2 * np.sqrt(r * D)
     measured_speed = None
     if len(front_positions) > 5:
         ts = np.array([p["t"] for p in front_positions[-20:]])
@@ -53,13 +67,65 @@ def compute_fisher_kpp(L=200, nx=400, r=1.0, D=1.0, T=50.0, dt=None,
             measured_speed = float((xs[-1] - xs[0]) / (ts[-1] - ts[0]))
 
     return {
-        "mode": "fisher_kpp", "L": L, "nx": nx, "r": r, "D": D, "T": T, "dt": round(dt, 6),
+        "mode": "fisher_kpp", "L": L, "nx": nx, "r": r, "D": D, "c_wind": c_wind,
+        "T": T, "dt": round(dt, 6),
         "analytic_front_speed": round(float(analytic_speed), 6),
         "measured_front_speed": round(measured_speed, 6) if measured_speed is not None else None,
         "front_position_trajectory": front_positions,
         "final_profile_sample": [round(float(v), 6) for v in u[::max(1, nx // 40)]],
         "final_colonized_fraction": round(float((u > 0.5).mean()), 6),
     }
+
+
+def _validate():
+    checks = []
+
+    # Dominio compartido L=300/nx=600 (dx=0.5) para los 3 casos: suficiente
+    # margen para que el frente no choque contra el borde ni con viento a
+    # favor (c_wind=1 -> velocidad efectiva ~3.2, recorrido ~97 sobre 300
+    # arrancando del centro=150), y misma resolucion en los 3 para que la
+    # correccion de difusion numerica de abajo sea comparable entre casos.
+    L, nx, T = 300, 600, 30.0
+    dx = L / nx
+
+    r0 = compute_fisher_kpp(L=L, nx=nx, r=1.0, D=1.0, c_wind=0.0, T=T)
+    err0 = abs(r0["measured_front_speed"] - r0["analytic_front_speed"]) / r0["analytic_front_speed"]
+    checks.append({
+        "name": "no_wind_matches_classic_kpp_speed",
+        "measured": r0["measured_front_speed"], "analytic": r0["analytic_front_speed"],
+        "rel_error": round(err0, 6), "passed": bool(err0 < 0.05),
+    })
+
+    def analytic_speed_discretized(r, D, c_wind, dx):
+        D_eff = D + 0.5 * dx * abs(c_wind)
+        return c_wind + 2 * (r * D_eff) ** 0.5
+
+    r_pos = compute_fisher_kpp(L=L, nx=nx, r=1.0, D=1.0, c_wind=1.0, T=T)
+    analytic_pos = analytic_speed_discretized(1.0, 1.0, 1.0, dx)
+    err_pos = abs(r_pos["measured_front_speed"] - analytic_pos) / analytic_pos
+    checks.append({
+        "name": "downwind_speeds_up_front",
+        "measured": r_pos["measured_front_speed"],
+        "analytic_continuous": r_pos["analytic_front_speed"],
+        "analytic_discretized": round(analytic_pos, 6),
+        "rel_error": round(err_pos, 6),
+        "passed": bool(err_pos < 0.08 and r_pos["measured_front_speed"] > r0["measured_front_speed"]),
+    })
+
+    r_neg = compute_fisher_kpp(L=L, nx=nx, r=1.0, D=1.0, c_wind=-1.0, T=T)
+    analytic_neg = analytic_speed_discretized(1.0, 1.0, -1.0, dx)
+    err_neg = abs(r_neg["measured_front_speed"] - analytic_neg) / abs(analytic_neg)
+    checks.append({
+        "name": "upwind_slows_down_front",
+        "measured": r_neg["measured_front_speed"],
+        "analytic_continuous": r_neg["analytic_front_speed"],
+        "analytic_discretized": round(analytic_neg, 6),
+        "rel_error": round(err_neg, 6),
+        "passed": bool(err_neg < 0.08 and r_neg["measured_front_speed"] < r0["measured_front_speed"]),
+    })
+
+    all_passed = all(c["passed"] for c in checks)
+    return {"checks": checks, "validation_passed": all_passed}
 
 
 def compute_gray_scott(nx=100, ny=100, Du=0.16, Dv=0.08, feed=0.035, kill=0.065,
@@ -122,6 +188,8 @@ def compute_gray_scott(nx=100, ny=100, Du=0.16, Dv=0.08, feed=0.035, kill=0.065,
 
 def compute_reaction_diffusion(mode, **kwargs):
     """Dispatcher unico para el tool MCP reaction_diffusion, segun 'mode'."""
+    if mode == "validate":
+        return _validate()
     fns = {
         "fisher_kpp": compute_fisher_kpp,
         "gray_scott": compute_gray_scott,
@@ -137,9 +205,9 @@ REACTION_DIFFUSION_TOOL_SCHEMA = {
     "inputSchema": {
         "type": "object",
         "properties": {
-            "mode": {"type": "string", "enum": ["fisher_kpp", "gray_scott"]},
+            "mode": {"type": "string", "enum": ["fisher_kpp", "gray_scott", "validate"]},
             "L": {"type": "number"}, "nx": {"type": "integer"}, "ny": {"type": "integer"},
-            "r": {"type": "number"}, "D": {"type": "number"},
+            "r": {"type": "number"}, "D": {"type": "number"}, "c_wind": {"type": "number"},
             "Du": {"type": "number"}, "Dv": {"type": "number"},
             "feed": {"type": "number"}, "kill": {"type": "number"},
             "T": {"type": "number"}, "dt": {"type": "number"},
