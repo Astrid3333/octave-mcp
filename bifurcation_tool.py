@@ -244,10 +244,63 @@ BIFURCATION_TOOL_SCHEMA = {
                 "type": "array", "items": {"type": "number"},
                 "description": "Valores de r donde calcular estabilidad puntual vía derivada.",
             },
+            "mode": {
+                "type": "string",
+                "enum": ["run", "validate"],
+                "default": "run",
+                "description": "run: genera el diagrama (default). validate: suite de auto-chequeo.",
+            },
         },
         "required": [],
     },
 }
+
+
+def _validate():
+    """Autochequeo contra invariantes exactos del mapa logistico (Feigenbaum):
+    r=2.5 -> punto fijo x*=1-1/r=0.6, periodo 1, estable (|f'|=|2-r|=0.5<1).
+    r=3.2 -> tras el primer doblado de periodo en r=3, ciclo de periodo 2 estable.
+    r=3.5 -> tras el segundo doblado en r=1+sqrt(6)~=3.44949, ciclo de periodo 4 estable.
+    """
+    r = compute_bifurcation_diagram(
+        map_name="logistic", n_r_values=10, n_keep=5,
+        stability_check_rs=[2.5, 3.2, 3.5],
+    )
+    if "error" in r:
+        return {"checks": [{"name": "octave_run", "passed": False, "error": r["error"]}],
+                "validation_passed": False}
+
+    by_r = {round(s["r"], 4): s for s in r["stability_analysis"]}
+    checks = []
+
+    s25 = by_r.get(2.5)
+    x_star_expected = 1 - 1 / 2.5
+    checks.append({
+        "name": "r2.5_fixed_point_period1_stable",
+        "periodo_esperado": 1, "periodo_medido": s25["periodo_detectado"] if s25 else None,
+        "x_esperado": round(x_star_expected, 6),
+        "x_medido": round(s25["x_convergido"], 6) if s25 else None,
+        "passed": bool(s25 and s25["periodo_detectado"] == 1
+                       and s25["estado"] == "ESTABLE"
+                       and abs(s25["x_convergido"] - x_star_expected) < 1e-3),
+    })
+
+    s32 = by_r.get(3.2)
+    checks.append({
+        "name": "r3.2_period2_stable",
+        "periodo_esperado": 2, "periodo_medido": s32["periodo_detectado"] if s32 else None,
+        "passed": bool(s32 and s32["periodo_detectado"] == 2 and s32["estado"] == "ESTABLE"),
+    })
+
+    s35 = by_r.get(3.5)
+    checks.append({
+        "name": "r3.5_period4_stable",
+        "periodo_esperado": 4, "periodo_medido": s35["periodo_detectado"] if s35 else None,
+        "passed": bool(s35 and s35["periodo_detectado"] == 4 and s35["estado"] == "ESTABLE"),
+    })
+
+    all_passed = all(c["passed"] for c in checks)
+    return {"checks": checks, "validation_passed": all_passed}
 
 
 if __name__ == "__main__":
@@ -270,4 +323,12 @@ except ImportError:
     def register_tool(name, schema, handler):
         pass
 
-register_tool("compute_bifurcation_diagram", BIFURCATION_TOOL_SCHEMA, lambda args, _f=compute_bifurcation_diagram: _f(**args))
+def _dispatch_bifurcation(args):
+    mode = args.get("mode", "run")
+    if mode == "validate":
+        return _validate()
+    kwargs = {k: v for k, v in args.items() if k != "mode"}
+    return compute_bifurcation_diagram(**kwargs)
+
+
+register_tool("compute_bifurcation_diagram", BIFURCATION_TOOL_SCHEMA, _dispatch_bifurcation)
