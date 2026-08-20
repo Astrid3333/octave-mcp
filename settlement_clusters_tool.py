@@ -196,7 +196,7 @@ if __name__ == "__main__":
     print(json.dumps(compute_settlement_clusters(mode="validate"), indent=2, ensure_ascii=False))
 
 SETTLEMENT_CLUSTERS_SCHEMA = {   'type': 'object',
-    'properties': {   'mode': {'type': 'string'},
+    'properties': {   'mode': {'type': 'string', 'enum': ['analyze', 'validate'], 'default': 'validate'},
                       'puntos_por_periodo': {'type': 'array'},
                       'periodos': {'type': 'array'},
                       'radio': {'type': 'number'},

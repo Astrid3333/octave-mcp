@@ -439,7 +439,7 @@ if __name__ == "__main__":
     print(json.dumps(_run_validation(), indent=2, ensure_ascii=False))
 
 CLIMATE_SCENARIO_TOOL_SCHEMA = {   'type': 'object',
-    'properties': {'mode': {'type': 'string'}, 'params': {'type': 'object'}},
+    'properties': {'mode': {'type': 'string', 'enum': ['trend_analysis', 'rcp_projection', 'list_rcp_scenarios', 'validate'], 'default': 'validate'}, 'params': {'type': 'object'}},
     'required': ['mode']}
 
 try:

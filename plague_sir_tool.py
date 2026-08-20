@@ -167,7 +167,7 @@ if __name__ == "__main__":
     print(json.dumps(compute_plague_sir(mode="validate"), indent=2, ensure_ascii=False))
 
 PLAGUE_SIR_SCHEMA = {   'type': 'object',
-    'properties': {   'mode': {'type': 'string'},
+    'properties': {   'mode': {'type': 'string', 'enum': ['fit_beta', 'validate'], 'default': 'validate'},
                       'text_data': {'type': 'string'},
                       'preset': {'type': 'string'},
                       'gamma': {'type': 'number'},

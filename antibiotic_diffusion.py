@@ -188,7 +188,7 @@ if __name__ == "__main__":
     print(json.dumps(compute_antibiotic_diffusion(mode="validate"), indent=2, ensure_ascii=False))
 
 ANTIBIOTIC_DIFFUSION_SCHEMA = {   'type': 'object',
-    'properties': {   'mode': {'type': 'string'},
+    'properties': {   'mode': {'type': 'string', 'enum': ['zone_prediction', 'calibration_curve', 'validate'], 'default': 'validate'},
                       'C0': {'type': 'number'},
                       'a': {'type': 'number'},
                       'D': {'type': 'number'},
@@ -204,7 +204,7 @@ try:
         "description": 'Bioensayo de difusion en disco tipo Kirby-Bauer: difusion radial 2D exacta (Carslaw & Jaeger, disco de concentracion uniforme C0 en agar homogeneo) mas la aproximacion clasica de fuente puntual de Cooper. Liberacion instantanea, sin degradacion ni consumo bacteriano -- estimacion de ordenes de magnitud, no reemplaza ensayo real. Modes: zone_prediction (radio/diametro de halo a un C0 y tiempo de in',
         "inputSchema": ANTIBIOTIC_DIFFUSION_SCHEMA,
     },
-        handler=lambda args: compute_antibiotic_diffusion(**args),
+        handler=lambda args: compute_antibiotic_diffusion(args.get("mode", "validate"), **(args.get("params") or {})),
     )
 except ImportError:
     pass

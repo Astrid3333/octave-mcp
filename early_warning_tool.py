@@ -288,7 +288,7 @@ if __name__ == "__main__":
     print(json.dumps(compute_early_warning("validate"), indent=2, ensure_ascii=False))
 
 EARLY_WARNING_TOOL_SCHEMA = {   'type': 'object',
-    'properties': {'mode': {'type': 'string'}, 'params': {'type': 'object'}},
+    'properties': {'mode': {'type': 'string', 'enum': ['threshold_crossing', 'trend_analysis', 'rate_of_change_alert', 'moving_average_anomaly', 'validate'], 'default': 'validate'}, 'params': {'type': 'object'}},
     'required': ['mode']}
 
 try:

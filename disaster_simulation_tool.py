@@ -69,7 +69,7 @@ DISASTER_SIMULATION_TOOL_SCHEMA = {
     "inputSchema": {
         "type": "object",
         "properties": {
-            "mode": {"type": "string"},
+            "mode": {"type": "string", "enum": ["monte_carlo_losses", "return_period_loss", "exceedance_curve", "multi_hazard_combine", "validate"], "default": "validate"},
             "params": {"type": "object"},
         },
         "required": ["mode"],

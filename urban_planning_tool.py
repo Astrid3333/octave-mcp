@@ -286,7 +286,7 @@ URBAN_PLANNING_TOOL_SCHEMA = {
     ),
     "inputSchema": {
         "type": "object",
-        "properties": {"mode": {"type": "string"}, "params": {"type": "object"}},
+        "properties": {"mode": {"type": "string", "enum": ["land_use_mix_index", "service_accessibility_index", "density_capacity_ratio", "infrastructure_demand_projection", "validate"], "default": "validate"}, "params": {"type": "object"}},
         "required": ["mode"],
     },
 }

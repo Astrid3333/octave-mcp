@@ -318,7 +318,7 @@ if __name__ == "__main__":
     print(json.dumps(compute_flood_modeling("validate"), indent=2, ensure_ascii=False))
 
 FLOOD_MODELING_TOOL_SCHEMA = {   'type': 'object',
-    'properties': {'mode': {'type': 'string'}, 'params': {'type': 'object'}},
+    'properties': {'mode': {'type': 'string', 'enum': ['scs_triangular_hydrograph', 'muskingum_routing', 'manning_normal_depth', 'validate'], 'default': 'validate'}, 'params': {'type': 'object'}},
     'required': ['mode']}
 
 try:

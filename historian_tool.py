@@ -431,7 +431,7 @@ if __name__ == "__main__":
     print(json.dumps(compute_historian(mode="validate"), indent=2, ensure_ascii=False))
 
 HISTORIAN_SCHEMA = {   'type': 'object',
-    'properties': {   'mode': {'type': 'string'},
+    'properties': {   'mode': {'type': 'string', 'enum': ['analyze', 'validate'], 'default': 'validate'},
                       'analysis_type': {'type': 'string'},
                       'text_data': {'type': 'string'},
                       'preset': {'type': 'string'}}}
@@ -445,7 +445,7 @@ try:
         "description": 'Orquestador de analisis historico: parsea numeros de texto libre via regex (sin NLP complejo), arma arrays de numpy, y ajusta el motor correspondiente segun analysis_type -- inflation/demographics (regresion log-lineal: tasa anual %, R2), trade_network (centralidad de red: fuerza entrante + autovector, identifica el hub), units_entropy (entropia de Shannon sobre unidades historicas de medida -- in',
         "inputSchema": HISTORIAN_SCHEMA,
     },
-        handler=lambda args: compute_historian(**args),
+        handler=lambda args: compute_historian(args.get("mode", "validate"), **(args.get("params") or {})),
     )
 except ImportError:
     pass

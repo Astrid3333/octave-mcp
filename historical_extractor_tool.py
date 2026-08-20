@@ -230,7 +230,7 @@ if __name__ == "__main__":
     print(json.dumps(compute_historical_extractor(mode="validate"), indent=2, ensure_ascii=False))
 
 HISTORICAL_EXTRACTOR_SCHEMA = {   'type': 'object',
-    'properties': {   'mode': {'type': 'string'},
+    'properties': {   'mode': {'type': 'string', 'enum': ['analyze', 'validate'], 'default': 'validate'},
                       'text_data': {'type': 'string'},
                       'objetos': {'type': 'array'},
                       'objeto_salario': {'type': 'string'}}}

@@ -405,7 +405,7 @@ CRITICAL_INFRASTRUCTURE_TOOL_SCHEMA = {
     ),
     "inputSchema": {
         "type": "object",
-        "properties": {"mode": {"type": "string"}, "params": {"type": "object"}},
+        "properties": {"mode": {"type": "string", "enum": ["network_redundancy_n1", "cascading_failure_simulation", "load_redistribution", "critical_node_identification", "validate"], "default": "validate"}, "params": {"type": "object"}},
         "required": ["mode"],
     },
 }

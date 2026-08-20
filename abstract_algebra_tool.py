@@ -358,7 +358,7 @@ if __name__ == "__main__":
     print(json.dumps(compute_abstract_algebra(mode="validate"), indent=2, ensure_ascii=False))
 
 ABSTRACT_ALGEBRA_SCHEMA = {   'type': 'object',
-    'properties': {   'mode': {'type': 'string'},
+    'properties': {   'mode': {'type': 'string', 'enum': ['cayley_table', 'verify_group_axioms', 'verify_ring_field_axioms', 'check_isomorphism', 'validate'], 'default': 'validate'},
                       'preset': {'type': 'string'},
                       'n': {'type': 'integer'},
                       'elementos': {'type': 'array'},

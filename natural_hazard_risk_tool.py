@@ -288,7 +288,7 @@ if __name__ == "__main__":
     print(json.dumps(compute_natural_hazard_risk("validate"), indent=2, ensure_ascii=False))
 
 NATURAL_HAZARD_RISK_TOOL_SCHEMA = {   'type': 'object',
-    'properties': {'mode': {'type': 'string'}, 'params': {'type': 'object'}},
+    'properties': {'mode': {'type': 'string', 'enum': ['risk_index', 'risk_grid', 'gumbel_return_period', 'gumbel_fit', 'validate'], 'default': 'validate'}, 'params': {'type': 'object'}},
     'required': ['mode']}
 
 try:

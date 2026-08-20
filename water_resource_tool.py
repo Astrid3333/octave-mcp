@@ -236,7 +236,7 @@ if __name__ == "__main__":
     print(json.dumps(compute_water_resource("validate"), indent=2, ensure_ascii=False))
 
 WATER_RESOURCE_TOOL_SCHEMA = {   'type': 'object',
-    'properties': {'mode': {'type': 'string'}, 'params': {'type': 'object'}},
+    'properties': {'mode': {'type': 'string', 'enum': ['rational_method', 'scs_curve_number', 'time_of_concentration', 'water_balance', 'validate'], 'default': 'validate'}, 'params': {'type': 'object'}},
     'required': ['mode']}
 
 try:

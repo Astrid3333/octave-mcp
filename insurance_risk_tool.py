@@ -59,7 +59,7 @@ INSURANCE_RISK_TOOL_SCHEMA = {
     "inputSchema": {
         "type": "object",
         "properties": {
-            "mode": {"type": "string"},
+            "mode": {"type": "string", "enum": ["pure_premium", "excess_of_loss_layer", "cat_bond_pricing", "loss_ratio_analysis", "validate"], "default": "validate"},
             "params": {"type": "object"},
         },
         "required": ["mode"],

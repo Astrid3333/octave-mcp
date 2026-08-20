@@ -251,7 +251,7 @@ if __name__ == "__main__":
     print(json.dumps(compute_decision_support("validate"), indent=2, ensure_ascii=False))
 
 DECISION_SUPPORT_TOOL_SCHEMA = {   'type': 'object',
-    'properties': {'mode': {'type': 'string'}, 'params': {'type': 'object'}},
+    'properties': {'mode': {'type': 'string', 'enum': ['ahp', 'topsis', 'validate'], 'default': 'validate'}, 'params': {'type': 'object'}},
     'required': ['mode']}
 
 try:

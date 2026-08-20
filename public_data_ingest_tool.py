@@ -351,7 +351,7 @@ PUBLIC_DATA_INGEST_TOOL_SCHEMA = {
     ),
     "inputSchema": {
         "type": "object",
-        "properties": {"mode": {"type": "string"}, "params": {"type": "object"}},
+        "properties": {"mode": {"type": "string", "enum": ["outlier_detection_zscore", "outlier_detection_iqr", "data_quality_score", "deduplication_estimate", "validate"], "default": "validate"}, "params": {"type": "object"}},
         "required": ["mode"],
     },
 }
