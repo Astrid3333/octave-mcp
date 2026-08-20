@@ -60,7 +60,7 @@ TOOL_SCHEMA: dict[str, Any] = {
         "certificado para operaciones reales; es un modelo de ingenieria "
         "de pozos en estado semi-estable para analisis y docencia avanzada."
     ),
-    "input_schema": {
+    "inputSchema": {
         "type": "object",
         "properties": {
             "mode": {

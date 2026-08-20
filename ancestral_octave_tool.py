@@ -30,6 +30,34 @@ ANCESTRAL_OCTAVE_SCHEMA = {
         "'extra_octave' para componer el resultado con otro calculo en la "
         "misma sesion."
     ),
+    "inputSchema": {
+        "type": "object",
+        "properties": {
+            "mode": {
+                "type": "string",
+                "enum": ["validate"],
+                "description": "Si se pasa 'validate', corre 5 casos de referencia contra valores analiticos conocidos y devuelve pass/fail (no requiere 'preset'). Si se omite, se ejecuta el 'preset' indicado normalmente.",
+            },
+            "preset": {
+                "type": "string",
+                "enum": [
+                    "suanpan_add", "chinese_remainder", "vedic_multiply",
+                    "archimedes_pi", "quipu_encode", "ifa_cast",
+                    "ifa_cast_random", "etak_deadreckoning", "madhava_pi_series",
+                ],
+                "description": "Metodo ancestral a ejecutar. Requerido salvo cuando mode='validate'.",
+            },
+            "params": {
+                "type": "object",
+                "description": "Parametros especificos del preset elegido (p. ej. a/b para suanpan_add y vedic_multiply, remainders/moduli para chinese_remainder, iterations para archimedes_pi, value para quipu_encode, bits para ifa_cast, seed para ifa_cast_random, speed_knots/heading_deg/hours/lat0/lon0 para etak_deadreckoning, n_terms para madhava_pi_series).",
+            },
+            "extra_octave": {
+                "type": "string",
+                "description": "Codigo Octave adicional opcional, corrido en la misma sesion despues del preset, con acceso a sus variables (p. ej. usar 'r' como semilla de otro calculo).",
+            },
+        },
+        "required": [],
+    },
 }
 
 def build_octave_call(preset: str, params: dict, extra_octave: str = None) -> str:
