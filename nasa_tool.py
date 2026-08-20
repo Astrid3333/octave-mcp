@@ -29,6 +29,7 @@ Modo validate: offline, con fixtures JSON fijos (mismo criterio que
 arxiv_tool -- el self-test no depende de la red real).
 """
 
+import csv
 import json
 import socket
 import urllib.error
@@ -43,15 +44,30 @@ except ImportError:
 
 BASE_URL = "https://api.nasa.gov"
 
+# FIRMS vive en un host y un sistema de auth totalmente distintos de
+# api.nasa.gov (MAP_KEY propia, se pide en firms.modaps.eosdis.nasa.gov/api/map_key/,
+# no sirve el api_key de arriba). Y a diferencia de todo lo demas en este
+# archivo, el endpoint de area devuelve CSV plano, no JSON -- por eso
+# _fetch_text existe aparte de _fetch_json en vez de reusarlo.
+FIRMS_BASE_URL = "https://firms.modaps.eosdis.nasa.gov/api/area/csv"
+
 NASA_SCHEMA = {
     "type": "object",
     "properties": {
         "mode": {
             "type": "string",
-            "enum": ["apod", "mars_rover_photos", "neo_feed", "epic", "validate"],
+            "enum": ["apod", "mars_rover_photos", "neo_feed", "epic", "active_fire_detections", "validate"],
         },
-        "api_key": {"type": "string", "description": "API key de api.nasa.gov. Default: DEMO_KEY (rate limit bajo)."},
-        "date": {"type": "string", "description": "Fecha YYYY-MM-DD. Usado por apod (un dia) y mars_rover_photos (earth_date)."},
+        "api_key": {"type": "string", "description": "API key de api.nasa.gov. Default: DEMO_KEY (rate limit bajo). NO sirve para active_fire_detections -- ver firms_map_key."},
+        "firms_map_key": {"type": "string", "description": "MAP_KEY de FIRMS (firms.modaps.eosdis.nasa.gov/api/map_key/), separada del sistema de keys de api.nasa.gov. Requerida en mode=active_fire_detections."},
+        "area": {"type": "string", "description": "Bounding box 'west,south,east,north' en grados decimales, o 'world'. Requerido en mode=active_fire_detections."},
+        "source": {
+            "type": "string",
+            "enum": ["VIIRS_SNPP_NRT", "VIIRS_NOAA20_NRT", "VIIRS_NOAA21_NRT", "MODIS_NRT"],
+            "description": "Fuente satelital en mode=active_fire_detections. Default: VIIRS_SNPP_NRT.",
+        },
+        "day_range": {"type": "integer", "description": "Dias hacia atras desde 'date' (o desde hoy), 1-10. Usado por active_fire_detections. Default: 1."},
+        "date": {"type": "string", "description": "Fecha YYYY-MM-DD. Usado por apod (un dia), mars_rover_photos (earth_date) y active_fire_detections (fin del rango, opcional, default hoy/ultimo dia disponible)."},
         "start_date": {"type": "string", "description": "YYYY-MM-DD. Usado por apod (rango) y neo_feed (requerido)."},
         "end_date": {"type": "string", "description": "YYYY-MM-DD. Usado por apod (rango) y neo_feed (max 7 dias desde start_date)."},
         "rover": {
@@ -92,8 +108,40 @@ def _fetch_json(url, timeout, force_ipv4=False):
         return json.loads(resp.read())
 
 
+def _fetch_text(url, timeout, force_ipv4=False):
+    req = urllib.request.Request(url, headers={"User-Agent": "octave-mcp/nasa_tool"})
+    if force_ipv4:
+        original_getaddrinfo = socket.getaddrinfo
+
+        def _ipv4_only_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
+            return original_getaddrinfo(host, port, socket.AF_INET, type, proto, flags)
+
+        socket.getaddrinfo = _ipv4_only_getaddrinfo
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                return resp.read().decode("utf-8")
+        finally:
+            socket.getaddrinfo = original_getaddrinfo
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return resp.read().decode("utf-8")
+
+
 def _url(path, params):
     return f"{BASE_URL}{path}?" + urllib.parse.urlencode(params)
+
+
+def _firms_url(map_key, source, area, day_range, date=None):
+    path = f"{FIRMS_BASE_URL}/{map_key}/{source}/{area}/{day_range}"
+    if date:
+        path += f"/{date}"
+    return path
+
+
+def _to_float(v):
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
 
 
 # ------------------------------------------------------------ per-endpoint --
@@ -213,6 +261,50 @@ def _epic(args):
     return {"count": len(results), "images": results}
 
 
+def _firms_active_fires(args):
+    map_key = args.get("firms_map_key")
+    if not map_key:
+        return {"error": "mode=active_fire_detections requiere 'firms_map_key' (se registra aparte en firms.modaps.eosdis.nasa.gov/api/map_key/, no es el api_key de api.nasa.gov)"}
+    area = args.get("area")
+    if not area:
+        return {"error": "mode=active_fire_detections requiere 'area' ('west,south,east,north' o 'world')"}
+    source = args.get("source", "VIIRS_SNPP_NRT")
+    day_range = args.get("day_range", 1)
+    url = _firms_url(map_key, source, area, day_range, args.get("date"))
+    text = _fetch_text(url, args.get("timeout", 15), args.get("force_ipv4", False))
+    lines = text.strip().splitlines()
+    if not lines or "latitude" not in lines[0].lower():
+        # FIRMS devuelve texto plano (no CSV) en casos de error -- MAP_KEY
+        # invalida, cuota diaria de transacciones agotada, parametros mal
+        # formados. Este chequeo y el layout de columnas de abajo estan
+        # armados de memoria: firms.modaps.eosdis.nasa.gov no esta en la
+        # allowlist de red del sandbox de Claude, asi que nada de esto se
+        # probo contra la API real todavia -- confirmar la primera vez que
+        # corra con una MAP_KEY de verdad.
+        return {"error": f"respuesta inesperada de FIRMS (no parece CSV valido, ¿MAP_KEY invalida o cuota agotada?): {text[:200]}"}
+    reader = csv.DictReader(lines)
+    detections = []
+    for row in reader:
+        detections.append({
+            "latitude": _to_float(row.get("latitude")),
+            "longitude": _to_float(row.get("longitude")),
+            "brightness": _to_float(row.get("bright_ti4") or row.get("brightness")),
+            "confidence": row.get("confidence"),
+            "frp": _to_float(row.get("frp")),
+            "acq_date": row.get("acq_date"),
+            "acq_time": row.get("acq_time"),
+            "satellite": row.get("satellite"),
+            "daynight": row.get("daynight"),
+        })
+    return {
+        "count": len(detections),
+        "source": source,
+        "area": area,
+        "day_range": day_range,
+        "detections": detections,
+    }
+
+
 # --------------------------------------------------------------- dispatch --
 
 def compute_nasa(mode, args=None):
@@ -230,6 +322,8 @@ def compute_nasa(mode, args=None):
             return _neo_feed(args)
         if mode == "epic":
             return _epic(args)
+        if mode == "active_fire_detections":
+            return _firms_active_fires(args)
         return {"error": f"modo desconocido: {mode}"}
     except urllib.error.URLError as e:
         return {"error": f"fallo de red consultando NASA: {e}"}
@@ -286,6 +380,15 @@ _EPIC_FIXTURE = [
     {"identifier": "20240101000000", "caption": "Fake Earth full disk", "date": "2024-01-01 00:00:00", "image": "epic_1b_20240101000000"}
 ]
 
+# CSV ficticio (coordenadas y valores inventados, no corresponden a un
+# incendio real) para probar el parseo offline de active_fire_detections.
+_FIRMS_FIXTURE_CSV = (
+    "latitude,longitude,bright_ti4,scan,track,acq_date,acq_time,satellite,"
+    "instrument,confidence,version,bright_ti5,frp,daynight\n"
+    "-33.010,-71.550,335.2,0.39,0.36,2024-01-01,0512,N,VIIRS,n,2.0NRT,289.1,4.8,D\n"
+    "-33.040,-71.600,301.7,0.40,0.37,2024-01-01,0512,N,VIIRS,l,2.0NRT,285.0,1.2,D\n"
+)
+
 
 def _validate():
     checks = []
@@ -330,8 +433,32 @@ def _validate():
     finally:
         _fetch_json = original_fetch
 
+    global _fetch_text
+    original_fetch_text = _fetch_text
+
+    def _fake_fetch_text(url, timeout, force_ipv4=False):
+        if "/api/area/csv/" in url:
+            return _FIRMS_FIXTURE_CSV
+        raise AssertionError(f"URL inesperada en fixture (text): {url}")
+
+    _fetch_text = _fake_fetch_text
+    try:
+        firms = compute_nasa("active_fire_detections", {"firms_map_key": "FAKEKEY123", "area": "-72,-34,-71,-33", "day_range": 1})
+        checks.append({"case": "active_fire_detections: parsea lat/lon/confidence/frp del CSV", "ok": firms["count"] == 2 and firms["detections"][0]["confidence"] == "n" and firms["detections"][0]["frp"] == 4.8 and firms["detections"][0]["latitude"] == -33.010})
+
+        missing_key = compute_nasa("active_fire_detections", {"area": "-72,-34,-71,-33"})
+        checks.append({"case": "active_fire_detections sin 'firms_map_key' devuelve error explicito (sin red)", "ok": "error" in missing_key})
+
+        missing_area = compute_nasa("active_fire_detections", {"firms_map_key": "FAKEKEY123"})
+        checks.append({"case": "active_fire_detections sin 'area' devuelve error explicito (sin red)", "ok": "error" in missing_area})
+    finally:
+        _fetch_text = original_fetch_text
+
     url = _url("/planetary/apod", {"api_key": "DEMO_KEY", "date": "2024-01-01"})
     checks.append({"case": "build url: query codificada correctamente", "ok": "date=2024-01-01" in url and url.startswith(BASE_URL)})
+
+    firms_url = _firms_url("FAKEKEY123", "VIIRS_SNPP_NRT", "-72,-34,-71,-33", 1)
+    checks.append({"case": "firms url: arma el path MAP_KEY/source/area/day_range en orden", "ok": firms_url == f"{FIRMS_BASE_URL}/FAKEKEY123/VIIRS_SNPP_NRT/-72,-34,-71,-33/1"})
 
     all_passed = all(c["ok"] for c in checks)
     return {"validate": True, "all_passed": all_passed, "checks": checks}
@@ -349,9 +476,13 @@ if register_tool is not None:
                 "fecha terrestre, con filtro de camara), neo_feed "
                 "(asteroides cercanos a la Tierra en un rango de hasta 7 "
                 "dias, con distancia y velocidad de aproximacion), epic "
-                "(imagenes de disco completo de la Tierra desde DSCOVR). "
-                "Usa DEMO_KEY por default (rate limit bajo); se puede pasar "
-                "una api_key propia."
+                "(imagenes de disco completo de la Tierra desde DSCOVR), "
+                "active_fire_detections (detecciones de incendios activos "
+                "via FIRMS/VIIRS-MODIS en un bounding box, requiere "
+                "firms_map_key propia -- MAP_KEY separada del sistema de "
+                "api_key de arriba). Usa DEMO_KEY por default (rate limit "
+                "bajo) para los demas modos; se puede pasar una api_key "
+                "propia."
             ),
             "inputSchema": NASA_SCHEMA,
         },
