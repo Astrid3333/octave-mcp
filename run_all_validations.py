@@ -58,15 +58,12 @@ ALTERNATE_VALIDATE_MODE = {
     "vacuum_energy_density_tool": "self_test",
     "quantum_cosmology_tool": "self_test",
     "cosmological_mcmc_tool": "mock_recovery",
-    # Estas 4 SI aceptan mode="validate" y responden con un autochequeo
-    # real (via el campo "ok", ver VALIDATION_FIELD_ALIASES) -- pero su
-    # inputSchema no declara "validate" en el enum de mode, asi que el
-    # chequeo automatico normal las descartaba antes de intentar nada.
-    # Se mapean a si mismas para saltar solo el chequeo de enum.
-    "plague_sir": "validate",
-    "settlement_clusters": "validate",
-    "historical_extractor": "validate",
-    "abstract_algebra": "validate",
+    # NOTA (2026-08-20): plague_sir, settlement_clusters, historical_extractor
+    # y abstract_algebra estuvieron mapeadas aca hasta que se confirmo que su
+    # inputSchema ya declara "validate" en el enum de mode -- el chequeo
+    # automatico normal (build_requests, mas abajo) ya las detecta solas via
+    # el default mode_to_call="validate", asi que el mapeo explicito era
+    # redundante. Se sacaron para no dejar un comentario que ya no es cierto.
 }
 
 # Tools registradas via `lambda args: compute_X(**args)` con firma plana
