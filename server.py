@@ -19,6 +19,7 @@ import dft_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import savings_goal_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import investment_portfolio_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import tax_estimation_tool  # auto-registra via tool_registry, no requiere mas ediciones
+import infrastructure_resilience_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import insurance_risk_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import spending_pattern_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import savings_rate_tool  # auto-registra via tool_registry, no requiere mas ediciones
