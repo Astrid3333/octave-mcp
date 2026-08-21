@@ -32,6 +32,11 @@ try:
 except ImportError:
     compute_correlation_dimension = None
 
+try:
+    from workspace_tool import save_run
+except ImportError:
+    save_run = None
+
 
 # ---------------------------------------------------------------------------
 # Integracion RK4
@@ -85,6 +90,7 @@ def compute_lorenz(mode="simulate", n_steps=6000, dt=0.01,
                     y0=(1.0, 1.0, 1.0), discard=1000,
                     downsample_for_plot=2000,
                     perturbacion_inicial=1e-5,
+                    run_id=None, save_trajectory_every=10,
                     **kwargs):
     if mode == "validate":
         return _validate_lorenz()
@@ -130,6 +136,23 @@ def compute_lorenz(mode="simulate", n_steps=6000, dt=0.01,
     ys = [p[1] for p in traj]
     zs = [p[2] for p in traj]
 
+    trajectory_saved = False
+    saved_run_id = None
+    if run_id is not None and save_run is not None:
+        traj_arr = [list(p) for p in traj[::max(1, save_trajectory_every)]]
+        save_result = save_run(
+            run_id,
+            {"trayectoria": traj_arr},
+            {
+                "tool": "compute_lorenz",
+                "sigma": sigma, "rho": rho, "beta": beta,
+                "dt": dt, "n_steps": n_steps, "discard": discard,
+                "save_trajectory_every": save_trajectory_every,
+            },
+        )
+        saved_run_id = save_result.get("run_id")
+        trajectory_saved = "error" not in save_result
+
     return {
         "mode": "simulate",
         "params": {"sigma": sigma, "rho": rho, "beta": round(beta, 6), "dt": dt,
@@ -141,10 +164,15 @@ def compute_lorenz(mode="simulate", n_steps=6000, dt=0.01,
         },
         "n_points": len(traj),
         "trajectory_sample": [{"x": p[0], "y": p[1], "z": p[2]} for p in traj_plot],
+        "trajectory_saved": trajectory_saved,
+        "run_id": saved_run_id,
         "nota": (
             "trajectory_sample esta submuestreada a downsample_for_plot puntos "
             "para no saturar la respuesta; bounds y n_points corresponden a la "
-            "trayectoria completa (post-discard)."
+            "trayectoria completa (post-discard). Si se paso run_id, la "
+            "trayectoria completa (submuestreada cada save_trajectory_every "
+            "pasos) se guarda en el workspace para graficar despues con "
+            "plot_tool (plot_type='attractor_3d' o 'auto')."
         ),
     }
 

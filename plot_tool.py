@@ -61,6 +61,7 @@ PLOTS_DIR = WORKSPACE_DIR / "plots"
 # Mapea meta["tool"] del run guardado -> plot_type por defecto cuando plot_type="auto"
 _AUTO_PLOT_BY_TOOL = {
     "compute_lyapunov_exponent": "attractor_3d",
+    "compute_lorenz": "attractor_3d",
     "compute_persistent_homology": "persistence_diagram",
     "compute_settlement_clusters": "settlement_map",
     "compute_numeral_systems_embedding": "numeral_embedding",
