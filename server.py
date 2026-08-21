@@ -121,6 +121,7 @@ import solar_heating_sizer_tool  # auto-registra via tool_registry, no requiere 
 import forest_fire_simulator_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import chaos_diagnosis_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import correlation_dimension_tool  # auto-registra via tool_registry, no requiere mas ediciones
+import lorenz_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import renewable_mpc_controller  # auto-registra via tool_registry, no requiere mas ediciones
 import circular_economy_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import biodiversity_model_tool  # auto-registra via tool_registry, no requiere mas ediciones
