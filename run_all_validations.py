@@ -75,6 +75,10 @@ ALTERNATE_VALIDATE_MODE = {
     "vector_optimizer": "self_test",
     "machine_learning_vector_tool": "self_test",
     "color_math_tool": "self_test",
+    "unified_dark_sector_tool": "self_test",
+    "virtual_pharmacokinetics": "self_test",
+    "toxicity_predictor": "self_test",
+    "carbon_footprint_tool": "validate",
     # NOTA (2026-08-20): plague_sir, settlement_clusters, historical_extractor
     # y abstract_algebra estuvieron mapeadas aca hasta que se confirmo que su
     # inputSchema ya declara "validate" en el enum de mode -- el chequeo
