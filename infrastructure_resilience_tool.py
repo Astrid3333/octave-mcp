@@ -270,3 +270,20 @@ def compute_infrastructure_resilience(mode, params=None):
         return _validate()
     else:
         raise ValueError(f"mode desconocido: {mode}")
+try:
+    from tool_registry import register_tool
+    register_tool(
+        name="infrastructure_resilience_tool",
+        schema=INFRASTRUCTURE_RESILIENCE_TOOL_SCHEMA,
+        handler=lambda args: compute_infrastructure_resilience(args.get("mode"), args.get("params")),
+    )
+except ImportError:
+    pass
+
+
+if __name__ == "__main__":
+    import json
+    d = compute_infrastructure_resilience("validate", {})
+    print(json.dumps(d, indent=2, ensure_ascii=False))
+    assert d["validation_passed"], "Validacion fallo, ver detalle arriba"
+    print("\nTodos los chequeos de infrastructure_resilience_tool.py pasaron OK.")
