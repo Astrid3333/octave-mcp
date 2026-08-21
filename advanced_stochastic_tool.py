@@ -447,6 +447,95 @@ def garch(params):
 # Dispatcher (mismo patron mode+params usado en el resto del ecosistema)
 # ---------------------------------------------------------------------------
 
+def validate(params=None):
+    """Reusa la misma logica del bloque __main__ original (forward-backward
+    vs fuerza bruta en HMM; dicts 'validation' ya devueltos por kalman/
+    particle_filter/garch) pero como checks estructurados en vez de asserts."""
+    checks = []
+    rng = np.random.default_rng(42)
+
+    # --- HMM: viterbi accuracy + forward-backward vs fuerza bruta ---
+    T = 8
+    A_true = np.array([[0.9, 0.1], [0.15, 0.85]])
+    pi0_true = np.array([0.5, 0.5])
+    means_true = np.array([0.0, 6.0])
+    stds_true = np.array([1.0, 1.0])
+    states = np.zeros(T, dtype=int)
+    states[0] = rng.choice(2, p=pi0_true)
+    for t in range(1, T):
+        states[t] = rng.choice(2, p=A_true[states[t - 1]])
+    obs_hmm = rng.normal(means_true[states], stds_true[states])
+    path, _vlp = _hmm_viterbi(obs_hmm, pi0_true, A_true, means_true, stds_true)
+    acc = float(np.mean(path == states))
+    _, _, _, loglik_scaled, _, _ = _hmm_forward_backward(obs_hmm, pi0_true, A_true, means_true, stds_true)
+    loglik_bruteforce = _hmm_bruteforce_loglik(obs_hmm, pi0_true, A_true, means_true, stds_true)
+    diff = abs(float(loglik_scaled) - float(loglik_bruteforce))
+    checks.append({
+        "name": "hmm_viterbi_accuracy_razonable",
+        "accuracy": round(acc, 4),
+        "passed": bool(acc > 0.7),
+    })
+    checks.append({
+        "name": "hmm_forward_backward_matches_bruteforce_loglik",
+        "loglik_scaled": round(float(loglik_scaled), 6),
+        "loglik_bruteforce": round(float(loglik_bruteforce), 6),
+        "diff": diff,
+        "passed": bool(diff < 1e-6),
+    })
+
+    # --- Kalman ---
+    Tk = 200
+    true_x = np.cumsum(rng.normal(0, 0.5, Tk))
+    obs_k = true_x + rng.normal(0, 2.0, Tk)
+    res_k = kalman({"observations": obs_k.tolist(), "process_var": 0.25, "obs_var": 4.0,
+                     "true_state": true_x.tolist()})
+    vk = res_k["validation"]
+    checks.append({
+        "name": "kalman_filtrado_mejora_sobre_obs_cruda_y_riccati_converge",
+        "mse_kalman_vs_true": vk["mse_kalman_vs_true"],
+        "mse_raw_obs_vs_true": vk["mse_raw_obs_vs_true"],
+        "riccati_diff": vk["riccati_diff"],
+        "passed": bool(vk["passed"]),
+    })
+
+    # --- Particle filter vs Kalman (mismo sistema, deberian coincidir con muchas particulas) ---
+    x_filt_kalman = np.array(res_k["filtered_state"])
+    res_pf = particle_filter({"observations": obs_k.tolist(), "process_var": 0.25, "obs_var": 4.0,
+                               "n_particles": 3000, "_compare_to_kalman": x_filt_kalman.tolist()})
+    vpf = res_pf["validation"]
+    checks.append({
+        "name": "particle_filter_converge_a_kalman_en_sistema_lineal_gaussiano",
+        "mean_relative_error_vs_kalman": vpf["mean_relative_error_vs_kalman"],
+        "passed": bool(vpf["passed"]),
+    })
+
+    # --- GARCH(1,1): recupera parametros conocidos desde datos sinteticos ---
+    omega_t, alpha_t, beta_t = 0.02, 0.1, 0.85
+    Tg = 3000
+    eps = rng.normal(0, 1, Tg)
+    sigma2_sim = np.zeros(Tg)
+    sigma2_sim[0] = omega_t / (1 - alpha_t - beta_t)
+    r_sim = np.zeros(Tg)
+    r_sim[0] = np.sqrt(sigma2_sim[0]) * eps[0]
+    for t in range(1, Tg):
+        sigma2_sim[t] = omega_t + alpha_t * r_sim[t - 1] ** 2 + beta_t * sigma2_sim[t - 1]
+        r_sim[t] = np.sqrt(sigma2_sim[t]) * eps[t]
+    res_g = garch({"returns": r_sim.tolist(), "true_params": [omega_t, alpha_t, beta_t],
+                    "n_restarts": 6, "seed": 1})
+    vg = res_g["validation"]
+    checks.append({
+        "name": "garch_recupera_parametros_conocidos_desde_datos_sinteticos",
+        "omega_rel_error": vg["omega_rel_error"],
+        "alpha_rel_error": vg["alpha_rel_error"],
+        "beta_rel_error": vg["beta_rel_error"],
+        "unconditional_variance_rel_error": vg["unconditional_variance_rel_error"],
+        "passed": bool(vg["passed"]),
+    })
+
+    all_passed = all(c["passed"] for c in checks)
+    return {"checks": checks, "validation_passed": all_passed}
+
+
 def compute_advanced_stochastic(mode, params=None):
     params = params or {}
     dispatch = {
@@ -454,6 +543,7 @@ def compute_advanced_stochastic(mode, params=None):
         "kalman": kalman,
         "particle_filter": particle_filter,
         "garch": garch,
+        "validate": validate,
     }
     if mode not in dispatch:
         return {"error": f"modo desconocido: {mode}. Modos validos: {list(dispatch.keys())}"}
@@ -469,7 +559,7 @@ TOOL_SCHEMA = {
         "properties": {
             "mode": {
                 "type": "string",
-                "enum": ["hmm", "kalman", "particle_filter", "garch"],
+                "enum": ["hmm", "kalman", "particle_filter", "garch", "validate"],
             },
             "params": {"type": "object"},
         },
@@ -547,7 +637,7 @@ if __name__ == "__main__":
 
 ADVANCED_STOCHASTIC_TOOL_SCHEMA = {   'type': 'object',
     'properties': {   'mode': {   'type': 'string',
-                                  'enum': ['hmm', 'kalman', 'particle_filter', 'garch']},
+                                  'enum': ['hmm', 'kalman', 'particle_filter', 'garch', 'validate']},
                       'params': {'type': 'object'}},
     'required': ['mode', 'params']}
 

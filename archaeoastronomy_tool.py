@@ -248,6 +248,87 @@ def compute_alignment_check(latitude, azimuth, year, body="sun", tolerance_deg=1
     }
 
 
+def validate():
+    """Checks anclados a valores astronomicos reales conocidos, verificados
+    de antemano contra el algoritmo de Meeus antes de escribir este patch."""
+    checks = []
+
+    # --- JD de J2000.0, epoca de referencia estandar ---
+    jd_j2000 = julian_day(2000, 1, 1, 12.0)
+    checks.append({
+        "name": "julian_day_epoca_j2000_exacta",
+        "expected": 2451545.0, "actual": jd_j2000,
+        "passed": bool(abs(jd_j2000 - 2451545.0) < 1e-9),
+    })
+
+    # --- oblicuidad eclíptica en J2000.0 cerca del valor IAU conocido ---
+    sp = solar_position(2451545.0)
+    eps = sp["obliquity_ecliptic"]
+    checks.append({
+        "name": "obliquidad_eclíptica_j2000_cerca_de_valor_iau",
+        "expected_approx": 23.4392911, "actual": eps, "diff": abs(eps - 23.4392911),
+        "passed": bool(abs(eps - 23.4392911) < 0.02),
+    })
+
+    # --- equinoccios/solsticios 2000 coinciden con fechas reales conocidas ---
+    eq2000 = compute_equinox_solstice(2000, "all")
+    known_real = {
+        "march_equinox": ("02000-03-20", 7.35),
+        "june_solstice": ("02000-06-21", 1.80),
+        "september_equinox": ("02000-09-22", 17.47),
+        "december_solstice": ("02000-12-21", 13.62),
+    }
+    eq_checks = []
+    all_eq_ok = True
+    for name, (expected_date, expected_hour) in known_real.items():
+        got = eq2000["events"][name]
+        date_ok = got["calendar_date_utc"] == expected_date
+        hour_diff = abs(got["hour_utc"] - expected_hour)
+        hour_ok = hour_diff < 1.5
+        ok = date_ok and hour_ok
+        all_eq_ok = all_eq_ok and ok
+        eq_checks.append({"event": name, "expected_date": expected_date, "got_date": got["calendar_date_utc"],
+                           "expected_hour": expected_hour, "got_hour": got["hour_utc"], "passed": ok})
+    checks.append({
+        "name": "equinoccios_solsticios_2000_coinciden_con_fechas_reales",
+        "detail": eq_checks,
+        "passed": bool(all_eq_ok),
+    })
+
+    # --- alignment_check autoconsistente con _rise_set_azimuth ---
+    lat_test, dec_test = 45.0, 23.436
+    rs = _rise_set_azimuth(lat_test, dec_test)
+    az_rise = rs[0] if rs else None
+    round_trip_diff = None
+    round_trip_ok = False
+    if az_rise is not None:
+        back = compute_alignment_check(lat_test, az_rise, 2000, body="sun", tolerance_deg=0.01)
+        round_trip_diff = abs(back["implied_declination"] - dec_test)
+        round_trip_ok = round_trip_diff < 1e-6
+    checks.append({
+        "name": "alignment_check_autoconsistente_con_rise_set_azimuth",
+        "latitude": lat_test, "declination_original": dec_test, "azimuth_calculado": az_rise,
+        "declination_recuperada_diff": round_trip_diff,
+        "passed": bool(round_trip_ok),
+    })
+
+    # --- declinacion lunar dentro del limite fisico conocido (~28.6 grados) ---
+    decs = []
+    for y in range(1990, 2010):
+        for m in range(1, 13, 3):
+            jd = julian_day(y, m, 15)
+            decs.append(lunar_position(jd)["declination"])
+    max_abs_dec = max(abs(d) for d in decs)
+    checks.append({
+        "name": "declinacion_lunar_dentro_de_limite_fisico_conocido",
+        "max_abs_declination_observada": round(max_abs_dec, 4), "limite_fisico_esperado": 28.7,
+        "passed": bool(max_abs_dec < 28.7),
+    })
+
+    all_passed = all(c["passed"] for c in checks)
+    return {"checks": checks, "validation_passed": all_passed}
+
+
 def compute_archaeoastronomy(mode, **kwargs):
     if mode == "solar_position":
         jd = kwargs.get("julian_day")
@@ -276,6 +357,8 @@ def compute_archaeoastronomy(mode, **kwargs):
         jd = julian_day(kwargs["year"], kwargs["month"], kwargs["day"], kwargs.get("hour", 12.0))
         return {"mode": "julian_day", "year": kwargs["year"], "month": kwargs["month"],
                 "day": kwargs["day"], "hour": kwargs.get("hour", 12.0), "julian_day": round(jd, 5)}
+    elif mode == "validate":
+        return validate()
     else:
         raise ValueError(f"modo desconocido: {mode}")
 
@@ -297,7 +380,7 @@ ARCHAEOASTRONOMY_TOOL_SCHEMA = {
         "properties": {
             "mode": {
                 "type": "string",
-                "enum": ["solar_position", "lunar_position", "equinox_solstice", "alignment_check", "julian_day"],
+                "enum": ["solar_position", "lunar_position", "equinox_solstice", "alignment_check", "julian_day", "validate"],
             },
             "year": {"type": "integer", "description": "todos los modos excepto julian_day directo; negativo = a.C. astronomico"},
             "month": {"type": "integer"},

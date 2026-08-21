@@ -709,6 +709,100 @@ def _mode_hdo_degree(p):
 # ---------------------------------------------------------------------------
 # Dispatcher principal
 # ---------------------------------------------------------------------------
+def _mode_validate(params=None):
+    """Checks verificados de antemano en un sandbox aislado (mismo codigo)
+    contra calculo manual independiente, valores tipicos de literatura, e
+    inversion analitica de datos sinteticos sin ruido."""
+    checks = []
+
+    # --- mass_balance: cierre exacto de la incognita ---
+    mb = _mode_mass_balance({
+        "streams_in": [{"nombre": "biomasa", "m": 100.0}],
+        "streams_out": [{"nombre": "biocombustible", "m": 35.0}, {"nombre": "char", "m": None}],
+    })
+    m_solved = mb["incognita_resuelta"]["m_solved"]
+    checks.append({
+        "name": "mass_balance_cierre_incognita_exacto",
+        "expected": 65.0, "actual": m_solved,
+        "passed": bool(abs(m_solved - 65.0) < 1e-9),
+    })
+
+    # --- energy_balance: Q resuelto vs calculo manual independiente ---
+    eb = _mode_energy_balance({
+        "streams_in": [{"nombre": "in", "m": 10.0, "cp": 2000.0, "T": 400.0}],
+        "streams_out": [{"nombre": "out", "m": 10.0, "cp": 2000.0, "T": 300.0}],
+    })
+    T_ref = T_REF_DEFAULT
+    H_in_manual = 10.0 * 2000.0 * (400.0 - T_ref)
+    H_out_manual = 10.0 * 2000.0 * (300.0 - T_ref)
+    Q_manual = H_out_manual - H_in_manual
+    checks.append({
+        "name": "energy_balance_Q_coincide_con_calculo_manual",
+        "expected": Q_manual, "actual": eb["Q_solved"],
+        "passed": bool(abs(eb["Q_solved"] - Q_manual) < 1e-6),
+    })
+
+    # --- hhv_correlation: celulosa pura cae en rango tipico de literatura ---
+    hhv = _mode_hhv_correlation({"C": 44.4, "H": 6.2, "O": 49.4, "N": 0.0, "S": 0.0, "Ash": 0.0})
+    hhv_val = hhv["HHV_MJ_kg"]
+    checks.append({
+        "name": "hhv_celulosa_pura_en_rango_tipico_literatura",
+        "actual": hhv_val, "rango_esperado": [17.0, 18.5],
+        "passed": bool(17.0 <= hhv_val <= 18.5),
+    })
+
+    # --- yield_efficiency: caso de numeros redondos, eficiencia exacta conocida ---
+    ye = _mode_yield_efficiency({
+        "m_feed": 100.0, "HHV_feed": 20.0,
+        "productos": [{"nombre": "bio-oil", "m": 40.0, "HHV": 25.0}],
+        "Q_utilities": 0.0,
+    })
+    checks.append({
+        "name": "yield_efficiency_numeros_redondos_exacto",
+        "expected": 0.5, "actual": ye["eficiencia_energetica_global"],
+        "passed": bool(abs(ye["eficiencia_energetica_global"] - 0.5) < 1e-9),
+    })
+
+    # --- arrhenius: dos_puntos y regresion recuperan A,Ea desde datos sinteticos sin ruido ---
+    A_true, Ea_true = 1.0e13, 150000.0
+    Ts = [623.15, 673.15, 723.15, 773.15]
+    ks = [A_true * math.exp(-Ea_true / (R_GAS * T)) for T in Ts]
+    dp = _mode_arrhenius({"submodo": "dos_puntos", "T1": Ts[0], "k1": ks[0], "T2": Ts[-1], "k2": ks[-1]})
+    ea_dp_ok = abs(dp["Ea_J_mol"] - Ea_true) / Ea_true < 1e-6
+    a_dp_ok = abs(dp["A"] - A_true) / A_true < 1e-6
+    datos = [{"T": T, "k": k} for T, k in zip(Ts, ks)]
+    reg = _mode_arrhenius({"submodo": "regresion", "datos": datos})
+    ea_reg_ok = abs(reg["Ea_J_mol"] - Ea_true) / Ea_true < 1e-6
+    r2_ok = reg["r_cuadrado"] is not None and reg["r_cuadrado"] > 0.999999
+    checks.append({
+        "name": "arrhenius_dos_puntos_y_regresion_recuperan_parametros_exactos",
+        "Ea_dos_puntos": dp["Ea_J_mol"], "A_dos_puntos": dp["A"],
+        "Ea_regresion": reg["Ea_J_mol"], "r_cuadrado_regresion": reg["r_cuadrado"],
+        "passed": bool(ea_dp_ok and a_dp_ok and ea_reg_ok and r2_ok),
+    })
+
+    # --- batch_conversion: ida y vuelta (X->t->X) para ordenes 0,1,2 ---
+    round_trip_checks = []
+    all_rt_ok = True
+    for orden in [0, 1, 2]:
+        C0, k, X_in = 5.0, 0.02, 0.7
+        fwd = _mode_batch_conversion({"orden": orden, "C0": C0, "k": k, "X": X_in})
+        t_solved = fwd["t"]
+        back = _mode_batch_conversion({"orden": orden, "C0": C0, "k": k, "t": t_solved})
+        ok = abs(back["X"] - X_in) < 1e-6
+        all_rt_ok = all_rt_ok and ok
+        round_trip_checks.append({"orden": orden, "X_original": X_in, "t_solved": t_solved,
+                                    "X_recuperado": back["X"], "passed": ok})
+    checks.append({
+        "name": "batch_conversion_ida_vuelta_ordenes_0_1_2",
+        "detail": round_trip_checks,
+        "passed": bool(all_rt_ok),
+    })
+
+    all_passed = all(c["passed"] for c in checks)
+    return {"checks": checks, "validation_passed": all_passed}
+
+
 def compute_biorefinery(mode, params=None):
     params = params or {}
     if mode == "mass_balance":
@@ -731,11 +825,13 @@ def compute_biorefinery(mode, params=None):
         return _mode_hdo_stoichiometry(params)
     elif mode == "hdo_degree":
         return _mode_hdo_degree(params)
+    elif mode == "validate":
+        return _mode_validate(params)
     else:
         raise ValueError(
             f"Modo desconocido: {mode}. Usar: mass_balance | energy_balance | "
             "hhv_correlation | yield_efficiency | arrhenius | rate_law | "
-            "batch_conversion | pyrolysis_yield | hdo_stoichiometry | hdo_degree"
+            "batch_conversion | pyrolysis_yield | hdo_stoichiometry | hdo_degree | validate"
         )
 
 
@@ -775,7 +871,7 @@ BIOREFINERY_TOOL_SCHEMA = {
                 "enum": [
                     "mass_balance", "energy_balance", "hhv_correlation", "yield_efficiency",
                     "arrhenius", "rate_law", "batch_conversion", "pyrolysis_yield",
-                    "hdo_stoichiometry", "hdo_degree",
+                    "hdo_stoichiometry", "hdo_degree", "validate",
                 ],
             },
             "params": {"type": "object"},
