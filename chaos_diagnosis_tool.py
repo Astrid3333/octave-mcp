@@ -25,6 +25,7 @@ y extrae la serie diaria del campo "daily" para alimentar el pipeline.
 
 import math
 import random
+import numpy as np
 
 try:
     from hydrometeo_data_tool import compute_hydrometeo_data
@@ -212,6 +213,38 @@ def _select_m(x, tau, m_max=8, fnn_threshold=0.05, max_points=400):
 # Exponente de Lyapunov maximo: metodo de Rosenstein
 # ---------------------------------------------------------------------------
 
+
+def _pairwise_nearest_excluding(arr, theiler_window, chunk_size=500):
+    """Para cada fila de arr (n x m), busca el vecino mas cercano (distancia
+    euclidiana) excluyendo indices j con abs(i-j) <= theiler_window y
+    distancias <= 0. Procesa en chunks de filas para no materializar una
+    matriz n x n completa en memoria. Devuelve (best_j, best_d) como arrays
+    de numpy; best_j = -1 y best_d = inf donde no hay vecino valido."""
+    n = arr.shape[0]
+    best_j = np.full(n, -1, dtype=np.int64)
+    best_d = np.full(n, np.inf, dtype=np.float64)
+    sq_norms = np.sum(arr * arr, axis=1)
+    for start in range(0, n, chunk_size):
+        end = min(start + chunk_size, n)
+        chunk = arr[start:end]
+        # ||a-b||^2 = ||a||^2 + ||b||^2 - 2*a.b, via BLAS (np.dot) en vez de
+        # broadcasting elemento a elemento -- mucho menos alloc/memoria para
+        # dimension baja (m chico), mismo resultado salvo error de redondeo.
+        sq_dist = sq_norms[start:end, None] + sq_norms[None, :] - 2.0 * chunk.dot(arr.T)
+        np.maximum(sq_dist, 0.0, out=sq_dist)  # corrige negativos espurios de redondeo
+        dist = np.sqrt(sq_dist)
+        i_idx = np.arange(start, end)[:, None]
+        j_idx = np.arange(n)[None, :]
+        mask = np.abs(i_idx - j_idx) <= theiler_window
+        dist = np.where(mask, np.inf, dist)
+        dist = np.where(dist <= 0, np.inf, dist)
+        local_j = np.argmin(dist, axis=1)
+        local_d = dist[np.arange(end - start), local_j]
+        best_j[start:end] = local_j
+        best_d[start:end] = local_d
+    return best_j, best_d
+
+
 def _rosenstein_lambda1(x, m, tau, dt=1.0, theiler_window=None, fit_frac=(0.05, 0.5)):
     emb = _embed(x, m, tau)
     n = len(emb)
@@ -220,16 +253,12 @@ def _rosenstein_lambda1(x, m, tau, dt=1.0, theiler_window=None, fit_frac=(0.05, 
     if theiler_window is None:
         theiler_window = m * tau
 
-    nearest = []
-    for i in range(n):
-        best_j, best_d = None, float("inf")
-        for j in range(n):
-            if abs(j - i) <= theiler_window:
-                continue
-            d = _euclid(emb[i], emb[j])
-            if d < best_d and d > 0:
-                best_d, best_j = d, j
-        nearest.append((best_j, best_d))
+    arr = np.array(emb, dtype=np.float64)
+    bj, bd = _pairwise_nearest_excluding(arr, theiler_window)
+    nearest = [
+        (int(bj[i]) if np.isfinite(bd[i]) else None, float(bd[i]) if np.isfinite(bd[i]) else float("inf"))
+        for i in range(n)
+    ]
 
     # Techo de k independiente del peor caso individual: el bucle interno ya
     # corta por punto (ii>=n or jj>=n) si un vecino particular esta cerca del
@@ -282,29 +311,13 @@ def _rosenstein_lambda1(x, m, tau, dt=1.0, theiler_window=None, fit_frac=(0.05, 
 # ---------------------------------------------------------------------------
 
 def _dft(x):
-    n = len(x)
-    re = [0.0] * n
-    im = [0.0] * n
-    for k in range(n):
-        s_re = s_im = 0.0
-        for t in range(n):
-            ang = -2 * math.pi * k * t / n
-            s_re += x[t] * math.cos(ang)
-            s_im += x[t] * math.sin(ang)
-        re[k], im[k] = s_re, s_im
-    return re, im
+    X = np.fft.fft(np.asarray(x, dtype=np.float64))
+    return X.real.tolist(), X.imag.tolist()
 
 
 def _idft(re, im):
-    n = len(re)
-    out = [0.0] * n
-    for t in range(n):
-        s = 0.0
-        for k in range(n):
-            ang = 2 * math.pi * k * t / n
-            s += re[k] * math.cos(ang) - im[k] * math.sin(ang)
-        out[t] = s / n
-    return out
+    X = np.asarray(re, dtype=np.float64) + 1j * np.asarray(im, dtype=np.float64)
+    return np.fft.ifft(X).real.tolist()
 
 
 def _amplitudes(re, im):

@@ -29,12 +29,22 @@ Uso:
 Exit code: 0 si no hubo FAILED ni ERROR, 1 en caso contrario.
 """
 
+import concurrent.futures
 import json
+import os
 import subprocess
 import sys
 import time
 
 SERVER_PATH = "server.py"
+
+# Cuantas instancias de server.py correr en paralelo, cada una con un
+# subconjunto de tools (mismo mecanismo secuencial de siempre -- batch de
+# requests JSON-RPC por stdin -- solo que en paralelo). Default conservador:
+# min(cores, 4) para no saturar la maquina si varias tools stiff (ej.
+# enzyme_kinetics, ~50s) caen en el mismo momento en distintos chunks.
+# Ajustable con la env var PARALLEL_WORKERS.
+PARALLEL_WORKERS = int(os.environ.get("PARALLEL_WORKERS", min(os.cpu_count() or 4, 4)))
 TIMEOUT_SECONDS = 900  # subido de 300: con 73 tools validate llego a 279.6s (casi al limite). 900 da margen para que la suite siga creciendo sin repetir este ajuste cada pocas tools.
 
 # Tools que declaran "validate" en su enum de mode pero mode=validate
@@ -130,6 +140,107 @@ def build_requests(tools):
     return requests, tool_id_map, skipped
 
 
+def _round_robin_chunks(tools, n_chunks):
+    """Reparte la lista de tools en n_chunks grupos por round-robin (no
+    contiguo), para no clusterizar tools pesadas que quedaron registradas
+    cerca unas de otras."""
+    chunks = [[] for _ in range(n_chunks)]
+    for i, t in enumerate(tools):
+        chunks[i % n_chunks].append(t)
+    return [c for c in chunks if c]  # descarta chunks vacios si hay menos tools que workers
+
+
+def _run_chunk(chunk_tools, id_offset):
+    """Corre un subprocess de server.py con initialize+tools/list+tools/call
+    para el subconjunto chunk_tools, usando IDs offseteados para que no
+    choquen con los de otros chunks al mergear despues."""
+    requests = [
+        {"jsonrpc": "2.0", "id": id_offset + 1, "method": "initialize", "params": {}},
+        {"jsonrpc": "2.0", "id": id_offset + 2, "method": "tools/list", "params": {}},
+    ]
+    tool_id_map = {}
+    next_id = id_offset + 3
+    skipped = []
+
+    for t in chunk_tools:
+        name = t["name"]
+        mode_prop = t.get("inputSchema", {}).get("properties", {}).get("mode", {})
+        enum = mode_prop.get("enum")
+        mode_to_call = "validate"
+        if enum is None or "validate" not in enum:
+            if name in ALTERNATE_VALIDATE_MODE:
+                mode_to_call = ALTERNATE_VALIDATE_MODE[name]
+            else:
+                skipped.append((name, "sin modo validate en el schema"))
+                continue
+        if name in KNOWN_NON_STANDARD_VALIDATE:
+            skipped.append((name, KNOWN_NON_STANDARD_VALIDATE[name]))
+            continue
+        arguments = {"mode": mode_to_call}
+        if name not in FLAT_SIGNATURE_TOOLS:
+            arguments["params"] = {}
+        requests.append({
+            "jsonrpc": "2.0",
+            "id": next_id,
+            "method": "tools/call",
+            "params": {"name": name, "arguments": arguments},
+        })
+        tool_id_map[next_id] = name
+        next_id += 1
+
+    if not tool_id_map:
+        return tool_id_map, skipped, {}, 0.0, ""
+
+    input_data = "\n".join(json.dumps(r) for r in requests) + "\n"
+    t0 = time.time()
+    proc = subprocess.run(
+        ["python3", SERVER_PATH], input=input_data,
+        capture_output=True, text=True, timeout=TIMEOUT_SECONDS,
+    )
+    elapsed = time.time() - t0
+
+    responses = {}
+    for line in proc.stdout.splitlines():
+        if not line.strip():
+            continue
+        try:
+            d = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        rid = d.get("id")
+        if rid in tool_id_map:
+            responses[rid] = d
+
+    return tool_id_map, skipped, responses, elapsed, proc.stderr
+
+
+def run_validations_parallel(tools, n_workers):
+    """Reparte 'tools' en n_workers chunks y corre un subprocess de
+    server.py por chunk en paralelo (threads -- subprocess.run libera el
+    GIL mientras espera, no hace falta multiprocessing). Devuelve
+    (tool_id_map, skipped, responses, elapsed_wall, stderrs) con la MISMA
+    forma que el camino secuencial, para que el resto de main() no cambie."""
+    chunks = _round_robin_chunks(tools, n_workers)
+    tool_id_map, skipped, responses, stderrs = {}, [], {}, []
+
+    t0 = time.time()
+    with concurrent.futures.ThreadPoolExecutor(max_workers=len(chunks)) as ex:
+        futures = [
+            ex.submit(_run_chunk, chunk, idx * 1_000_000)
+            for idx, chunk in enumerate(chunks)
+        ]
+        for fut in concurrent.futures.as_completed(futures):
+            c_map, c_skipped, c_responses, c_elapsed, c_stderr = fut.result()
+            tool_id_map.update(c_map)
+            skipped.extend(c_skipped)
+            responses.update(c_responses)
+            if c_stderr.strip():
+                stderrs.append(c_stderr)
+    elapsed = time.time() - t0
+
+    return tool_id_map, skipped, responses, elapsed, stderrs
+
+
 def main():
     verbose = "--verbose" in sys.argv
 
@@ -159,31 +270,47 @@ def main():
 
     print(f"Total de tools registradas: {len(tools)}\n")
 
-    requests, tool_id_map, skipped = build_requests(tools)
-    print(f"Tools con modo 'validate' detectado: {len(tool_id_map)}")
-    print(f"Tools sin modo 'validate' (SKIPPED): {len(skipped)}\n")
-
-    print("Ejecutando validaciones (un solo subprocess, puede tardar)...")
-    t0 = time.time()
-    input_data = "\n".join(json.dumps(r) for r in requests) + "\n"
-    proc = subprocess.run(
-        ["python3", SERVER_PATH], input=input_data,
-        capture_output=True, text=True, timeout=TIMEOUT_SECONDS,
-    )
-    elapsed = time.time() - t0
+    # Camino secuencial (build_requests) se mantiene disponible via
+    # PARALLEL_WORKERS=1 por si hace falta comparar o hay algun problema
+    # de contencion en la maquina.
+    if PARALLEL_WORKERS <= 1:
+        requests, tool_id_map, skipped = build_requests(tools)
+        print(f"Tools con modo 'validate' detectado: {len(tool_id_map)}")
+        print(f"Tools sin modo 'validate' (SKIPPED): {len(skipped)}\n")
+        print("Ejecutando validaciones (un solo subprocess, puede tardar)...")
+        t0 = time.time()
+        input_data = "\n".join(json.dumps(r) for r in requests) + "\n"
+        proc = subprocess.run(
+            ["python3", SERVER_PATH], input=input_data,
+            capture_output=True, text=True, timeout=TIMEOUT_SECONDS,
+        )
+        elapsed = time.time() - t0
+        responses = {}
+        for line in proc.stdout.splitlines():
+            if not line.strip():
+                continue
+            try:
+                d = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            rid = d.get("id")
+            if rid in tool_id_map:
+                responses[rid] = d
+    else:
+        # clasificacion rapida solo para el print de conteo (no gasta subprocess)
+        _, tool_id_map_preview, skipped = build_requests(tools)
+        print(f"Tools con modo 'validate' detectado: {len(tool_id_map_preview)}")
+        print(f"Tools sin modo 'validate' (SKIPPED): {len(skipped)}\n")
+        print(f"Ejecutando validaciones en paralelo ({PARALLEL_WORKERS} workers, "
+              f"cada uno un subprocess de server.py con su subset de tools)...")
+        tool_id_map, skipped, responses, elapsed, stderrs = run_validations_parallel(
+            tools, PARALLEL_WORKERS
+        )
+        if stderrs:
+            print(f"AVISO: {len(stderrs)} chunk(s) escribieron a stderr -- "
+                  f"correr con PARALLEL_WORKERS=1 --verbose si algo da ERROR "
+                  f"para aislar cual chunk fue.")
     print(f"Listo en {elapsed:.1f}s.\n")
-
-    responses = {}
-    for line in proc.stdout.splitlines():
-        if not line.strip():
-            continue
-        try:
-            d = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        rid = d.get("id")
-        if rid in tool_id_map:
-            responses[rid] = d
 
     passed, failed, errored = [], [], []
 
