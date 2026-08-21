@@ -134,6 +134,8 @@ import tool_catalog_tool  # auto-registra via tool_registry, no requiere mas edi
 import scalar_field_cosmology_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import vacuum_energy_density_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import unified_dark_sector_tool  # auto-registra via tool_registry, no requiere mas ediciones
+import toxicity_predictor  # auto-registra via tool_registry
+import virtual_pharmacokinetics  # auto-registra via tool_registry
 from archaeoastronomy_tool import compute_archaeoastronomy, ARCHAEOASTRONOMY_TOOL_SCHEMA
 from quantum_information_tool import compute_quantum_information, QUANTUM_INFORMATION_TOOL_SCHEMA
 from octave_infra_tool import octave_run, octave_eval_expr, octave_run_script, octave_version
