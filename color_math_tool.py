@@ -276,22 +276,97 @@ def compute_contrast_ratio(params):
 # distancia perceptual
 # ---------------------------------------------------------------------------
 
+def _delta_e_2000(lab1, lab2):
+    """CIEDE2000 -- corrige las distorsiones de CIE76 en zonas saturadas
+    via compensacion de L'/C'/H' y el termino de rotacion R_T. Referencia:
+    Sharma, Wu & Dalal (2005)."""
+    L1, a1, b1 = lab1
+    L2, a2, b2 = lab2
+
+    C1 = np.sqrt(a1 ** 2 + b1 ** 2)
+    C2 = np.sqrt(a2 ** 2 + b2 ** 2)
+    C_bar = (C1 + C2) / 2.0
+
+    G = 0.5 * (1 - np.sqrt((C_bar ** 7) / (C_bar ** 7 + 25.0 ** 7)))
+
+    a1p = (1 + G) * a1
+    a2p = (1 + G) * a2
+
+    C1p = np.sqrt(a1p ** 2 + b1 ** 2)
+    C2p = np.sqrt(a2p ** 2 + b2 ** 2)
+
+    h1p = np.degrees(np.arctan2(b1, a1p)) % 360
+    h2p = np.degrees(np.arctan2(b2, a2p)) % 360
+
+    dLp = L2 - L1
+    dCp = C2p - C1p
+
+    if C1p * C2p == 0:
+        dhp = 0.0
+    else:
+        dh = h2p - h1p
+        if dh > 180:
+            dh -= 360
+        elif dh < -180:
+            dh += 360
+        dhp = dh
+    dHp = 2 * np.sqrt(C1p * C2p) * np.sin(np.radians(dhp) / 2.0)
+
+    L_bar_p = (L1 + L2) / 2.0
+    C_bar_p = (C1p + C2p) / 2.0
+
+    if C1p * C2p == 0:
+        h_bar_p = h1p + h2p
+    elif abs(h1p - h2p) > 180:
+        h_bar_p = (h1p + h2p + 360) / 2.0 if (h1p + h2p) < 360 else (h1p + h2p - 360) / 2.0
+    else:
+        h_bar_p = (h1p + h2p) / 2.0
+
+    T = (
+        1
+        - 0.17 * np.cos(np.radians(h_bar_p - 30))
+        + 0.24 * np.cos(np.radians(2 * h_bar_p))
+        + 0.32 * np.cos(np.radians(3 * h_bar_p + 6))
+        - 0.20 * np.cos(np.radians(4 * h_bar_p - 63))
+    )
+
+    d_theta = 30 * np.exp(-(((h_bar_p - 275) / 25.0) ** 2))
+    R_C = 2 * np.sqrt((C_bar_p ** 7) / (C_bar_p ** 7 + 25.0 ** 7))
+
+    S_L = 1 + (0.015 * (L_bar_p - 50) ** 2) / np.sqrt(20 + (L_bar_p - 50) ** 2)
+    S_C = 1 + 0.045 * C_bar_p
+    S_H = 1 + 0.015 * C_bar_p * T
+
+    R_T = -np.sin(np.radians(2 * d_theta)) * R_C
+
+    dE = np.sqrt(
+        (dLp / S_L) ** 2
+        + (dCp / S_C) ** 2
+        + (dHp / S_H) ** 2
+        + R_T * (dCp / S_C) * (dHp / S_H)
+    )
+    return float(dE)
+
+
 def compute_perceptual_distance(params):
     c1 = params.get("color1")
     c2 = params.get("color2")
     metric = params.get("metric", "cie76")
     if c1 is None or c2 is None:
         raise ValueError("faltan 'color1' y/o 'color2'")
-    if metric != "cie76":
-        raise ValueError(f"metrica no soportada: {metric!r} (por ahora solo 'cie76')")
+    if metric not in ("cie76", "ciede2000"):
+        raise ValueError(f"metrica no soportada: {metric!r} (usar 'cie76' o 'ciede2000')")
 
     lab1 = np.array(rgb_to_lab(c1))
     lab2 = np.array(rgb_to_lab(c2))
-    delta_e = float(np.linalg.norm(lab1 - lab2))
+    if metric == "ciede2000":
+        delta_e = _delta_e_2000(lab1, lab2)
+    else:
+        delta_e = float(np.linalg.norm(lab1 - lab2))
 
     return {
         "mode": "perceptual_distance",
-        "metric": "cie76",
+        "metric": metric,
         "delta_e": round(delta_e, 6),
         "lab_color1": [round(v, 4) for v in lab1.tolist()],
         "lab_color2": [round(v, 4) for v in lab2.tolist()],
@@ -408,6 +483,37 @@ def run_self_test():
         f"far={d_far['delta_e']:.2f} near={d_near['delta_e']:.2f}",
     )
 
+    # 10b) ciede2000: mismo color = 0
+    d2_same = compute_perceptual_distance({"color1": [80, 40, 200], "color2": [80, 40, 200], "metric": "ciede2000"})
+    check("ciede2000_mismo_color_es_cero", d2_same["delta_e"] < 1e-9, f"delta_e={d2_same['delta_e']}")
+
+    # 10c) ciede2000 tambien es monotonica (lejos > cerca)
+    d2_far = compute_perceptual_distance({"color1": [255, 0, 0], "color2": [0, 255, 0], "metric": "ciede2000"})
+    d2_near = compute_perceptual_distance({"color1": [255, 0, 0], "color2": [250, 5, 5], "metric": "ciede2000"})
+    check(
+        "ciede2000_monotonica",
+        d2_far["delta_e"] > d2_near["delta_e"],
+        f"far={d2_far['delta_e']:.2f} near={d2_near['delta_e']:.2f}",
+    )
+
+    # 10d) ciede2000 difiere de cie76 en colores saturados -- confirma que
+    # compute_perceptual_distance realmente despacha segun 'metric' y no
+    # cae siempre en cie76 por error de dispatch
+    d76_sat = compute_perceptual_distance({"color1": [255, 0, 0], "color2": [0, 255, 0], "metric": "cie76"})
+    d00_sat = compute_perceptual_distance({"color1": [255, 0, 0], "color2": [0, 255, 0], "metric": "ciede2000"})
+    check(
+        "ciede2000_difiere_de_cie76_en_saturados",
+        abs(d00_sat["delta_e"] - d76_sat["delta_e"]) > 1.0,
+        f"cie76={d76_sat['delta_e']:.2f} ciede2000={d00_sat['delta_e']:.2f}",
+    )
+
+    # 10e) ValueError con metrica desconocida
+    try:
+        compute_perceptual_distance({"color1": [10, 20, 30], "color2": [10, 20, 30], "metric": "no_existe"})
+        check("valueerror_metrica_desconocida_en_perceptual_distance", False, "no se levanto excepcion")
+    except ValueError:
+        check("valueerror_metrica_desconocida_en_perceptual_distance", True, "")
+
     # 11) armonia complementaria: diferencia de matiz es 180 grados
     h = compute_harmony({"base_color": [200, 50, 50], "scheme": "complementary"})
     base_h = h["base"]["hsl"][0]
@@ -494,7 +600,7 @@ COLOR_MATH_TOOL_SCHEMA = {
                     "to": {"type": "string", "enum": sorted(_VALID_SPACES), "description": "espacio de destino (mode=convert)"},
                     "color1": {"type": "array", "description": "[r,g,b] 0-255 (mode=contrast_ratio, perceptual_distance)"},
                     "color2": {"type": "array", "description": "[r,g,b] 0-255 (mode=contrast_ratio, perceptual_distance)"},
-                    "metric": {"type": "string", "enum": ["cie76"], "default": "cie76", "description": "mode=perceptual_distance"},
+                    "metric": {"type": "string", "enum": ["cie76", "ciede2000"], "default": "cie76", "description": "mode=perceptual_distance"},
                     "base_color": {"type": "array", "description": "color base para la paleta (mode=harmony)"},
                     "space": {"type": "string", "enum": sorted(_VALID_SPACES), "default": "rgb", "description": "espacio de base_color (mode=harmony)"},
                     "scheme": {
