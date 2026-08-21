@@ -142,6 +142,7 @@ import kinematics_simulator  # auto-registra via tool_registry
 import vector_field_visualizer  # auto-registra via tool_registry
 import vector_optimizer  # auto-registra via tool_registry
 import machine_learning_vector_tool  # auto-registra via tool_registry
+import color_math_tool  # auto-registra via tool_registry
 from archaeoastronomy_tool import compute_archaeoastronomy, ARCHAEOASTRONOMY_TOOL_SCHEMA
 from quantum_information_tool import compute_quantum_information, QUANTUM_INFORMATION_TOOL_SCHEMA
 from octave_infra_tool import octave_run, octave_eval_expr, octave_run_script, octave_version

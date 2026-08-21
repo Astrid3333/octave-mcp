@@ -68,6 +68,13 @@ ALTERNATE_VALIDATE_MODE = {
     "vacuum_energy_density_tool": "self_test",
     "quantum_cosmology_tool": "self_test",
     "cosmological_mcmc_tool": "mock_recovery",
+    "genESOM_simulator": "self_test",
+    "kinematics_simulator": "self_test",
+    "vector_calculus_tool": "self_test",
+    "vector_field_visualizer": "self_test",
+    "vector_optimizer": "self_test",
+    "machine_learning_vector_tool": "self_test",
+    "color_math_tool": "self_test",
     # NOTA (2026-08-20): plague_sir, settlement_clusters, historical_extractor
     # y abstract_algebra estuvieron mapeadas aca hasta que se confirmo que su
     # inputSchema ya declara "validate" en el enum de mode -- el chequeo
