@@ -46,7 +46,7 @@ ANCIENT_CALC_SCHEMA = {
         "properties": {
             "preset": {
                 "type": "string",
-                "enum": ["suanpan", "soroban", "roman_hand_abacus", "yupana_depasquale"],
+                "enum": ["suanpan", "soroban", "roman_hand_abacus", "yupana_depasquale", "validate"],
             },
             "params": {"type": "object"},
         },
@@ -255,6 +255,81 @@ def compute_yupana_depasquale(value):
     }
 
 
+def validate(params=None):
+    """Checks anclados a aritmetica verificable a mano, no solo 'no exploto'."""
+    checks = []
+
+    # --- suanpan: suma con acarreo real, comparada contra Python nativo ---
+    a, b = 678, 459
+    res = compute_suanpan(mode="add", a=a, b=b)
+    checks.append({
+        "name": "suanpan_add_con_acarreo_coincide_con_aritmetica_nativa",
+        "a": a, "b": b, "expected": a + b, "actual": res.get("result"),
+        "passed": bool(res.get("result") == a + b and res.get("check") is True),
+    })
+
+    # --- soroban: digito 9 debe usar 1 cuenta cielo (x5) + 4 tierra (x1) ---
+    res_sb = compute_soroban(mode="encode", value=9)
+    rod = res_sb["rods"][0] if "rods" in res_sb and res_sb["rods"] else {}
+    checks.append({
+        "name": "soroban_encode_digito_9_usa_beads_documentados",
+        "heaven_active": rod.get("heaven_active"), "earth_active": rod.get("earth_active"),
+        "passed": bool(rod.get("heaven_active") == 1 and rod.get("earth_active") == 4),
+    })
+
+    # --- roman_hand_abacus: acarreo duodecimal se propaga al entero ---
+    res_r = compute_roman_hand_abacus(mode="add", integer_a=1994, integer_b=7,
+                                       unciae_a=6, unciae_b=8)
+    checks.append({
+        "name": "roman_hand_abacus_acarreo_duodecimal_propaga_a_entero",
+        "unciae_sum_raw": res_r.get("unciae_sum_raw"),
+        "unciae_final": res_r.get("unciae_final"),
+        "unciae_carry_to_integer": res_r.get("unciae_carry_to_integer"),
+        "total_integer": res_r.get("total_integer"),
+        "passed": bool(res_r.get("unciae_sum_raw") == 14
+                        and res_r.get("unciae_final") == 2
+                        and res_r.get("unciae_carry_to_integer") == 1
+                        and res_r.get("total_integer") == 2002),
+    })
+
+    # --- yupana: reconstruccion base-40 del valor original ---
+    value = 1994
+    res_y = compute_yupana_depasquale(value)
+    digits = res_y.get("base40_digits_most_significant_first", [])
+    reconstructed = 0
+    for d in digits:
+        reconstructed = reconstructed * 40 + d
+    checks.append({
+        "name": "yupana_base40_reconstruye_valor_original",
+        "value": value, "digits": digits, "reconstructed": reconstructed,
+        "passed": bool(reconstructed == value),
+    })
+
+    # --- yupana: cada fila de campos Fibonacci suma al digito que codifica ---
+    rows_ok = True
+    row_detail = []
+    for row in res_y.get("rows", []):
+        field_sum = sum(f["field_value"] * f["counters"] for f in row["fields"])
+        ok = field_sum == row["base40_digit"]
+        rows_ok = rows_ok and ok
+        row_detail.append({"digit": row["base40_digit"], "field_sum": field_sum, "passed": ok})
+    checks.append({
+        "name": "yupana_campos_fibonacci_suman_al_digito_base40",
+        "rows": row_detail,
+        "passed": bool(rows_ok),
+    })
+
+    # --- yupana: value negativo no crashea, devuelve error estructurado ---
+    res_neg = compute_yupana_depasquale(-5)
+    checks.append({
+        "name": "yupana_value_negativo_da_error_no_crash",
+        "passed": bool(isinstance(res_neg, dict) and "error" in res_neg),
+    })
+
+    all_passed = all(c["passed"] for c in checks)
+    return {"checks": checks, "validation_passed": all_passed}
+
+
 def compute_ancient_calculator(preset, params=None):
     params = params or {}
     if preset == "suanpan":
@@ -265,11 +340,16 @@ def compute_ancient_calculator(preset, params=None):
         return compute_roman_hand_abacus(**params)
     elif preset == "yupana_depasquale":
         return compute_yupana_depasquale(**params)
+    elif preset == "validate":
+        return validate(**params)
     else:
         return {"error": f"preset desconocido: {preset}"}
 
 ANCIENT_CALCULATOR_SCHEMA = {   'type': 'object',
-    'properties': {'preset': {'type': 'string'}, 'params': {'type': 'object'}},
+    'properties': {'preset': {'type': 'string',
+                               'enum': ['suanpan', 'soroban', 'roman_hand_abacus',
+                                        'yupana_depasquale', 'validate']},
+                   'params': {'type': 'object'}},
     'required': ['preset']}
 
 try:
