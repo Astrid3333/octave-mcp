@@ -89,6 +89,49 @@ def _ideal_gas(params):
     }
 
 
+def _symbolic_check_qho_energy():
+    """
+    Cruza el U de _qho (formula cerrada en Python) contra la derivada
+    simbolica de -d(ln Z)/d(beta) calculada por Octave (pkg symbolic),
+    para beta=hbar=omega=1 (T=1, unidades naturales). Si el paquete
+    symbolic no esta instalado, el check se marca skipped=True y no
+    cuenta contra all_passed -- esta tool es pura Python/math y no se
+    le acopla una dependencia dura de Octave por este check extra.
+    """
+    try:
+        from octave_infra_tool import _run_octave
+    except ImportError:
+        return {"case": "qho U simbolico vs -d(lnZ)/dbeta (Octave symbolic)",
+                "skipped": True, "ok": True,
+                "detail": "no se pudo importar octave_infra_tool"}
+
+    octave_code = (
+        "pkg load symbolic\n"
+        "syms b h w\n"
+        "Z = exp(-b*h*w/2) / (1 - exp(-b*h*w));\n"
+        "U_expr = -diff(log(Z), b);\n"
+        "U_val = double(subs(U_expr, [b, h, w], [1.0, 1.0, 1.0]));\n"
+        "printf('%.15g\\n', U_val);\n"
+    )
+    r = _run_octave(octave_code, timeout=30)
+    if r["returncode"] != 0 or not r["stdout"]:
+        return {"case": "qho U simbolico vs -d(lnZ)/dbeta (Octave symbolic)",
+                "skipped": True, "ok": True,
+                "detail": f"symbolic no disponible o fallo: {r['stderr'][:200]}"}
+    try:
+        symbolic_U = float(r["stdout"].strip().splitlines()[-1])
+    except ValueError:
+        return {"case": "qho U simbolico vs -d(lnZ)/dbeta (Octave symbolic)",
+                "skipped": True, "ok": True,
+                "detail": f"salida no parseable: {r['stdout'][:200]}"}
+
+    python_U = _qho({"T": 1.0, "hbar": 1.0, "omega": 1.0, "kB": 1.0})["U"]
+    ok = abs(symbolic_U - python_U) < 1e-6
+    return {"case": "qho U simbolico vs -d(lnZ)/dbeta (Octave symbolic)",
+            "expected": symbolic_U, "got": python_U, "ok": ok,
+            "detail": f"symbolic={symbolic_U}, python={python_U}"}
+
+
 def _validate():
     checks = []
 
@@ -121,7 +164,8 @@ def _validate():
             "ok": abs(r["Cv"] - 15.0) < 1e-9,
         })
 
-    return {"validate": True, "all_passed": all(c["ok"] for c in checks), "checks": checks}
+    checks.append(_symbolic_check_qho_energy())
+    return {"validate": True, "all_passed": all(c["ok"] for c in checks if not c.get("skipped")), "checks": checks}
 
 
 def _linspace(a, b, n):
