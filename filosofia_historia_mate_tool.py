@@ -23,7 +23,6 @@ Uso (mismo patron que ancestral_octave):
     compute_math_philosophy_history("sutras_vedicos")   -> preset puntual
 """
 
-import json
 
 PRESETS = {
 
@@ -331,7 +330,7 @@ def _validate_math_philosophy_history() -> dict:
     checks = []
 
     # 1) topic="" devuelve la lista completa de topics disponibles
-    listing = json.loads(compute_math_philosophy_history(""))
+    listing = compute_math_philosophy_history("")
     checks.append({
         "name": "topic_vacio_devuelve_todos_los_topics_disponibles",
         "n_topics": len(listing.get("topics_disponibles", [])),
@@ -349,7 +348,7 @@ def _validate_math_philosophy_history() -> dict:
     })
 
     # 3) topic invalido da error estructurado, no crashea ni adivina
-    invalido = json.loads(compute_math_philosophy_history("topic_que_no_existe_xyz"))
+    invalido = compute_math_philosophy_history("topic_que_no_existe_xyz")
     checks.append({
         "name": "topic_invalido_da_error_no_crash",
         "passed": "error" in invalido and "topics_disponibles" in invalido,
@@ -358,7 +357,7 @@ def _validate_math_philosophy_history() -> dict:
     # 4) roundtrip: pedir un topic real devuelve exactamente ese preset
     if PRESETS:
         primer_topic = next(iter(PRESETS))
-        recibido = json.loads(compute_math_philosophy_history(primer_topic))
+        recibido = compute_math_philosophy_history(primer_topic)
         checks.append({
             "name": "topic_real_devuelve_preset_exacto",
             "topic": primer_topic,
@@ -369,7 +368,7 @@ def _validate_math_philosophy_history() -> dict:
     return {"checks": checks, "validation_passed": all_passed, "n_checks": len(checks)}
 
 
-def compute_math_philosophy_history(topic: str = "", params: dict = None) -> str:
+def compute_math_philosophy_history(topic: str = "", params: dict = None) -> dict:
     """
     Punto de entrada, mismo patron que compute_ancestral_octave.
 
@@ -379,10 +378,10 @@ def compute_math_philosophy_history(topic: str = "", params: dict = None) -> str
     topic invalido -> error con sugerencias, no adivina.
     """
     if topic == "validate":
-        return json.dumps(_validate_math_philosophy_history(), ensure_ascii=False, indent=2)
+        return _validate_math_philosophy_history()
 
     if not topic:
-        return json.dumps({
+        return {
             "topics_disponibles": list(PRESETS.keys()),
             "uso": "llamar de nuevo con topic=<uno de los anteriores>",
             "nota": (
@@ -390,15 +389,15 @@ def compute_math_philosophy_history(topic: str = "", params: dict = None) -> str
                 "disputado, o reconstruccion moderna. No se presenta todo con "
                 "el mismo nivel de certeza."
             )
-        }, ensure_ascii=False, indent=2)
+        }
 
     if topic not in PRESETS:
-        return json.dumps({
+        return {
             "error": f"topic '{topic}' no reconocido",
             "topics_disponibles": list(PRESETS.keys())
-        }, ensure_ascii=False, indent=2)
+        }
 
-    return json.dumps(PRESETS[topic], ensure_ascii=False, indent=2)
+    return PRESETS[topic]
 
 
 if __name__ == "__main__":
