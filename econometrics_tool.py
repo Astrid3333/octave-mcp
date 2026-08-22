@@ -644,6 +644,7 @@ def compute_econometrics(mode, params=None):
         "panel_fixed_effects": panel_fixed_effects,
         "iv_2sls": iv_2sls,
         "granger_causality": granger_causality,
+        "validate": validate,
     }
     if mode not in dispatch:
         raise ValueError(
@@ -675,7 +676,7 @@ ECONOMETRICS_TOOL_SCHEMA = {
                 "enum": [
                     "adf_test", "arima_forecast", "garch_fit",
                     "engle_granger_coint", "panel_fixed_effects",
-                    "iv_2sls", "granger_causality",
+                    "iv_2sls", "granger_causality", "validate",
                 ],
             },
             "params": {
@@ -799,3 +800,138 @@ except ImportError:
         pass
 
 register_tool("econometrics_tool", ECONOMETRICS_TOOL_SCHEMA, lambda args, _f=compute_econometrics: _f(**args))
+
+
+# ---------------------------------------------------------------------------
+# Validacion propia (mode="validate") -- reusa los casos del __main__
+# ---------------------------------------------------------------------------
+
+def validate(params=None):
+    checks = []
+    rng = np.random.default_rng(42)
+
+    # --- adf_test: random walk NO estacionaria, ruido blanco SI estacionario ---
+    random_walk = np.cumsum(rng.normal(0, 1, 100))
+    adf_rw = compute_econometrics("adf_test", {"series": random_walk.tolist()})
+    checks.append({
+        "name": "adf_random_walk_no_estacionaria",
+        "passed": "no estacionari" in adf_rw["conclusion"].lower() or "no rechaza" in adf_rw["conclusion"].lower(),
+        "detail": adf_rw["conclusion"],
+    })
+
+    white_noise = rng.normal(0, 1, 100)
+    adf_wn = compute_econometrics("adf_test", {"series": white_noise.tolist()})
+    checks.append({
+        "name": "adf_ruido_blanco_estacionaria",
+        "passed": "no estacionari" not in adf_wn["conclusion"].lower(),
+        "detail": adf_wn["conclusion"],
+    })
+
+    # --- arima_forecast: recupera phi~0.7 de un AR(1) simulado ---
+    ar1 = [0.0]
+    for _ in range(150):
+        ar1.append(0.7 * ar1[-1] + rng.normal(0, 1))
+    arima_res = compute_econometrics("arima_forecast", {
+        "series": ar1, "p": 1, "d": 0, "q": 0, "n_forecast": 5,
+    })
+    ar_coef = arima_res["ar_coefficients"][0]
+    checks.append({
+        "name": "arima_recupera_ar_coef_cercano_a_0_7",
+        "passed": abs(ar_coef - 0.7) < 0.15,
+        "detail": f"ar_coef={ar_coef:.4f}",
+    })
+
+    # --- garch_fit: persistencia alpha+beta cercana a 0.95 ---
+    n = 300
+    sigma2 = np.zeros(n)
+    r = np.zeros(n)
+    sigma2[0] = 1.0
+    for t in range(1, n):
+        sigma2[t] = 0.05 + 0.1 * r[t - 1] ** 2 + 0.85 * sigma2[t - 1]
+        r[t] = rng.normal(0, np.sqrt(sigma2[t]))
+    garch_res = compute_econometrics("garch_fit", {"returns": r.tolist(), "n_forecast": 3})
+    persistence = garch_res["persistence_alpha_plus_beta"]
+    checks.append({
+        "name": "garch_persistencia_alta_volatility_clustering",
+        "passed": 0.7 <= persistence <= 1.0,
+        "detail": f"persistence={persistence:.4f}",
+    })
+
+    # --- engle_granger_coint: con n=500 detecta cointegracion limpio ---
+    x_big = np.cumsum(rng.normal(0, 1, 500))
+    y_big = 2.0 * x_big + rng.normal(0, 0.5, 500)
+    eg_res = compute_econometrics("engle_granger_coint", {
+        "y": y_big.tolist(), "x": x_big.tolist(),
+    })
+    coef = eg_res["cointegrating_coefficient"]
+    checks.append({
+        "name": "engle_granger_coef_cercano_a_2_0",
+        "passed": abs(coef - 2.0) < 0.1,
+        "detail": f"coef={coef:.4f}",
+    })
+    checks.append({
+        "name": "engle_granger_detecta_cointegracion_n500",
+        "passed": "cointegr" in eg_res["conclusion"].lower() and "no " not in eg_res["conclusion"].lower(),
+        "detail": eg_res["conclusion"],
+    })
+
+    # --- panel_fixed_effects: recupera coef x1 ~1.5 ---
+    n_entities, n_periods = 5, 20
+    entity_ids = []
+    X_panel, y_panel = [], []
+    for e in range(n_entities):
+        fe = rng.normal(0, 2)
+        for t in range(n_periods):
+            xi = rng.normal(0, 1)
+            yi = fe + 1.5 * xi + rng.normal(0, 0.3)
+            entity_ids.append(e)
+            X_panel.append([xi])
+            y_panel.append(yi)
+    panel_res = compute_econometrics("panel_fixed_effects", {
+        "y": y_panel, "X": X_panel, "entity_ids": entity_ids,
+    })
+    coef_x1 = panel_res["coefficients"]["x1"]
+    checks.append({
+        "name": "panel_fixed_effects_recupera_coef_cercano_a_1_5",
+        "passed": abs(coef_x1 - 1.5) < 0.15,
+        "detail": f"coef_x1={coef_x1:.4f}",
+    })
+
+    # --- iv_2sls: recupera coef endog ~3.0 ---
+    z_instrument = rng.normal(0, 1, 200)
+    endog_var = 0.8 * z_instrument + rng.normal(0, 0.5, 200)
+    y_iv = 3.0 * endog_var + rng.normal(0, 0.3, 200)
+    iv_res = compute_econometrics("iv_2sls", {
+        "y": y_iv.tolist(), "endog": endog_var.tolist(),
+        "instruments": z_instrument.reshape(-1, 1).tolist(),
+    })
+    coef_endog = iv_res["coefficients"]["endog_instrumented"]
+    checks.append({
+        "name": "iv_2sls_recupera_coef_cercano_a_3_0",
+        "passed": abs(coef_endog - 3.0) < 0.2,
+        "detail": f"coef_endog={coef_endog:.4f}",
+    })
+    checks.append({
+        "name": "iv_2sls_stage1_f_stat_suficiente",
+        "passed": iv_res["stage1_f_stat"] > 10,
+        "detail": f"stage1_f_stat={iv_res['stage1_f_stat']:.1f}",
+    })
+
+    # --- ValueError esperado ---
+    try:
+        compute_econometrics("modo_inexistente", {})
+        mode_err = False
+    except ValueError:
+        mode_err = True
+    checks.append({
+        "name": "valueerror_modo_desconocido",
+        "passed": mode_err,
+        "detail": "",
+    })
+
+    all_pass = all(c["passed"] for c in checks)
+    return {
+        "validation_passed": all_pass,
+        "n_checks": len(checks),
+        "checks": checks,
+    }

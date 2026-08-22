@@ -323,8 +323,28 @@ def bifurcation_snowball(params=None):
 # ---------------------------------------------------------------------------
 # Dispatch
 # ---------------------------------------------------------------------------
+def validate(params=None):
+    checks = []
+    for m in ["energy_balance_ebm", "newton_cooling_trend", "carbon_cycle_box", "bifurcation_snowball"]:
+        r = compute_climate(m)
+        v = r.get("validation", {})
+        passed = bool(v.get("passed", False))
+        checks.append({
+            "name": f"climate_{m}_validation_interna_passed",
+            "passed": passed,
+            "detail": {k: val for k, val in v.items() if k != "passed"},
+        })
+    all_pass = all(c["passed"] for c in checks)
+    return {
+        "validation_passed": all_pass,
+        "n_checks": len(checks),
+        "checks": checks,
+    }
+
+
 def compute_climate(mode, params=None):
     modes = {
+        "validate": validate,
         "energy_balance_ebm": energy_balance_ebm,
         "newton_cooling_trend": newton_cooling_trend,
         "carbon_cycle_box": carbon_cycle_box,
@@ -349,7 +369,8 @@ CLIMATE_TOOL_SCHEMA = {   'type': 'object',
                                   'enum': [   'energy_balance_ebm',
                                               'newton_cooling_trend',
                                               'carbon_cycle_box',
-                                              'bifurcation_snowball']},
+                                              'bifurcation_snowball',
+                                              'validate']},
                       'params': {   'type': 'object',
                                     'description': 'Parametros especificos del modo (opcional, '
                                                    'cada modo trae defaults razonables).'}},
