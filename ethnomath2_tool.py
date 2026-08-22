@@ -53,7 +53,7 @@ ETHNOMATH2_SCHEMA = {
                 "type": "string",
                 "enum": ["egyptian_duplation", "persian_khwarizmi", "persian_alkashi_sin1",
                          "russian_peasant", "ottoman_taqi_al_din", "norse_rune_calendar",
-                         "southeast_asian_metonic"],
+                         "southeast_asian_metonic", "validate"],
             },
             "params": {"type": "object"},
         },
@@ -351,6 +351,8 @@ def compute_southeast_asian_metonic(cs_year):
 
 def compute_ethnomath2(preset, params=None):
     params = params or {}
+    if preset == "validate":
+        return _validate_ethnomath2()
     if preset == "egyptian_duplation":
         return compute_egyptian_duplation(**params)
     elif preset == "persian_khwarizmi":
@@ -378,3 +380,114 @@ try:
 except ImportError:
     pass
 
+
+
+# ---------------------------------------------------------------------------
+# Validacion propia (preset="validate")
+# ---------------------------------------------------------------------------
+
+def _validate_ethnomath2():
+    checks = []
+
+    # --- egyptian_duplation: multiply ---
+    ed1 = compute_egyptian_duplation(mode="multiply", a=238, b=13)
+    checks.append({
+        "name": "egyptian_duplation_multiply_check",
+        "passed": bool(ed1.get("check")),
+        "detail": f"result={ed1.get('result')} esperado={238*13}",
+    })
+
+    # --- egyptian_duplation: unit_fractions ---
+    ed2 = compute_egyptian_duplation(mode="unit_fractions", numerator=2, denominator=7)
+    checks.append({
+        "name": "egyptian_duplation_unit_fractions_check_decimal",
+        "passed": bool(ed2.get("check_decimal")),
+        "detail": f"denominadores={ed2.get('unit_fraction_denominators')}",
+    })
+
+    # --- persian_khwarizmi: 3 casos, cada uno con su propio check ---
+    pk1 = compute_persian_khwarizmi(case=1, b=10, c=39)  # x^2+10x=39 -> x=3
+    checks.append({
+        "name": "persian_khwarizmi_case1_check",
+        "passed": bool(pk1.get("check")),
+        "detail": f"x={pk1.get('x')}",
+    })
+    pk2 = compute_persian_khwarizmi(case=2, b=10, c=21)  # x^2+21=10x -> x=3,7
+    checks.append({
+        "name": "persian_khwarizmi_case2_check_x1_y_x2",
+        "passed": bool(pk2.get("check_x1")) and pk2.get("check_x2") in (True, "x2 no positivo, descartado historicamente"),
+        "detail": f"x1={pk2.get('x1')} x2={pk2.get('x2')}",
+    })
+    pk3 = compute_persian_khwarizmi(case=3, b=3, c=4)  # x^2=3x+4 -> x=4
+    checks.append({
+        "name": "persian_khwarizmi_case3_check",
+        "passed": bool(pk3.get("check")),
+        "detail": f"x={pk3.get('x')}",
+    })
+
+    # --- persian_alkashi_sin1: converge a sin(1 grado) real ---
+    pa = compute_persian_alkashi_sin1(iterations=10)
+    checks.append({
+        "name": "persian_alkashi_sin1_converge",
+        "passed": pa["relative_error"] < 1e-6,
+        "detail": f"relative_error={pa['relative_error']:.2e} estimate={pa['estimate_sin1']}",
+    })
+
+    # --- russian_peasant ---
+    rp = compute_russian_peasant(a=87, b=63)
+    checks.append({
+        "name": "russian_peasant_check",
+        "passed": bool(rp.get("check")),
+        "detail": f"result={rp.get('result')} esperado={87*63}",
+    })
+
+    # --- ottoman_taqi_al_din: round-trip sexagesimal <-> decimal ---
+    ot1 = compute_ottoman_taqi_al_din(mode="sexagesimal_to_decimal", degrees=30, minutes=15, seconds=36)
+    ot2 = compute_ottoman_taqi_al_din(mode="decimal_to_sexagesimal", decimal_value=ot1["decimal_value"])
+    dms_ok = ot2["sexagesimal"][0] == 30 and ot2["sexagesimal"][1] == 15 and abs(ot2["sexagesimal"][2] - 36) < 1e-6
+    checks.append({
+        "name": "ottoman_taqi_al_din_round_trip_sexagesimal",
+        "passed": dms_ok,
+        "detail": f"decimal={ot1['decimal_value']} recuperado={ot2['sexagesimal']}",
+    })
+    ot3 = compute_ottoman_taqi_al_din(mode="sine_table", sine_table_step_degrees=5, sine_table_max_degrees=10)
+    row90 = None
+    checks.append({
+        "name": "ottoman_taqi_al_din_sine_table_valores_correctos",
+        "passed": abs(ot3["table"][0]["sin"] - 0.0) < 1e-9 and abs(ot3["table"][0]["cos"] - 1.0) < 1e-9,
+        "detail": f"table[0]={ot3['table'][0]}",
+    })
+
+    # --- norse_rune_calendar: invariante estructural (rango 1..19, longitud correcta) ---
+    nr = compute_norse_rune_calendar(year=2024)
+    checks.append({
+        "name": "norse_rune_calendar_golden_number_en_rango",
+        "passed": 1 <= nr["golden_number"] <= 19 and nr["rune_of_the_year"] == _RUNE_NAMES_19[nr["golden_number"] - 1],
+        "detail": f"golden_number={nr['golden_number']} rune={nr['rune_of_the_year']}",
+    })
+
+    # --- southeast_asian_metonic: 7 de cada 19 anios con mes intercalar (invariante del patron) ---
+    positions_with_leap = sum(
+        1 for y in range(1, 20)
+        if compute_southeast_asian_metonic(cs_year=y)["approx_has_intercalary_month"]
+    )
+    checks.append({
+        "name": "southeast_asian_metonic_7_de_19_anios_con_mes_intercalar",
+        "passed": positions_with_leap == 7,
+        "detail": f"anios_con_mes_intercalar_en_ciclo={positions_with_leap}",
+    })
+
+    # --- preset desconocido -> dict con 'error' ---
+    unk = compute_ethnomath2("preset_inexistente")
+    checks.append({
+        "name": "preset_desconocido_devuelve_error",
+        "passed": "error" in unk,
+        "detail": "",
+    })
+
+    all_pass = all(c["passed"] for c in checks)
+    return {
+        "validation_passed": all_pass,
+        "n_checks": len(checks),
+        "checks": checks,
+    }

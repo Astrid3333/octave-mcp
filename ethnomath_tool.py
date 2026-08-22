@@ -37,7 +37,7 @@ ETHNOMATH_SCHEMA = {
             "preset": {
                 "type": "string",
                 "enum": ["maya_long_count", "chinese_remainder", "vedic_multiply",
-                         "quipu_encode", "greek_archimedes_pi", "japanese_enri_pi"],
+                         "quipu_encode", "greek_archimedes_pi", "japanese_enri_pi", "validate"],
             },
             "params": {"type": "object", "description": "Parametros especificos del preset, ver docstrings"},
         },
@@ -423,6 +423,8 @@ def compute_japanese_enri_pi(start_sides=6, levels=6):
 
 def compute_ethnomath(preset, params=None):
     params = params or {}
+    if preset == "validate":
+        return _validate_ethnomath()
     if preset == "maya_long_count":
         return compute_maya_long_count(**params)
     elif preset == "chinese_remainder":
@@ -448,3 +450,83 @@ try:
 except ImportError:
     pass
 
+
+
+# ---------------------------------------------------------------------------
+# Validacion propia (preset="validate")
+# ---------------------------------------------------------------------------
+
+def _validate_ethnomath():
+    checks = []
+
+    # --- maya_long_count: round-trip jdn -> long_count -> jdn ---
+    jdn0 = 2451545  # J2000.0
+    r1 = compute_maya_long_count(mode="jdn_to_lc", jdn=jdn0)
+    r2 = compute_maya_long_count(mode="lc_to_jdn", long_count=r1["long_count"])
+    checks.append({
+        "name": "maya_long_count_round_trip_jdn",
+        "passed": r2.get("jdn") == jdn0,
+        "detail": f"jdn0={jdn0} recuperado={r2.get('jdn')} long_count={r1.get('long_count')}",
+    })
+
+    # --- chinese_remainder: preset sunzi_classic, solucion conocida = 23 ---
+    cr = compute_chinese_remainder(preset="sunzi_classic")
+    verif_ok = all(v["x_mod_m"] == v["expected"] for v in cr.get("verification", []))
+    checks.append({
+        "name": "chinese_remainder_sunzi_classic_solucion_23",
+        "passed": cr.get("solution") == 23 and verif_ok,
+        "detail": f"solution={cr.get('solution')} verification_ok={verif_ok}",
+    })
+
+    # --- vedic_multiply: ambos metodos coinciden con a*b ---
+    vm1 = compute_vedic_multiply(a=1234, b=5678, method="urdhva_tiryagbhyam")
+    checks.append({
+        "name": "vedic_multiply_urdhva_tiryagbhyam_check",
+        "passed": bool(vm1.get("check")),
+        "detail": f"result={vm1.get('result')} esperado={1234*5678}",
+    })
+    vm2 = compute_vedic_multiply(a=97, b=98, method="nikhilam")
+    checks.append({
+        "name": "vedic_multiply_nikhilam_check",
+        "passed": bool(vm2.get("check")),
+        "detail": f"result={vm2.get('result')} esperado={97*98}",
+    })
+
+    # --- quipu_encode: round-trip encode -> decode ---
+    qe = compute_quipu_encode(mode="encode", n=4085)
+    checks.append({
+        "name": "quipu_encode_decoded_check",
+        "passed": bool(qe.get("decoded_check")),
+        "detail": f"n=4085 cords={len(qe.get('cords', []))}",
+    })
+
+    # --- greek_archimedes_pi: converge a pi con error relativo chico ---
+    gp = compute_greek_archimedes_pi(start_sides=6, iterations=10)
+    checks.append({
+        "name": "greek_archimedes_pi_converge",
+        "passed": gp["relative_error"] < 1e-3,
+        "detail": f"relative_error={gp['relative_error']:.2e} final_sides={gp['final_sides']}",
+    })
+
+    # --- japanese_enri_pi: Richardson acelera, error debe ser MENOR que el de Arquimedes puro ---
+    jp = compute_japanese_enri_pi(start_sides=6, levels=6)
+    checks.append({
+        "name": "japanese_enri_pi_converge_mejor_que_archimedes_puro",
+        "passed": jp["relative_error"] < gp["relative_error"],
+        "detail": f"enri_error={jp['relative_error']:.2e} archimedes_error={gp['relative_error']:.2e}",
+    })
+
+    # --- preset desconocido -> dict con 'error' (no ValueError) ---
+    unk = compute_ethnomath("preset_inexistente")
+    checks.append({
+        "name": "preset_desconocido_devuelve_error",
+        "passed": "error" in unk,
+        "detail": "",
+    })
+
+    all_pass = all(c["passed"] for c in checks)
+    return {
+        "validation_passed": all_pass,
+        "n_checks": len(checks),
+        "checks": checks,
+    }
