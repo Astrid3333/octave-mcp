@@ -323,6 +323,8 @@ def compute_bit_flip_code(logical_bit=1, error_qubit=None):
 
 
 def compute_quantum_information(mode, **kwargs):
+    if mode == "validate":
+        return validate()
     if mode == "bloch_vector":
         return compute_bloch_vector(
             theta=kwargs.get("theta"), phi=kwargs.get("phi"),
@@ -369,7 +371,7 @@ QUANTUM_INFORMATION_TOOL_SCHEMA = {
             "mode": {
                 "type": "string",
                 "enum": ["bloch_vector", "gate_sequence", "deutsch_jozsa", "grover_search",
-                         "entanglement_entropy", "bit_flip_code"],
+                         "entanglement_entropy", "bit_flip_code", "validate"],
             },
             "theta": {"type": "number", "description": "bloch_vector, grados, angulo polar"},
             "phi": {"type": "number", "description": "bloch_vector, grados, angulo azimutal"},
@@ -398,3 +400,56 @@ except ImportError:
         pass
 
 register_tool("quantum_information", QUANTUM_INFORMATION_TOOL_SCHEMA, lambda args, _f=compute_quantum_information: _f(**args))
+
+
+# ---------------------------------------------------------------------------
+# Validacion propia (mode="validate") -- reusa los campos de verificacion
+# que cada funcion ya calcula internamente (correct/interpretation/
+# correction_successful), sin inventar tolerancias nuevas.
+# ---------------------------------------------------------------------------
+
+def validate():
+    checks = []
+
+    for oracle in ("constant", "balanced"):
+        r = compute_deutsch_jozsa(n=3, oracle_type=oracle)
+        checks.append({
+            "name": f"deutsch_jozsa_oracle_{oracle}_correct",
+            "passed": bool(r["correct"]),
+            "detail": f"prob_all_zero={r['prob_measure_all_zero']} concludes={r['algorithm_concludes']}",
+        })
+
+    # estado de Bell (|00>+|11>)/sqrt(2): entrelazamiento maximo esperado = 1 bit
+    bell_amplitudes = [[1.0, 0.0], [0.0, 0.0], [0.0, 0.0], [1.0, 0.0]]
+    r_ent = compute_entanglement_entropy(n=2, state_amplitudes=bell_amplitudes, subsystem_qubits=[0])
+    checks.append({
+        "name": "entanglement_entropy_bell_state_maximamente_entrelazado",
+        "passed": r_ent["interpretation"] == "estado_maximamente_entrelazado"
+                  and abs(r_ent["von_neumann_entropy_bits"] - 1.0) < 1e-3,
+        "detail": f"entropy={r_ent['von_neumann_entropy_bits']} interpretation={r_ent['interpretation']}",
+    })
+
+    # estado producto |00>: sin entrelazamiento esperado = 0 bits
+    product_amplitudes = [[1.0, 0.0], [0.0, 0.0], [0.0, 0.0], [0.0, 0.0]]
+    r_prod = compute_entanglement_entropy(n=2, state_amplitudes=product_amplitudes, subsystem_qubits=[0])
+    checks.append({
+        "name": "entanglement_entropy_producto_sin_entrelazamiento",
+        "passed": r_prod["interpretation"] == "estado_producto_sin_entrelazamiento",
+        "detail": f"entropy={r_prod['von_neumann_entropy_bits']} interpretation={r_prod['interpretation']}",
+    })
+
+    for logical_bit in (0, 1):
+        for error_qubit in (None, 0, 1, 2):
+            r_bfc = compute_bit_flip_code(logical_bit=logical_bit, error_qubit=error_qubit)
+            checks.append({
+                "name": f"bit_flip_code_bit{logical_bit}_error_qubit{error_qubit}_corrige_ok",
+                "passed": bool(r_bfc["correction_successful"]),
+                "detail": f"decoded={r_bfc['decoded_logical_bit']} esperado={logical_bit}",
+            })
+
+    all_pass = all(c["passed"] for c in checks)
+    return {
+        "validation_passed": all_pass,
+        "n_checks": len(checks),
+        "checks": checks,
+    }
