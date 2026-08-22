@@ -443,7 +443,7 @@ PALEOGRAPHY_TOOL_SCHEMA = {
 }
 
 PALEOGRAPHY_SCHEMA = {   'type': 'object',
-    'properties': {   'mode': {'type': 'string'},
+    'properties': {   'mode': {'type': 'string', 'enum': ['correspondence_seriation', 'feature_dating_regression', 'letterform_classification', 'validate']},
                       'matriz': {'type': 'array'},
                       'doc_ids': {'type': 'array'},
                       'anios_conocidos': {'type': 'object'},
