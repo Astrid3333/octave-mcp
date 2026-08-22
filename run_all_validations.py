@@ -92,8 +92,7 @@ FLAT_SIGNATURE_TOOLS = {
     "settlement_clusters",
     "historical_extractor",
     "abstract_algebra",
-    "plot_workspace_run",
-}
+    "plot_workspace_run", "octave_run", "octave_eval_expr", "octave_run_script", "octave_version",}
 
 # Nombres de campo alternativos para "el autochequeo paso" -- distintas
 # tools nunca convergieron en una sola convencion. all_params_within_2sigma

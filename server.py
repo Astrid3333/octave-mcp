@@ -269,10 +269,10 @@ TOOLS = [
             },
         },
     PIPELINE_BUILDER_TOOL_SCHEMA,
-    {"name": "octave_run", "description": "Ejecuta codigo Octave. timeout en segundos (default 60).", "inputSchema": {"type": "object", "properties": {"code": {"type": "string"}, "timeout": {"type": "integer"}}, "required": ["code"]}},
-    {"name": "octave_eval_expr", "description": "Evalua una expresion Octave con disp().", "inputSchema": {"type": "object", "properties": {"expression": {"type": "string"}, "timeout": {"type": "integer"}}, "required": ["expression"]}},
-    {"name": "octave_run_script", "description": "Ejecuta un script .m existente en disco.", "inputSchema": {"type": "object", "properties": {"script_path": {"type": "string"}, "timeout": {"type": "integer"}}, "required": ["script_path"]}},
-    {"name": "octave_version", "description": "Devuelve la version de Octave instalada.", "inputSchema": {"type": "object", "properties": {}}},
+    {"name": "octave_run", "description": "Ejecuta codigo Octave. timeout en segundos (default 60).", "inputSchema": {"type": "object", "properties": {"code": {"type": "string"}, "timeout": {"type": "integer"}, "mode": {"type": "string", "enum": ["validate"]}}, "required": ["code"]}},
+    {"name": "octave_eval_expr", "description": "Evalua una expresion Octave con disp().", "inputSchema": {"type": "object", "properties": {"expression": {"type": "string"}, "timeout": {"type": "integer"}, "mode": {"type": "string", "enum": ["validate"]}}, "required": ["expression"]}},
+    {"name": "octave_run_script", "description": "Ejecuta un script .m existente en disco.", "inputSchema": {"type": "object", "properties": {"script_path": {"type": "string"}, "timeout": {"type": "integer"}, "mode": {"type": "string", "enum": ["validate"]}}, "required": ["script_path"]}},
+    {"name": "octave_version", "description": "Devuelve la version de Octave instalada.", "inputSchema": {"type": "object", "properties": {"mode": {"type": "string", "enum": ["validate"]}}}},
     {"name": "numeral_systems_embedding", "description": "Vectoriza sistemas numericos antiguos (base, tipo posicional/aditivo/ fisico, presencia de cero, redundancia representacional, soporte fisico) y proyecta a 2D via UMAP o t-SNE, para explorar agrupamientos estructurales entre culturas. Dataset base: maya_long_count, suanpan, soroban, roman_hand_abacus, yupana_depasquale, quipu, ifa_binary. Extensible via extra_systems (lista de dicts con el mismo s", "inputSchema": {"type": "object", "properties": {"method": {"type": "string"}, "extra_systems": {"type": "array"}, "n_neighbors": {"type": "integer"}, "perplexity": {"type": "number"}, "random_state": {"type": "integer"}, "run_id": {"type": "string"}}}},
 ] + tool_registry.get_schemas()
 
@@ -651,30 +651,34 @@ if __name__ == "__main__":
 
                 elif tool_name == "octave_run":
                     output = octave_run(**args)
+                    text = json.dumps(output, ensure_ascii=False, indent=2) if isinstance(output, dict) else (output or "(sin salida)")
                     resp = {
                         "jsonrpc": "2.0", "id": req_id,
-                        "result": {"content": [{"type": "text", "text": output or "(sin salida)"}]},
+                        "result": {"content": [{"type": "text", "text": text}]},
                     }
 
                 elif tool_name == "octave_eval_expr":
                     output = octave_eval_expr(**args)
+                    text = json.dumps(output, ensure_ascii=False, indent=2) if isinstance(output, dict) else (output or "(sin salida)")
                     resp = {
                         "jsonrpc": "2.0", "id": req_id,
-                        "result": {"content": [{"type": "text", "text": output or "(sin salida)"}]},
+                        "result": {"content": [{"type": "text", "text": text}]},
                     }
 
                 elif tool_name == "octave_run_script":
                     output = octave_run_script(**args)
+                    text = json.dumps(output, ensure_ascii=False, indent=2) if isinstance(output, dict) else (output or "(sin salida)")
                     resp = {
                         "jsonrpc": "2.0", "id": req_id,
-                        "result": {"content": [{"type": "text", "text": output or "(sin salida)"}]},
+                        "result": {"content": [{"type": "text", "text": text}]},
                     }
 
                 elif tool_name == "octave_version":
                     output = octave_version(**args)
+                    text = json.dumps(output, ensure_ascii=False, indent=2) if isinstance(output, dict) else (output or "(sin salida)")
                     resp = {
                         "jsonrpc": "2.0", "id": req_id,
-                        "result": {"content": [{"type": "text", "text": output or "(sin salida)"}]},
+                        "result": {"content": [{"type": "text", "text": text}]},
                     }
 
                 elif tool_name == "compute_lyapunov_v2":

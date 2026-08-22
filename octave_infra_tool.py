@@ -45,22 +45,59 @@ def _format_result(r):
     return "\n".join(parts) if parts else "(sin salida)"
 
 
-def octave_run(code: str, timeout: int = DEFAULT_TIMEOUT) -> str:
+def octave_run(code: str = None, timeout: int = DEFAULT_TIMEOUT, mode: str = None):
     """Ejecuta codigo Octave. timeout en segundos (default 60)."""
+    if mode == "validate":
+        checks = []
+        r1 = _run_octave("disp(2+2)")
+        checks.append({"name": "basic_eval", "passed": r1["returncode"] == 0 and "4" in r1["stdout"], "detail": r1["stdout"]})
+        r2 = _run_octave("this is not valid octave syntax !!!")
+        checks.append({"name": "error_capture_on_bad_code", "passed": r2["returncode"] != 0 or bool(r2["stderr"]), "detail": r2["stderr"][:200]})
+        r3 = _run_octave("disp(1)", timeout=5)
+        checks.append({"name": "custom_timeout_param_works", "passed": r3["returncode"] == 0, "detail": r3["stdout"]})
+        passed = sum(c["passed"] for c in checks)
+        return {"tool": "octave_run", "checks": checks, "passed": passed, "total": len(checks), "all_passed": passed == len(checks)}
     r = _run_octave(code, timeout=timeout)
     return _format_result(r)
 
 
-def octave_eval_expr(expression: str, timeout: int = DEFAULT_TIMEOUT) -> str:
+def octave_eval_expr(expression: str = None, timeout: int = DEFAULT_TIMEOUT, mode: str = None):
     """Evalua una expresion Octave con disp()."""
+    if mode == "validate":
+        checks = []
+        v1 = octave_eval_expr("2+2")
+        checks.append({"name": "eval_addition", "passed": v1.strip() == "4", "detail": v1})
+        v2 = octave_eval_expr("3*3")
+        checks.append({"name": "eval_multiplication", "passed": v2.strip() == "9", "detail": v2})
+        v3 = octave_eval_expr("this_var_is_not_defined_xyz")
+        checks.append({"name": "eval_error_on_undefined", "passed": "[stderr]" in v3 or "error" in v3.lower(), "detail": v3[:200]})
+        passed = sum(c["passed"] for c in checks)
+        return {"tool": "octave_eval_expr", "checks": checks, "passed": passed, "total": len(checks), "all_passed": passed == len(checks)}
     r = _run_octave("disp(" + expression + ")", timeout=timeout)
     if r["returncode"] != 0:
         return _format_result(r)
     return r["stdout"] if r["stdout"] else "(sin salida)"
 
 
-def octave_run_script(script_path: str, timeout: int = DEFAULT_TIMEOUT) -> str:
+def octave_run_script(script_path: str = None, timeout: int = DEFAULT_TIMEOUT, mode: str = None):
     """Ejecuta un script .m existente en disco."""
+    if mode == "validate":
+        import tempfile as _tempfile
+        checks = []
+        tmp_path = None
+        try:
+            with _tempfile.NamedTemporaryFile(mode="w", suffix=".m", delete=False) as f:
+                f.write("disp(42)\n")
+                tmp_path = f.name
+            out = octave_run_script(tmp_path)
+            checks.append({"name": "runs_existing_script", "passed": "42" in out, "detail": out})
+        finally:
+            if tmp_path:
+                os.unlink(tmp_path)
+        out2 = octave_run_script("/no/existe/archivo_inventado_validate_xyz.m")
+        checks.append({"name": "missing_script_returns_error", "passed": out2.startswith("Error: no existe"), "detail": out2})
+        passed = sum(c["passed"] for c in checks)
+        return {"tool": "octave_run_script", "checks": checks, "passed": passed, "total": len(checks), "all_passed": passed == len(checks)}
     p = Path(script_path)
     if not p.exists():
         return "Error: no existe " + script_path
@@ -68,8 +105,16 @@ def octave_run_script(script_path: str, timeout: int = DEFAULT_TIMEOUT) -> str:
     return _format_result(r)
 
 
-def octave_version() -> str:
+def octave_version(mode: str = None):
     """Devuelve la version de Octave instalada."""
+    if mode == "validate":
+        checks = []
+        v = octave_version()
+        bad = ("Timeout" in v) or ("no encontrado" in v)
+        checks.append({"name": "version_string_nonempty", "passed": bool(v) and not bad, "detail": v})
+        checks.append({"name": "version_looks_like_version", "passed": (not bad) and any(c.isdigit() for c in v), "detail": v})
+        passed = sum(c["passed"] for c in checks)
+        return {"tool": "octave_version", "checks": checks, "passed": passed, "total": len(checks), "all_passed": passed == len(checks)}
     try:
         r = subprocess.run(["octave", "--version"], capture_output=True, text=True, timeout=10)
         return r.stdout.strip()
