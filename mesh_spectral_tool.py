@@ -208,6 +208,8 @@ def compare_spectra(spec_a, spec_b):
 # ---------------------------------------------------------------------------
 
 def compute_mesh_spectral_tool(mode, **kwargs):
+    if mode == "validate":
+        return validate()
     if mode == "spectrum":
         vertices = kwargs["vertices"]
         faces = kwargs["faces"]
@@ -268,7 +270,7 @@ MESH_SPECTRAL_TOOL_SCHEMA = {
         "properties": {
             "mode": {
                 "type": "string",
-                "enum": ["spectrum", "compare", "laplacian_info"],
+                "enum": ["spectrum", "compare", "laplacian_info", "validate"],
             },
             "vertices": {
                 "type": "array",
@@ -319,3 +321,46 @@ except ImportError:
         pass
 
 register_tool("mesh_spectral_tool", MESH_SPECTRAL_TOOL_SCHEMA, lambda args, _f=compute_mesh_spectral_tool: _f(**args))
+
+
+# ---------------------------------------------------------------------------
+# Validacion propia (mode="validate")
+# ---------------------------------------------------------------------------
+
+def validate():
+    checks = []
+
+    # Tetraedro regular (4 vertices, 4 caras) -- malla cerrada mas simple posible
+    vertices = [
+        [1.0, 1.0, 1.0], [1.0, -1.0, -1.0], [-1.0, 1.0, -1.0], [-1.0, -1.0, 1.0],
+    ]
+    faces = [
+        [0, 1, 2], [0, 3, 1], [0, 2, 3], [1, 3, 2],
+    ]
+
+    r_lap = compute_mesh_spectral_tool("laplacian_info", vertices=vertices, faces=faces)
+    checks.append({
+        "name": "laplacian_simetrico_en_malla_cerrada_simple",
+        "passed": bool(r_lap["laplacian_symmetric"]),
+        "detail": f"n_vertices={r_lap['n_vertices']} n_degenerate_faces={r_lap['n_degenerate_faces']}",
+    })
+
+    r_cmp = compute_mesh_spectral_tool(
+        "compare",
+        mesh_a={"vertices": vertices, "faces": faces},
+        mesh_b={"vertices": vertices, "faces": faces},
+        k=3,
+    )
+    dist = r_cmp["comparison"]["spectral_distance"]
+    checks.append({
+        "name": "espectro_de_malla_comparada_consigo_misma_distancia_cero",
+        "passed": dist < 1e-6,
+        "detail": f"spectral_distance={dist}",
+    })
+
+    all_pass = all(c["passed"] for c in checks)
+    return {
+        "validation_passed": all_pass,
+        "n_checks": len(checks),
+        "checks": checks,
+    }

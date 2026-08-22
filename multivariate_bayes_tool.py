@@ -572,6 +572,7 @@ def compute_multivariate_bayes(mode, params=None):
         "pca_biplot": pca_biplot,
         "pca_cv": pca_cv,
         "factor_analysis": factor_analysis,
+        "validate": validate,
     }
     if mode not in dispatch:
         return {"error": f"modo desconocido: {mode}. Modos validos: {list(dispatch.keys())}"}
@@ -589,7 +590,7 @@ TOOL_SCHEMA = {
             "mode": {
                 "type": "string",
                 "enum": ["mvn_sample", "mvt_sample", "wishart_sample", "hierarchical",
-                         "hmc_regression", "pca_biplot", "pca_cv", "factor_analysis"],
+                         "hmc_regression", "pca_biplot", "pca_cv", "factor_analysis", "validate"],
             },
             "params": {"type": "object"},
         },
@@ -694,3 +695,58 @@ try:
 except ImportError:
     pass
 
+
+
+# ---------------------------------------------------------------------------
+# Validacion propia (mode="validate") -- reusa los campos "validation"
+# ya calculados internamente por hierarchical() y hmc_regression().
+# ---------------------------------------------------------------------------
+
+def validate(params=None):
+    checks = []
+
+    # hierarchical: J=8 grupos sinteticos, mu verdadero conocido
+    rng = np.random.default_rng(42)
+    true_mu = 5.0
+    true_tau = 1.5
+    J = 8
+    theta_true = rng.normal(true_mu, true_tau, size=J)
+    group_sd = np.full(J, 0.5)
+    group_means = rng.normal(theta_true, group_sd)
+    r1 = hierarchical({
+        "group_means": group_means.tolist(),
+        "group_sd": group_sd.tolist(),
+        "true_mu": true_mu,
+        "n_iter": 3000,
+        "seed": 1,
+    })
+    v1 = r1["validation"]
+    checks.append({
+        "name": "hierarchical_recupera_mu_verdadero_datos_sinteticos",
+        "passed": bool(v1["passed"]),
+        "detail": f"mu_est={r1['mu_mean']:.4f} true_mu={true_mu} mu_sd={r1['mu_sd']:.4f} tau_bounded={v1['tau_bounded_no_divergence']}",
+    })
+
+    # hmc_regression: y = 2x + 1 + ruido pequeno, comparar contra OLS
+    x_reg = np.linspace(0, 10, 40)
+    y_reg = 2.0 * x_reg + 1.0 + rng.normal(0, 0.3, size=40)
+    r2 = hmc_regression({
+        "x": x_reg.tolist(),
+        "y": y_reg.tolist(),
+        "n_iter": 2000,
+        "seed": 2,
+        "step_size": 0.002,
+    })
+    v2 = r2["validation"]
+    checks.append({
+        "name": "hmc_regression_pendiente_coincide_con_ols_y_tasa_aceptacion_alta",
+        "passed": bool(v2["passed"]),
+        "detail": f"acceptance_rate={v2['acceptance_rate']:.3f} slope_rel_error={v2['slope_rel_error_vs_ols']:.4f}",
+    })
+
+    all_pass = all(c["passed"] for c in checks)
+    return {
+        "validation_passed": all_pass,
+        "n_checks": len(checks),
+        "checks": checks,
+    }

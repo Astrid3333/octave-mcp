@@ -110,6 +110,9 @@ def _solve_elliptic(L, boundary_indices, boundary_values, coords, source=None):
 def compute_mesh_pde_tool(mode, params=None):
     params = params or {}
 
+    if mode == "validate":
+        return validate()
+
     if mode in ("smooth", "poisson"):
         vertices = np.asarray(params["vertices"], dtype=float)
         faces = params["faces"]
@@ -168,7 +171,7 @@ MESH_PDE_TOOL_SCHEMA = {
         "properties": {
             "mode": {
                 "type": "string",
-                "enum": ["smooth", "poisson"],
+                "enum": ["smooth", "poisson", "validate"],
                 "description": "smooth: Laplace puro (L x = 0). poisson: agrega "
                                 "termino fuente por vertice (L x = source).",
             },
@@ -193,3 +196,54 @@ except ImportError:
         pass
 
 register_tool("mesh_pde_tool", MESH_PDE_TOOL_SCHEMA, lambda args, _f=compute_mesh_pde_tool: _f(**args))
+
+
+# ---------------------------------------------------------------------------
+# Validacion propia (mode="validate")
+# ---------------------------------------------------------------------------
+
+def validate():
+    checks = []
+
+    # Malla cuadrada 3x3 (9 vertices, borde = 8 exteriores, 1 interior),
+    # triangulada. mode=smooth con borde fijo en un cuadrado plano:
+    # el vertice interior (Laplace puro) debe converger al promedio
+    # aritmetico de sus 4 vecinos (caso conocido: grilla regular ->
+    # pesos cotangentes uniformes por simetria).
+    vertices = [
+        [0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [2.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0], [1.0, 1.0, 0.0], [2.0, 1.0, 0.0],
+        [0.0, 2.0, 0.0], [1.0, 2.0, 0.0], [2.0, 2.0, 0.0],
+    ]
+    faces = [
+        [0, 1, 4], [0, 4, 3],
+        [1, 2, 5], [1, 5, 4],
+        [3, 4, 7], [3, 7, 6],
+        [4, 5, 8], [4, 8, 7],
+    ]
+    boundary_indices = [0, 1, 2, 3, 5, 6, 7, 8]  # todos menos el centro (4)
+
+    r1 = compute_mesh_pde_tool("smooth", {
+        "vertices": vertices, "faces": faces, "boundary_indices": boundary_indices,
+    })
+    center_new = np.array(r1["vertices"][4])
+    expected_center = np.array([1.0, 1.0, 0.0])  # centroide de la grilla simetrica
+    err = float(np.linalg.norm(center_new - expected_center))
+    checks.append({
+        "name": "smooth_converge_al_centroide_en_grilla_simetrica",
+        "passed": err < 1e-6,
+        "detail": f"centro_obtenido={center_new.tolist()} esperado={expected_center.tolist()} err={err:.2e}",
+    })
+
+    checks.append({
+        "name": "smooth_no_reporta_caras_degeneradas_en_grilla_regular",
+        "passed": r1["degenerate_faces"] == 0,
+        "detail": f"degenerate_faces={r1['degenerate_faces']}",
+    })
+
+    all_pass = all(c["passed"] for c in checks)
+    return {
+        "validation_passed": all_pass,
+        "n_checks": len(checks),
+        "checks": checks,
+    }
