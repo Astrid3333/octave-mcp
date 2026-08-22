@@ -549,7 +549,7 @@ TOOL_SCHEMA = {
     "input_schema": {
         "type": "object",
         "properties": {
-            "mode": {"type": "string", "enum": ["simulate", "self_test"]},
+            "mode": {"type": "string", "enum": ["simulate", "self_test", "validate"]},
             "params": {
                 "type": "object",
                 "properties": {
@@ -574,6 +574,9 @@ TOOL_SCHEMA = {
 
 def run(mode, params=None):
     params = params or {}
+    if mode == "validate":
+        r = run_self_test()
+        return {"checks": r["checks"], "validation_passed": r["all_passed"], "n_checks": r["total"]}
     if mode == "simulate":
         return simulate(params)
     elif mode == "self_test":

@@ -683,6 +683,9 @@ def run_self_test():
 def run(mode, params=None):
     params = params or {}
 
+    if mode == "validate":
+        r = run_self_test()
+        return {"checks": r["checks"], "validation_passed": r["all_passed"], "n_checks": r["total"]}
     if mode == "descriptors":
         backend = params.get("backend", "auto")
         smiles_list = params.get("smiles_list") or ([params["smiles"]] if "smiles" in params else None)
