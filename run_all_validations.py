@@ -75,6 +75,11 @@ ALTERNATE_VALIDATE_MODE = {
     "toxicity_predictor": "self_test",
     "carbon_footprint_tool": "validate",
     "workspace_validate": "validate",
+    "levant": "validate",
+    "ancient_calculator": "validate",
+    "originarios": "validate",
+    "persistent_homology": "validate",
+    "math_philosophy_history": "validate",
     # NOTA (2026-08-20): plague_sir, settlement_clusters, historical_extractor
     # y abstract_algebra estuvieron mapeadas aca hasta que se confirmo que su
     # inputSchema ya declara "validate" en el enum de mode -- el chequeo
@@ -92,7 +97,18 @@ FLAT_SIGNATURE_TOOLS = {
     "settlement_clusters",
     "historical_extractor",
     "abstract_algebra",
-    "plot_workspace_run", "octave_run", "octave_eval_expr", "octave_run_script", "octave_version",}
+    "plot_workspace_run", "octave_run", "octave_eval_expr", "octave_run_script", "octave_version",
+    "levant", "ancient_calculator", "originarios", "persistent_homology", "math_philosophy_history",}
+
+# Tools cuyo parametro real de invocacion no es "mode" (preset, topic, etc.)
+# -- ver ALTERNATE_VALIDATE_MODE para el valor a pasar en ese parametro.
+ALTERNATE_VALIDATE_PARAM_NAME = {
+    "levant": "preset",
+    "ancient_calculator": "preset",
+    "originarios": "preset",
+    "persistent_homology": "preset",
+    "math_philosophy_history": "topic",
+}
 
 # Nombres de campo alternativos para "el autochequeo paso" -- distintas
 # tools nunca convergieron en una sola convencion. all_params_within_2sigma
@@ -132,7 +148,8 @@ def build_requests(tools):
         if name in KNOWN_NON_STANDARD_VALIDATE:
             skipped.append((name, KNOWN_NON_STANDARD_VALIDATE[name]))
             continue
-        arguments = {"mode": mode_to_call}
+        param_name = ALTERNATE_VALIDATE_PARAM_NAME.get(name, "mode")
+        arguments = {param_name: mode_to_call}
         if name not in FLAT_SIGNATURE_TOOLS:
             arguments["params"] = {}
         requests.append({
@@ -183,7 +200,8 @@ def _run_chunk(chunk_tools, id_offset):
         if name in KNOWN_NON_STANDARD_VALIDATE:
             skipped.append((name, KNOWN_NON_STANDARD_VALIDATE[name]))
             continue
-        arguments = {"mode": mode_to_call}
+        param_name = ALTERNATE_VALIDATE_PARAM_NAME.get(name, "mode")
+        arguments = {param_name: mode_to_call}
         if name not in FLAT_SIGNATURE_TOOLS:
             arguments["params"] = {}
         requests.append({
@@ -339,6 +357,10 @@ def main():
         # algunas tools usan "validation_passed", otras usan "all_passed",
         # "ok", "all_pass", "todos_correctos", u otro campo especifico
         # (ver VALIDATION_FIELD_ALIASES) -- se aceptan todos como sinonimos.
+        if not isinstance(parsed, dict):
+            errored.append((name, f"validate no estructurado (devolvio {type(parsed).__name__}, no dict)"))
+            continue
+
         vp = None
         for _field in VALIDATION_FIELD_ALIASES:
             if _field in parsed:
