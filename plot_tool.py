@@ -290,10 +290,11 @@ def _plot_numeral_embedding(loaded_data: dict, run_id: str, title: str | None, m
 
 
 def plot_run(
-    run_id: str,
+    run_id: str = None,
     plot_type: str = "auto",
     title: str | None = None,
     array_name: str | None = None,
+    mode: str | None = None,
 ) -> dict:
     """
     Genera un grafico a partir de un run guardado en el workspace.
@@ -306,11 +307,19 @@ def plot_run(
         array_name: nombre del array dentro del run a graficar. Si se omite,
             se usa el primero disponible (o "trayectoria" si existe, por
             compatibilidad con compute_lyapunov_exponent).
+        mode: si es "validate", corre la bateria de autochequeo en vez de
+            graficar (no requiere run_id).
 
     Returns:
         dict con run_id, plot_type, image_base64 (PNG), image_path (respaldo
         en disco), mime_type. O {"error": ...} si algo falla.
     """
+    if mode == "validate":
+        return _validate_plot_tool()
+
+    if run_id is None:
+        return {"error": "run_id es requerido (salvo mode='validate')"}
+
     loaded = load_run(run_id)
     if "error" in loaded:
         return loaded
@@ -351,6 +360,120 @@ def plot_run(
         return {"error": f"plot_type '{plot_type}' no reconocido. Opciones: auto, attractor_3d, attractor_2d, line, scatter, heatmap."}
 
 
+def _validate_plot_tool() -> dict:
+    checks = []
+
+    # 1) attractor_3d desde una trayectoria SINTETICA guardada directamente
+    #    con save_run() (mismo patron autocontenido que usan persistent_
+    #    homology y numeral_systems_embedding). NO se usa compute_lyapunov_
+    #    exponent aqui a proposito: esa tool acepta run_id pero nunca llama
+    #    a save_run() internamente (bug real de lyapunov_tool.py, fuera del
+    #    alcance de plot_tool), asi que un run de lyapunov nunca queda
+    #    persistido en el workspace para que plot_run() lo pueda leer despues.
+    run_id_synth = "_validate_plot_tool_attractor_synth"
+    cleanup_synth = False
+    try:
+        from workspace_tool import save_run
+        t = np.linspace(0, 50, 2000)
+        trayectoria_sintetica = np.column_stack([
+            np.sin(t) * np.exp(0.01 * t),
+            np.cos(t) * np.exp(0.01 * t),
+            t * 0.1,
+        ])
+        save_result = save_run(
+            run_id_synth,
+            {"trayectoria": trayectoria_sintetica},
+            {"tool": "_validate_plot_tool_synthetic"},
+        )
+        p_attractor = plot_run(run_id_synth, plot_type="attractor_3d")
+        checks.append({
+            "name": "attractor_3d_desde_trayectoria_sintetica",
+            "trajectory_saved": "error" not in save_result,
+            "image_base64_len": len(p_attractor.get("image_base64", "")),
+            "mime_type": p_attractor.get("mime_type"),
+            "plot_type_returned": p_attractor.get("plot_type"),
+            "passed": (
+                "error" not in save_result
+                and len(p_attractor.get("image_base64", "")) > 0
+                and p_attractor.get("mime_type") == "image/png"
+                and p_attractor.get("plot_type") == "attractor_3d"
+            ),
+        })
+    finally:
+        try:
+            from workspace_tool import delete_run
+            delete_run(run_id_synth)
+            cleanup_synth = True
+        except Exception:
+            cleanup_synth = False
+    checks.append({
+        "name": "cleanup_run_synthetic_attractor_ok",
+        "passed": cleanup_synth,
+    })
+
+    # 2) persistence_diagram desde un run REAL de compute_persistent_homology
+    #    (chequeo de integracion cruzada entre tools)
+    run_id_ph = "_validate_plot_tool_persistent_homology"
+    cleanup_ph = False
+    try:
+        from persistent_homology_tool import compute_persistent_homology
+        r_ph = compute_persistent_homology("circle", n_points=15, max_edge_length=2.5, run_id=run_id_ph)
+        p_diagram = plot_run(run_id_ph, plot_type="persistence_diagram")
+        checks.append({
+            "name": "persistence_diagram_desde_run_real_de_persistent_homology",
+            "trajectory_saved": r_ph.get("trajectory_saved"),
+            "image_base64_len": len(p_diagram.get("image_base64", "")),
+            "passed": (
+                r_ph.get("trajectory_saved") is True
+                and len(p_diagram.get("image_base64", "")) > 0
+            ),
+        })
+    finally:
+        try:
+            from workspace_tool import delete_run
+            delete_run(run_id_ph)
+            cleanup_ph = True
+        except Exception:
+            cleanup_ph = False
+    checks.append({
+        "name": "cleanup_run_persistent_homology_ok",
+        "passed": cleanup_ph,
+    })
+
+    # 3) run_id inexistente da error estructurado, no crashea
+    r_missing = plot_run("_run_id_que_no_existe_jamas")
+    checks.append({
+        "name": "run_id_inexistente_da_error_no_crash",
+        "passed": "error" in r_missing,
+    })
+
+    # 4) plot_type invalido da error estructurado (sobre un run real)
+    run_id_bad_type = "_validate_plot_tool_bad_type"
+    cleanup_bad = False
+    try:
+        from lyapunov_tool import compute_lyapunov_exponent
+        compute_lyapunov_exponent(system="chen_lee", n_steps=500, run_id=run_id_bad_type)
+        r_bad_type = plot_run(run_id_bad_type, plot_type="tipo_que_no_existe")
+        checks.append({
+            "name": "plot_type_invalido_da_error_no_crash",
+            "passed": "error" in r_bad_type,
+        })
+    finally:
+        try:
+            from workspace_tool import delete_run
+            delete_run(run_id_bad_type)
+            cleanup_bad = True
+        except Exception:
+            cleanup_bad = False
+    checks.append({
+        "name": "cleanup_run_bad_type_ok",
+        "passed": cleanup_bad,
+    })
+
+    all_passed = all(c["passed"] for c in checks)
+    return {"checks": checks, "validation_passed": all_passed, "n_checks": len(checks)}
+
+
 # --- Schema para registro manual (patron types.Tool / allowlist) ---
 PLOT_RUN_SCHEMA = {
     "name": "plot_workspace_run",
@@ -363,6 +486,7 @@ PLOT_RUN_SCHEMA = {
         "type": "object",
         "properties": {
             "run_id": {"type": "string"},
+            "mode": {"type": "string", "enum": ["validate"], "description": "'validate' corre el autochequeo, no requiere run_id."},
             "plot_type": {
                 "type": "string",
                 "enum": ["auto", "attractor_3d", "attractor_2d", "line", "scatter", "heatmap", "persistence_diagram", "settlement_map", "numeral_embedding"],
@@ -371,7 +495,6 @@ PLOT_RUN_SCHEMA = {
             "title": {"type": "string"},
             "array_name": {"type": "string", "description": "Nombre del array a graficar dentro del run (opcional)."},
         },
-        "required": ["run_id"],
     },
 }
 
@@ -390,10 +513,10 @@ if __name__ == "__main__":
 
 PLOT_WORKSPACE_RUN_SCHEMA = {   'type': 'object',
     'properties': {   'run_id': {'type': 'string'},
+                      'mode': {'type': 'string', 'enum': ['validate']},
                       'plot_type': {'type': 'string'},
                       'title': {'type': 'string'},
-                      'array_name': {'type': 'string'}},
-    'required': ['run_id']}
+                      'array_name': {'type': 'string'}}}
 
 try:
     from tool_registry import register_tool
