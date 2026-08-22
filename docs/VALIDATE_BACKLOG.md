@@ -66,26 +66,43 @@ las llamadas existentes) o dejarlo documentado como excepción conocida.
 |---|---|
 | math_visualization | ✅ validate agregado (6 checks, commit 525cc66). Detectada por discovery automático (usa mode). |
 | math_interpreter | ✅ validate agregado (6 checks, commit eda4eb0). Detectada por discovery automático (usa mode, wrapper de handler). |
+| originarios | ✅ validate agregado (8 checks: mapuche n=1 y n=1234, aymara n=21/41 forma contraida vs plena, n=347 sufijo -ni, rangos invalidos, preset desconocido — commit 17035d7). No detectada por discovery (usa preset, no mode). |
+| paleography | ✅ validate agregado (7 checks: seriación diagonal Guttman, regresión lineal perfecta r²=1.0, clasificación Mahalanobis, errores de entrada — commits 3788c0b + f77ebcb). Detectada por discovery automático tras corregir el enum en el schema correcto (ver nota abajo). |
 | ancient_calculator | ✅ validate ya existía y funciona (6 checks, confirmado 2026-08-22). No detectada por discovery (usa preset, no mode) — ver nota arriba. |
 | ethnomath | ✅ validate ya existía y funciona (8 checks: maya round-trip, teorema chino resto, vedic x2 métodos, quipu round-trip, pi Arquímedes + enri japonés Richardson, preset desconocido). No detectada por discovery (usa preset, no mode) — mismo caso que ancient_calculator. |
+| ethnomath2 | ✅ validate ya existía y funciona (12 checks: duplación egipcia, al-Khwarizmi 3 casos, al-Kashi sin(1°), campesino ruso, sexagesimal otomano + tabla senos, calendario rúnico nórdico, ciclo metónico sudeste asiático, preset desconocido; confirmado 2026-08-22). No detectada por discovery (usa preset, no mode).
 | math_explainer | ➡️ Grupo 1 (exenta). Templating puro: interpola valores ya calculados por otra tool en texto español, sin mode, sin cómputo propio. No hay solución analítica que verificar, solo fidelidad de formato — fuera de alcance de esta tanda. |
 | math_philosophy_history | ➡️ Grupo 1 (exenta, confirmado). `compute_math_philosophy_history(topic, params) -> str`, contenido narrativo fijo por tópico, sin mode, sin cómputo. |
+
+## Nota: schemas huérfanos / duplicados (hallazgo en paleography_tool.py)
+`paleography_tool.py` tenía DOS definiciones de schema (`PALEOGRAPHY_TOOL_SCHEMA`
+con parámetros en inglés y enum, y `PALEOGRAPHY_SCHEMA` con parámetros en español
+sin enum). `register_tool()` usaba la segunda (la huérfana en la práctica era la
+primera, aunque tenía mejor forma). El patch inicial de validate agregó el enum
+al schema equivocado (`PALEOGRAPHY_TOOL_SCHEMA`), y aunque el smoke test de
+`mode="validate"` pasaba perfecto (el handler ya lo aceptaba), el discovery de
+run_all_validations.py no lo contaba porque miraba el schema realmente registrado
+(`PALEOGRAPHY_SCHEMA`), que no tenía enum en absoluto. Corregido en f77ebcb.
+**Vale la pena revisar si este patrón (dos schemas, uno huérfano) se repite en
+otras tools del ecosistema** — puede estar ocultando otros casos silenciosos
+donde el schema que se edita no es el que se registra.
 
 ## Grupo 3 — A revisar (pendiente)
 
 | Tool | Notas |
 |---|---|
-| ethnomath2 | revisar (probable continuación de ethnomath, mismo patrón esperado) |
-| originarios | revisar |
-| paleography | revisar |
-| levant | revisar |
+| levant | revisar (última pendiente) |
 
 ## Próximos pasos
-1. Revisar las 4 restantes (ethnomath2, originarios, paleography, levant).
+1. Revisar la última pendiente (levant).
 2. Resolver el rename de run_math_pipeline (liberar mode=validate real).
 3. Empezar backlog del Grupo 2 real (entropy_structure, persistent_homology,
    lscm_tool, multivariate_bayes_tool, statistical_physics_tool,
    knowledge_graph_tool, semantic_bridge, numeral_systems_embedding).
 4. Evaluar normalizar schema de toxicity_predictor para que discovery la cuente.
-5. Evaluar normalizar preset→mode en ancient_calculator y ethnomath para que
-   discovery las cuente (mismo problema estructural en ambas).
+5. Evaluar normalizar preset→mode en ancient_calculator, ethnomath, ethnomath2
+   y originarios para que discovery las cuente (mismo problema estructural
+   en las cuatro).
+6. Auditar el resto de tools del ecosistema por el patrón de "schema huérfano"
+   descubierto en paleography_tool.py (dos definiciones de schema, register_tool
+   usa una distinta a la que se edita habitualmente).
