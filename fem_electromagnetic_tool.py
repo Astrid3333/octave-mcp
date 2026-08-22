@@ -79,7 +79,7 @@ FEM_ELECTROMAGNETIC_TOOL_SCHEMA = {
     "properties": {
         "mode": {
             "type": "string",
-            "enum": ["poisson_2d"],
+            "enum": ["poisson_2d", "validate"],
             "default": "poisson_2d",
         },
         "geometry": {
