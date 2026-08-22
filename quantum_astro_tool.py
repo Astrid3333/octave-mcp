@@ -181,6 +181,9 @@ _HAMILTONIAN_BUILDERS = {
 def compute_quantum_astro_tool(mode, params=None):
     params = params or {}
 
+    if mode == "validate":
+        return validate()
+
     if mode != "operator_algebra":
         raise ValueError(
             f"mode '{mode}' no reconocido en Fase 1. "
@@ -298,7 +301,7 @@ QUANTUM_ASTRO_TOOL_SCHEMA = {
         "properties": {
             "mode": {
                 "type": "string",
-                "enum": ["operator_algebra"],
+                "enum": ["operator_algebra", "validate"],
             },
             "params": {
                 "type": "object",
@@ -350,3 +353,75 @@ except ImportError:
         pass
 
 register_tool("quantum_astro_tool", QUANTUM_ASTRO_TOOL_SCHEMA, lambda args, _f=compute_quantum_astro_tool: _f(**args))
+
+
+# ---------------------------------------------------------------------------
+# Validacion propia (mode="validate") -- llama directo a las funciones
+# internas de algebra/hamiltonianos ya definidas arriba, comparando contra
+# resultados analiticos conocidos (no pasa por el round-trip JSON de
+# matrices/_parse_matrix para evitar depender de su formato exacto).
+# ---------------------------------------------------------------------------
+
+def validate():
+    checks = []
+
+    sx, sy, sz, I2 = pauli_matrices()
+
+    comm = commutator(sx, sy)
+    expected = 2j * sz
+    checks.append({
+        "name": "commutator_pauli_x_y_da_2i_sigma_z",
+        "passed": bool(np.allclose(comm, expected, atol=1e-10)),
+        "detail": f"max_abs_diff={float(np.max(np.abs(comm-expected))):.2e}",
+    })
+
+    acomm = anticommutator(sx, sy)
+    checks.append({
+        "name": "anticommutator_pauli_x_y_es_cero",
+        "passed": bool(np.allclose(acomm, np.zeros((2, 2)), atol=1e-10)),
+        "detail": f"max_abs_value={float(np.max(np.abs(acomm))):.2e}",
+    })
+
+    checks.append({
+        "name": "pauli_z_hermitica_traza_cero",
+        "passed": bool(_hermiticity_check(sz) and abs(complex(np.trace(sz))) < 1e-10),
+        "detail": f"trace={complex(np.trace(sz))}",
+    })
+
+    n_levels = 8
+    a, a_dag, n_op = ladder_operators(n_levels)
+    comm_ad = commutator(a, a_dag)
+    sub = comm_ad[:n_levels - 1, :n_levels - 1]
+    checks.append({
+        "name": "conmutador_a_adag_es_identidad_lejos_del_truncamiento",
+        "passed": bool(np.allclose(sub, np.eye(n_levels - 1), atol=1e-9)),
+        "detail": f"max_abs_diff={float(np.max(np.abs(sub - np.eye(n_levels - 1)))):.2e}",
+    })
+
+    omega, hbar = 2.0, 1.0
+    H_ho = harmonic_oscillator_hamiltonian(n_levels=6, omega=omega, hbar=hbar)
+    eigvals_ho = np.sort(np.linalg.eigvalsh(H_ho))
+    expected_ho = np.array([hbar * omega * (n + 0.5) for n in range(6)])
+    checks.append({
+        "name": "hamiltoniano_oscilador_armonico_autovalores_correctos",
+        "passed": bool(np.allclose(eigvals_ho, expected_ho, atol=1e-9)),
+        "detail": f"max_abs_diff={float(np.max(np.abs(eigvals_ho - expected_ho))):.2e}",
+    })
+
+    gyromagnetic = 1.0
+    Bz = 3.0
+    H_spin = spin_field_hamiltonian(Bx=0.0, By=0.0, Bz=Bz, gyromagnetic=gyromagnetic)
+    eigvals_spin = np.sort(np.linalg.eigvalsh(H_spin))
+    expected_spin = np.sort(np.array([-gyromagnetic * Bz / 2.0, gyromagnetic * Bz / 2.0]))
+    checks.append({
+        "name": "hamiltoniano_spin_campo_z_autovalores_correctos",
+        "passed": bool(np.allclose(eigvals_spin, expected_spin, atol=1e-9)),
+        "detail": f"eigvals={eigvals_spin.tolist()} esperado={expected_spin.tolist()}",
+    })
+
+    all_pass = all(c["passed"] for c in checks)
+    return {
+        "validation_passed": all_pass,
+        "n_checks": len(checks),
+        "checks": checks,
+    }
