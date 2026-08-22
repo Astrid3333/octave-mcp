@@ -91,6 +91,7 @@ FLAT_SIGNATURE_TOOLS = {
     "settlement_clusters",
     "historical_extractor",
     "abstract_algebra",
+    "plot_workspace_run",
 }
 
 # Nombres de campo alternativos para "el autochequeo paso" -- distintas
