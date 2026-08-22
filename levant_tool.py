@@ -43,7 +43,7 @@ LEVANT_SCHEMA = {
         "properties": {
             "preset": {
                 "type": "string",
-                "enum": ["hebrew_molad", "hebrew_gematria", "canaanite_phoenician_numeral"],
+                "enum": ["hebrew_molad", "hebrew_gematria", "canaanite_phoenician_numeral", "validate"],
             },
             "params": {"type": "object"},
         },
@@ -229,8 +229,109 @@ def compute_canaanite_phoenician_numeral(mode="encode", number=None, symbols=Non
         return {"error": f"mode desconocido: {mode}"}
 
 
+def _validate_levant():
+    """Checks anclados a constantes clasicas documentadas y relaciones
+    analiticas conocidas (no solo 'no exploto')."""
+    checks = []
+
+    # --- hebrew_molad anio 1: debe coincidir EXACTO con BaHaRaD ---
+    m1 = compute_hebrew_molad(1)
+    checks.append({
+        "name": "hebrew_molad_anio1_coincide_con_baharad",
+        "weekday": m1.get("molad_weekday"),
+        "hour": m1.get("molad_hour"),
+        "chalakim": m1.get("molad_chalakim"),
+        "passed": bool(m1.get("molad_weekday") == "Yom Sheni (lunes)"
+                        and m1.get("molad_hour") == 5
+                        and m1.get("molad_chalakim") == 204
+                        and m1.get("is_leap_year") is False),
+    })
+
+    # --- hebrew_molad anio 20: 235 meses desde anio 1 (ciclo metonico) ---
+    m2 = compute_hebrew_molad(20)
+    checks.append({
+        "name": "hebrew_molad_anio20_ciclo_metonico_235_meses",
+        "months_elapsed": m2.get("months_elapsed_since_year_1"),
+        "passed": bool(m2.get("months_elapsed_since_year_1") == 235),
+    })
+
+    # --- hebrew_molad: anios bisiestos correctos segun residuos documentados ---
+    m3 = compute_hebrew_molad(19)
+    m4 = compute_hebrew_molad(3)
+    checks.append({
+        "name": "hebrew_molad_anios_bisiestos_19_y_3",
+        "anio19_leap": m3.get("is_leap_year"),
+        "anio3_leap": m4.get("is_leap_year"),
+        "passed": bool(m3.get("is_leap_year") is True and m4.get("is_leap_year") is True),
+    })
+
+    # --- hebrew_molad: anio invalido -> error estructurado ---
+    m5 = compute_hebrew_molad(0)
+    checks.append({
+        "name": "hebrew_molad_anio_invalido_da_error_no_crash",
+        "passed": bool(isinstance(m5, dict) and "error" in m5),
+    })
+
+    # --- gematria word_value: 'chai' (het+yod) = 18, numero de la vida ---
+    g1 = compute_hebrew_gematria(mode="word_value", letters=["het", "yod"])
+    checks.append({
+        "name": "gematria_chai_het_yod_igual_18",
+        "value": g1.get("value"),
+        "passed": bool(g1.get("value") == 18),
+    })
+
+    # --- gematria encode_number: excepcion Tetragramaton 15 y 16 ---
+    g2 = compute_hebrew_gematria(mode="encode_number", number=15)
+    g3 = compute_hebrew_gematria(mode="encode_number", number=16)
+    checks.append({
+        "name": "gematria_excepcion_tetragramaton_15_16",
+        "letters_15": g2.get("letters"),
+        "letters_16": g3.get("letters"),
+        "passed": bool(g2.get("letters") == ["tet", "vav"] and g2.get("check") is True
+                        and g3.get("letters") == ["tet", "zayin"] and g3.get("check") is True),
+    })
+
+    # --- phoenician numeral: encode(234) exacto, decode roundtrip ---
+    p1 = compute_canaanite_phoenician_numeral(mode="encode", number=234)
+    counts = p1.get("symbol_counts", {})
+    checks.append({
+        "name": "phoenician_encode_234_conteo_exacto",
+        "counts": counts,
+        "passed": bool(counts.get("hundred") == 2 and counts.get("twenty") == 1
+                        and counts.get("ten") == 1 and counts.get("one") == 4),
+    })
+    p2 = compute_canaanite_phoenician_numeral(
+        mode="decode", symbols=p1.get("symbol_sequence_left_to_right", [])
+    )
+    checks.append({
+        "name": "phoenician_decode_roundtrip_234",
+        "value": p2.get("value"),
+        "passed": bool(p2.get("value") == 234),
+    })
+
+    # --- phoenician numeral: simbolo desconocido reportado, no fallo silencioso ---
+    p3 = compute_canaanite_phoenician_numeral(mode="decode", symbols=["hundred", "gorp"])
+    checks.append({
+        "name": "phoenician_decode_simbolo_desconocido_reportado",
+        "unknown_symbols": p3.get("unknown_symbols"),
+        "passed": bool(p3.get("unknown_symbols") == ["gorp"]),
+    })
+
+    # --- preset desconocido -> error estructurado ---
+    unk = compute_levant("preset_inexistente")
+    checks.append({
+        "name": "preset_desconocido_devuelve_error",
+        "passed": bool(isinstance(unk, dict) and "error" in unk),
+    })
+
+    all_passed = all(c["passed"] for c in checks)
+    return {"checks": checks, "validation_passed": all_passed, "n_checks": len(checks)}
+
+
 def compute_levant(preset, params=None):
     params = params or {}
+    if preset == "validate":
+        return _validate_levant()
     if preset == "hebrew_molad":
         return compute_hebrew_molad(**params)
     elif preset == "hebrew_gematria":
