@@ -1,6 +1,6 @@
 # octave-mcp
 
-Servidor MCP (JSON-RPC manual, sin FastMCP) que expone 125+ herramientas matemáticas y de simulación científica sobre Octave/Python, pensadas para usarse desde Claude Desktop u otros clientes MCP.
+Servidor MCP (JSON-RPC manual, sin FastMCP) que expone 241 herramientas matemáticas y de simulación científica sobre Octave/Python, pensadas para usarse desde Claude Desktop u otros clientes MCP.
 
 > **Nota de unificación:** este repositorio es el único proyecto activo. El antiguo `mcp-octave-real` (FastMCP, 39 tools) fue absorbido por completo — todas sus herramientas, incluidas las de historia cuantitativa (`plague_sir`, `settlement_clusters`, `historical_extractor`, `braid_group`, Benford en `historian`), viven ahora acá. `mcp-octave-real` queda deprecado y no debe usarse ni documentarse como proyecto en paralelo.
 
@@ -8,6 +8,7 @@ Servidor MCP (JSON-RPC manual, sin FastMCP) que expone 125+ herramientas matemá
 
 - `server.py`: dispatcher manual (sin FastMCP). Cada tool nuevo requiere tres ediciones coordinadas: línea de import, entrada en la lista `TOOLS`, y bloque `elif tool_name ==` en el dispatch.
 - Dependencias: numpy, sympy y scipy (`advanced_probability_tool`, `advanced_stochastic_tool` y `multivariate_bayes_tool` dependen de scipy.stats).
+- Dependencia opcional: paquete Octave `symbolic` (`pkg install -forge symbolic`) para el check simbolico de `statmech_partition_tool`; si no esta instalado, ese check se salta (`skipped`) sin afectar el resultado global de `validate`.
 - Test rápido: pipear `initialize`, `tools/list`, `tools/call` (3 líneas JSON-RPC) a `timeout 30 python3 server.py`.
 - Workspace persistente (`workspace_save` / `workspace_load` / `workspace_list` / `workspace_describe` / `workspace_delete`) para reutilizar resultados entre llamadas sin recomputar.
 
@@ -52,7 +53,7 @@ Servidor MCP (JSON-RPC manual, sin FastMCP) que expone 125+ herramientas matemá
   - `factor_analysis` — Factor Analysis vía EM (Rubin-Thayer).
 
 ### Física y química
-`quantum_information`, `qm_potential_well`, `nuclear_decay_chain`, `enzyme_kinetics`, `antibiotic_diffusion`, `population_genetics`, `braid_group`, `tritbraid`, `statistical_physics_tool`, `cfd_tool`
+`quantum_information`, `qm_potential_well`, `nuclear_decay_chain`, `enzyme_kinetics`, `antibiotic_diffusion`, `population_genetics`, `braid_group`, `tritbraid`, `statistical_physics_tool`, `cfd_tool`, `statmech_partition_tool`
 
 ### Matemática financiera y teoría de juegos
 `financial_math` (Black-Scholes, griegas, VaR, anualidades, bonos, riesgo catastrófico vía Monte Carlo Poisson compuesto/lognormal), `game_theory`
