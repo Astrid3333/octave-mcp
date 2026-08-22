@@ -35,6 +35,7 @@ MACHINE_LEARNING_TOOL_SCHEMA = {
                     "cost_functions",
                     "regularization_compare",
                     "pca",
+                    "validate",
                 ],
                 "description": "Que submodulo ejecutar.",
             },
@@ -307,6 +308,8 @@ def _pca(X, n_components=None):
 # dispatcher
 # ---------------------------------------------------------------------------
 def compute_machine_learning_math(mode, **kwargs):
+    if mode == "validate":
+        return validate()
     if mode == "gradient_descent":
         return _gradient_descent(
             kwargs["expression"], kwargs["variables"], kwargs["x0"],
@@ -377,3 +380,77 @@ except ImportError:
         pass
 
 register_tool("machine_learning_math", MACHINE_LEARNING_TOOL_SCHEMA, lambda args, _f=compute_machine_learning_math: _f(**args))
+
+
+# ---------------------------------------------------------------------------
+# Validacion propia (mode="validate") -- llama directo a las funciones
+# internas con casos de solucion analitica conocida.
+# ---------------------------------------------------------------------------
+
+def validate():
+    checks = []
+
+    # 1) gradient_descent: f=x^2+y^2, minimo global en el origen
+    r1 = _gradient_descent("x**2 + y**2", "x,y", [5.0, 5.0], learning_rate=0.1, n_iterations=200)
+    err1 = max(abs(v) for v in r1["x_final"])
+    checks.append({
+        "name": "gradient_descent_converge_al_origen_en_x2_mas_y2",
+        "passed": err1 < 1e-3,
+        "detail": f"x_final={r1['x_final']} loss_final={r1['loss_final']:.2e}",
+    })
+
+    # 2) linear_regression: y = 2x + 1 exacto (sin ruido) -> recupera coeficientes exactos
+    X = [[0.0], [1.0], [2.0], [3.0], [4.0]]
+    y = [1.0, 3.0, 5.0, 7.0, 9.0]
+    r2 = _linear_regression(X, y)
+    err2 = abs(r2["intercept"] - 1.0) + abs(r2["coefficients"][0] - 2.0)
+    checks.append({
+        "name": "linear_regression_recupera_pendiente_e_intercepto_exactos",
+        "passed": err2 < 1e-8 and abs(r2["r_squared"] - 1.0) < 1e-8,
+        "detail": f"intercept={r2['intercept']:.6f} coef={r2['coefficients'][0]:.6f} r2={r2['r_squared']:.6f}",
+    })
+
+    # 3) logistic_regression: datos perfectamente separables en 1D -> accuracy 1.0
+    X_log = [[-3.0], [-2.0], [-1.0], [1.0], [2.0], [3.0]]
+    y_log = [0, 0, 0, 1, 1, 1]
+    r3 = _logistic_regression(X_log, y_log, learning_rate=0.5, n_iterations=2000)
+    checks.append({
+        "name": "logistic_regression_separa_perfectamente_datos_lineales",
+        "passed": r3["accuracy"] == 1.0,
+        "detail": f"accuracy={r3['accuracy']} confusion_matrix={r3['confusion_matrix']}",
+    })
+
+    # 4) cost_functions: mse/mae con y==y_pred deben dar 0 exacto
+    y_eq = [1.0, 2.0, 3.0]
+    r4a = _cost_functions(y_eq, y_eq, "mse")
+    r4b = _cost_functions(y_eq, y_eq, "mae")
+    checks.append({
+        "name": "cost_functions_mse_mae_cero_con_prediccion_perfecta",
+        "passed": r4a["value"] == 0.0 and r4b["value"] == 0.0,
+        "detail": f"mse={r4a['value']} mae={r4b['value']}",
+    })
+
+    # 5) cost_functions: mse con error conocido (y=[0,0], y_pred=[1,1] -> mse=1.0)
+    r5 = _cost_functions([0.0, 0.0], [1.0, 1.0], "mse")
+    checks.append({
+        "name": "cost_functions_mse_error_conocido",
+        "passed": abs(r5["value"] - 1.0) < 1e-12,
+        "detail": f"mse={r5['value']}",
+    })
+
+    # 6) pca: datos perfectamente colineales -> primer componente explica ~100% de la varianza
+    xs = np.linspace(-5, 5, 30)
+    data_line = np.column_stack([xs, 2 * xs]).tolist()
+    r6 = _pca(data_line, None)
+    checks.append({
+        "name": "pca_primer_componente_explica_toda_la_varianza_en_datos_colineales",
+        "passed": abs(r6["explained_variance_ratio"][0] - 1.0) < 1e-6,
+        "detail": f"explained_variance_ratio={r6['explained_variance_ratio']}",
+    })
+
+    all_pass = all(c["passed"] for c in checks)
+    return {
+        "validation_passed": all_pass,
+        "n_checks": len(checks),
+        "checks": checks,
+    }
