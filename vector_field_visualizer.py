@@ -221,7 +221,7 @@ TOOL_SCHEMA = {
     "inputSchema": {
         "type": "object",
         "properties": {
-            "mode": {"type": "string", "enum": ["quiver_data", "streamline", "self_test"]},
+            "mode": {"type": "string", "enum": ["quiver_data", "streamline", "self_test", "validate"]},
             "params": {
                 "type": "object",
                 "properties": {
@@ -363,6 +363,9 @@ def run_self_test():
 # ---------------------------------------------------------------------------
 
 def run(mode, params=None):
+    if mode == "validate":
+        r = run_self_test()
+        return {"checks": r["checks"], "validation_passed": r["all_passed"], "n_checks": r["total"]}
     if mode == "quiver_data":
         return quiver_data(params or {})
     elif mode == "streamline":

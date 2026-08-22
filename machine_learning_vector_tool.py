@@ -138,6 +138,9 @@ def compute_features(params):
 
 def run(mode, params=None):
     params = params or {}
+    if mode == "validate":
+        r = self_test()
+        return {"checks": r["checks"], "validation_passed": r["all_passed"], "n_checks": r["total"]}
     if mode == "pca":
         return compute_pca(params)
     elif mode == "features":
@@ -283,7 +286,7 @@ TOOL_SCHEMA = {
         "properties": {
             "mode": {
                 "type": "string",
-                "enum": ["pca", "features", "self_test"],
+                "enum": ["pca", "features", "self_test", "validate"],
                 "description": "Modo de operacion",
             },
             "params": {

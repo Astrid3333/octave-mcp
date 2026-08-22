@@ -184,7 +184,7 @@ TOOL_SCHEMA = {
     "inputSchema": {
         "type": "object",
         "properties": {
-            "mode": {"type": "string", "enum": ["augment", "self_test"]},
+            "mode": {"type": "string", "enum": ["augment", "self_test", "validate"]},
             "params": {
                 "type": "object",
                 "properties": {
@@ -291,6 +291,9 @@ def run_self_test():
 # ---------------------------------------------------------------------------
 
 def run(mode, params=None):
+    if mode == "validate":
+        r = run_self_test()
+        return {"checks": r["checks"], "validation_passed": r["all_passed"], "n_checks": r["total"]}
     if mode == "augment":
         return augment(params or {})
     elif mode == "self_test":
