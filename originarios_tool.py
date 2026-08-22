@@ -32,7 +32,7 @@ ORIGINARIOS_SCHEMA = {
     "inputSchema": {
         "type": "object",
         "properties": {
-            "preset": {"type": "string", "enum": ["mapuche_numeral", "aymara_numeral"]},
+            "preset": {"type": "string", "enum": ["mapuche_numeral", "aymara_numeral", "validate"]},
             "params": {"type": "object"},
         },
         "required": ["preset"],
@@ -205,8 +205,86 @@ def compute_aymara_numeral(mode="encode", number=None, words=None):
         return {"error": f"mode desconocido: {mode}"}
 
 
+def _validate_originarios():
+    """Checks apoyados en roundtrip_check interno + valores concretos
+    verificados por corrida real (no inventados)."""
+    checks = []
+
+    # --- mapuche: n=1, caso trivial sin escalas, phrase exacta ---
+    m1 = compute_mapuche_numeral(mode="encode", number=1)
+    checks.append({
+        "name": "mapuche_n1_phrase_exacta_kine",
+        "phrase": m1.get("phrase"),
+        "passed": bool(m1.get("phrase") == "kiñe" and m1.get("roundtrip_check") is True),
+    })
+
+    # --- mapuche: n=1234, usa las 3 escalas, roundtrip ok ---
+    m2 = compute_mapuche_numeral(mode="encode", number=1234)
+    checks.append({
+        "name": "mapuche_n1234_usa_3_escalas_y_roundtrip_ok",
+        "words": m2.get("words"),
+        "passed": bool(m2.get("roundtrip_check") is True
+                        and "warangka" in m2.get("words", [])
+                        and "pataka" in m2.get("words", [])
+                        and "mari" in m2.get("words", [])),
+    })
+
+    # --- mapuche: fuera de rango -> error estructurado, no crash ---
+    m3 = compute_mapuche_numeral(mode="encode", number=10000)
+    checks.append({
+        "name": "mapuche_fuera_de_rango_da_error_no_crash",
+        "passed": bool(isinstance(m3, dict) and "error" in m3),
+    })
+
+    # --- aymara: n=21, forma contraida 'pä' (tens_digit=2 dispara override) ---
+    a1 = compute_aymara_numeral(mode="encode", number=21)
+    checks.append({
+        "name": "aymara_n21_forma_contraida_pa",
+        "words": a1.get("words"),
+        "passed": bool(a1.get("words") == ["pä", "tunka", "mayani"]
+                        and a1.get("roundtrip_check") is True),
+    })
+
+    # --- aymara: n=41, forma plena 'pusi' (tens_digit=4, NO dispara override) ---
+    a2 = compute_aymara_numeral(mode="encode", number=41)
+    checks.append({
+        "name": "aymara_n41_forma_plena_pusi_no_contraida",
+        "words": a2.get("words"),
+        "passed": bool(a2.get("words") == ["pusi", "tunka", "mayani"]
+                        and a2.get("roundtrip_check") is True),
+    })
+
+    # --- aymara: n=347, centena+decena+unidad con sufijo -ni ---
+    a3 = compute_aymara_numeral(mode="encode", number=347)
+    checks.append({
+        "name": "aymara_n347_centena_decena_unidad_sufijo_ni",
+        "words": a3.get("words"),
+        "passed": bool(a3.get("words") == ["kimsa", "pataka", "pusi", "tunka", "paqallquni"]
+                        and a3.get("roundtrip_check") is True),
+    })
+
+    # --- aymara: fuera de rango -> error estructurado, no crash ---
+    a4 = compute_aymara_numeral(mode="encode", number=10000)
+    checks.append({
+        "name": "aymara_fuera_de_rango_da_error_no_crash",
+        "passed": bool(isinstance(a4, dict) and "error" in a4),
+    })
+
+    # --- preset desconocido -> error estructurado, no ValueError ---
+    unk = compute_originarios("preset_inexistente")
+    checks.append({
+        "name": "preset_desconocido_devuelve_error",
+        "passed": bool(isinstance(unk, dict) and "error" in unk),
+    })
+
+    all_passed = all(c["passed"] for c in checks)
+    return {"checks": checks, "validation_passed": all_passed, "n_checks": len(checks)}
+
+
 def compute_originarios(preset, params=None):
     params = params or {}
+    if preset == "validate":
+        return _validate_originarios()
     if preset == "mapuche_numeral":
         return compute_mapuche_numeral(**params)
     elif preset == "aymara_numeral":
