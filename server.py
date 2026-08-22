@@ -320,6 +320,13 @@ if __name__ == "__main__":
                         "result": {"content": [{"type": "text", "text": output or "(sin salida)"}]},
                     }
 
+                elif tool_name == "numeral_systems_embedding":
+                    result = compute_numeral_systems_embedding(**args)
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+
                 elif tool_name == "compute_lyapunov_exponent":
                     result = compute_lyapunov_exponent(**args)
                     resp = {

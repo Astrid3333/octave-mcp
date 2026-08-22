@@ -242,6 +242,9 @@ def compute_numeral_systems_embedding(
         dict con method, n_systems, coords (lista de [x,y] en el mismo orden
         que systems), systems (metadata completa), nota_metodologica.
     """
+    if method == "validate":
+        return _validate_numeral_systems_embedding()
+
     systems = list(NUMERAL_SYSTEMS_DATASET)
     if extra_systems:
         systems = systems + list(extra_systems)
@@ -317,6 +320,85 @@ def compute_numeral_systems_embedding(
     return result
 
 
+def _validate_numeral_systems_embedding() -> dict:
+    checks = []
+    base_n = len(NUMERAL_SYSTEMS_DATASET)
+
+    # 1) UMAP embebe el dataset base completo, coords/names alineados
+    r_umap = compute_numeral_systems_embedding(method="umap")
+    checks.append({
+        "name": "umap_embeds_dataset_base_completo",
+        "n_systems": r_umap.get("n_systems"),
+        "expected": base_n,
+        "passed": (
+            r_umap.get("n_systems") == base_n
+            and len(r_umap.get("coords", [])) == base_n
+            and len(r_umap.get("names", [])) == base_n
+            and "error" not in r_umap
+        ),
+    })
+
+    # 2) t-SNE tambien embebe el dataset base completo
+    r_tsne = compute_numeral_systems_embedding(method="tsne")
+    checks.append({
+        "name": "tsne_embeds_dataset_base_completo",
+        "n_systems": r_tsne.get("n_systems"),
+        "expected": base_n,
+        "passed": (
+            r_tsne.get("n_systems") == base_n
+            and len(r_tsne.get("coords", [])) == base_n
+            and "error" not in r_tsne
+        ),
+    })
+
+    # 3) extra_systems EXTIENDE el dataset base, no lo reemplaza
+    extra = [{
+        "name": "_validate_extra_system",
+        "region": "test", "period": "test",
+        "base": 10, "type": "positional",
+        "has_zero": True, "redundant": False, "physical_device": False,
+    }]
+    r_extra = compute_numeral_systems_embedding(method="umap", extra_systems=extra)
+    checks.append({
+        "name": "extra_systems_extiende_dataset_sin_reemplazar",
+        "n_systems": r_extra.get("n_systems"),
+        "expected": base_n + 1,
+        "passed": (
+            r_extra.get("n_systems") == base_n + 1
+            and "_validate_extra_system" in r_extra.get("names", [])
+        ),
+    })
+
+    # 4) run_id persiste el embedding en el workspace (y se puede limpiar)
+    run_id = "_validate_numeral_embedding_selftest"
+    r_run = compute_numeral_systems_embedding(method="umap", run_id=run_id)
+    persisted_ok = r_run.get("trajectory_saved") is True and r_run.get("run_id") == run_id
+    cleanup_ok = False
+    try:
+        from workspace_tool import delete_run
+        delete_run(run_id)
+        cleanup_ok = True
+    except Exception:
+        cleanup_ok = False
+    checks.append({
+        "name": "run_id_persiste_embedding_en_workspace",
+        "trajectory_saved": r_run.get("trajectory_saved"),
+        "run_id_returned": r_run.get("run_id"),
+        "cleanup_ok": cleanup_ok,
+        "passed": persisted_ok,
+    })
+
+    # 5) method invalido da error estructurado, no crashea
+    r_bad = compute_numeral_systems_embedding(method="metodo_que_no_existe")
+    checks.append({
+        "name": "method_invalido_da_error_no_crash",
+        "passed": "error" in r_bad,
+    })
+
+    all_passed = all(c["passed"] for c in checks)
+    return {"checks": checks, "validation_passed": all_passed, "n_checks": len(checks)}
+
+
 NUMERAL_EMBEDDING_SCHEMA = {
     "name": "numeral_systems_embedding",
     "description": (
@@ -332,7 +414,7 @@ NUMERAL_EMBEDDING_SCHEMA = {
     "inputSchema": {
         "type": "object",
         "properties": {
-            "method": {"type": "string", "enum": ["umap", "tsne"], "default": "umap"},
+            "method": {"type": "string", "enum": ["umap", "tsne", "validate"], "default": "umap"},
             "extra_systems": {"type": "array", "description": "Lista opcional de sistemas adicionales, mismo schema que el dataset base"},
             "n_neighbors": {"type": "integer", "description": "Solo UMAP, se clampea automaticamente si se omite"},
             "perplexity": {"type": "number", "description": "Solo t-SNE, se clampea automaticamente si se omite"},
