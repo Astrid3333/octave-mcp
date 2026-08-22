@@ -149,7 +149,7 @@ STATISTICAL_PHYSICS_TOOL_SCHEMA = {
     "inputSchema": {
         "type": "object",
         "properties": {
-            "mode": {"type": "string", "enum": ["ising_2d", "potts_grain_growth"]},
+            "mode": {"type": "string", "enum": ["ising_2d", "potts_grain_growth", "validate"]},
             "params": {"type": "object", "description": "Parametros especificos de cada modo, ver docstrings."},
         },
         "required": ["mode"],
@@ -375,13 +375,115 @@ def potts_grain_growth(n=40, q=20, n_steps=200, seed=0, measure_every=10):
     }
 
 
+def _validate_statistical_physics() -> dict:
+    checks = []
+
+    # mismos parametros que ya se prueban en el __main__ de este archivo
+    # (rapido: n chico, pocos pasos, pero suficiente para las aserciones
+    # estructurales/fisicas que siguen)
+    # NOTA: T_critical_estimate viene de "T" tal cual se guarda en
+    # ising_2d, que no lo castea a float nativo (a diferencia de
+    # magnetization/energy_per_site/specific_heat, que si lo hacen) --
+    # si temperatures se arma con list(np.linspace(...)) (sin .tolist()),
+    # T queda como numpy.float64. Comparar eso con floats nativos produce
+    # un numpy.bool_ en vez de un bool de Python, que el serializador JSON
+    # del server no reconoce. Bug menor de ising_2d, fuera de alcance de
+    # esta tanda -- se cubre aca casteando explicitamente a tipos nativos
+    # antes de comparar o de meterlo en el dict de resultados.
+    r = ising_2d(n=12, temperatures=list(np.linspace(1.8, 3.0, 10)),
+                 n_equil=150, n_measure=150, seed=1)
+
+    # 1) el pico de calor especifico debe caer dentro del rango barrido --
+    #    con N=12 y muestreo corto no se espera coincidir con Onsager exacto
+    #    (2.269), solo estar en un rango fisicamente razonable
+    T_critical_estimate = float(r["T_critical_estimate"])
+    T_critical_onsager = float(r["T_critical_onsager"])
+    checks.append({
+        "name": "ising_T_critical_en_rango_esperado",
+        "T_critical_estimate": T_critical_estimate,
+        "T_critical_onsager": T_critical_onsager,
+        "passed": bool(1.8 <= T_critical_estimate <= 3.0),
+    })
+
+    # 2) chequeo fisico basico: magnetizacion alta a T baja, baja a T alta
+    mag_low_T = float(r["results"][0]["magnetization"])
+    mag_high_T = float(r["results"][-1]["magnetization"])
+    checks.append({
+        "name": "ising_magnetizacion_decrece_con_temperatura",
+        "magnetization_T_baja": mag_low_T,
+        "magnetization_T_alta": mag_high_T,
+        "passed": bool(mag_low_T > mag_high_T),
+    })
+
+    # 3) backend invalido da ValueError con mensaje claro, no un crash crudo
+    try:
+        ising_2d(n=4, temperatures=[2.0], n_equil=1, n_measure=1, backend="backend_que_no_existe")
+        backend_invalido_ok = False
+    except ValueError:
+        backend_invalido_ok = True
+    except Exception:
+        backend_invalido_ok = False
+    checks.append({
+        "name": "ising_backend_invalido_da_valueerror_no_crash_crudo",
+        "passed": bool(backend_invalido_ok),
+    })
+
+    r2 = potts_grain_growth(n=30, q=15, n_steps=150, seed=2, measure_every=15)
+
+    # 4) el numero de granos debe ser no-creciente (coalescencia, sin
+    #    nucleacion de granos nuevos en este modelo)
+    n_grains_seq = [row["n_grains"] for row in r2["history"]]
+    n_grains_no_creciente = all(
+        n_grains_seq[i] >= n_grains_seq[i + 1] for i in range(len(n_grains_seq) - 1)
+    )
+    checks.append({
+        "name": "potts_n_grains_no_creciente",
+        "n_grains_seq": [int(x) for x in n_grains_seq],
+        "passed": bool(n_grains_no_creciente),
+    })
+
+    # 5) el area promedio de grano debe ser no-decreciente (ley de
+    #    crecimiento normal <A> ~ t, von Neumann-Mullins)
+    areas_seq = [row["mean_area"] for row in r2["history"]]
+    areas_no_decreciente = all(
+        areas_seq[i] <= areas_seq[i + 1] for i in range(len(areas_seq) - 1)
+    )
+    checks.append({
+        "name": "potts_mean_area_no_decreciente",
+        "areas_seq": [float(x) for x in areas_seq],
+        "passed": bool(areas_no_decreciente),
+    })
+
+    # 6) mode invalido da ValueError, no un crash silencioso
+    try:
+        compute_statistical_physics("modo_que_no_existe")
+        mode_invalido_ok = False
+    except ValueError:
+        mode_invalido_ok = True
+    except Exception:
+        mode_invalido_ok = False
+    checks.append({
+        "name": "mode_invalido_da_valueerror_no_crash_silencioso",
+        "passed": bool(mode_invalido_ok),
+    })
+
+    validation_passed = all(c["passed"] for c in checks)
+    return {
+        "checks": checks,
+        "validation_passed": validation_passed,
+        "n_checks": len(checks),
+    }
+
+
 def compute_statistical_physics(mode, **params):
-    if mode == "ising_2d":
+    if mode == "validate":
+        return _validate_statistical_physics()
+    elif mode == "ising_2d":
         return ising_2d(**params)
     elif mode == "potts_grain_growth":
         return potts_grain_growth(**params)
     else:
-        raise ValueError(f"modo desconocido: {mode}. Use ising_2d | potts_grain_growth")
+        raise ValueError(f"modo desconocido: {mode}. Use ising_2d | potts_grain_growth | validate")
 
 
 if __name__ == "__main__":

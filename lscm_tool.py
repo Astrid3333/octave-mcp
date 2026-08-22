@@ -244,11 +244,125 @@ def _lscm_distortion(vertices, faces, uv):
 
 
 # ---------------------------------------------------------------------------
+# mode="validate": autochequeo
+# ---------------------------------------------------------------------------
+
+def _validate_lscm() -> dict:
+    checks = []
+
+    # malla plana simple (cuadrado, 2 triangulos), ya en z=0 -- permite
+    # referencias analiticas exactas sin depender del solver para varios checks
+    vertices_flat = [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [1.0, 1.0, 0.0], [0.0, 1.0, 0.0]]
+    faces = [[0, 1, 2], [0, 2, 3]]
+
+    # 1) flatten de una malla YA plana debe recuperar un mapeo casi-isometrico:
+    #    al medir la distorsion del propio resultado contra la malla original,
+    #    beltrami_mu y K deben quedar muy cerca de sus valores ideales (0 y 1)
+    flat = _lscm_flatten(vertices_flat, faces)
+    dist_self = _lscm_distortion(vertices_flat, faces, flat["uv"])
+    checks.append({
+        "name": "flatten_de_malla_plana_es_casi_isometrico",
+        "beltrami_mu_max": dist_self["beltrami_mu_max"],
+        "quasi_conformal_K_max": dist_self["quasi_conformal_K_max"],
+        "solver_residual": flat["solver_residual"],
+        "passed": dist_self["beltrami_mu_max"] < 1e-6 and abs(dist_self["quasi_conformal_K_max"] - 1.0) < 1e-6,
+    })
+
+    # 2) distortion con UV = proyeccion identidad (xy directo del mismo mesh
+    #    plano) debe dar sigma_max=sigma_min=1, K=1, mu=0 EXACTOS -- referencia
+    #    analitica conocida, no pasa por el solver de flatten
+    uv_identity = [[v[0], v[1]] for v in vertices_flat]
+    dist_identity = _lscm_distortion(vertices_flat, faces, uv_identity)
+    checks.append({
+        "name": "distortion_identidad_da_valores_analiticos_exactos",
+        "beltrami_mu_mean": dist_identity["beltrami_mu_mean"],
+        "quasi_conformal_K_mean": dist_identity["quasi_conformal_K_mean"],
+        "flipped_triangles": dist_identity["flipped_triangles"],
+        "passed": (
+            abs(dist_identity["beltrami_mu_mean"]) < 1e-9
+            and abs(dist_identity["quasi_conformal_K_mean"] - 1.0) < 1e-9
+            and dist_identity["flipped_triangles"] == 0
+        ),
+    })
+
+    # 3) distortion detecta anisotropia conocida: escala x2 en x, x1 en y
+    #    -> sigma_max=2, sigma_min=1, K=2, mu=(2-1)/(2+1)=1/3 EXACTOS
+    uv_aniso = [[2.0 * v[0], v[1]] for v in vertices_flat]
+    dist_aniso = _lscm_distortion(vertices_flat, faces, uv_aniso)
+    expected_mu = 1.0 / 3.0
+    checks.append({
+        "name": "distortion_detecta_anisotropia_conocida",
+        "beltrami_mu_mean": dist_aniso["beltrami_mu_mean"],
+        "expected_beltrami_mu": expected_mu,
+        "quasi_conformal_K_mean": dist_aniso["quasi_conformal_K_mean"],
+        "passed": (
+            abs(dist_aniso["beltrami_mu_mean"] - expected_mu) < 1e-9
+            and abs(dist_aniso["quasi_conformal_K_mean"] - 2.0) < 1e-9
+        ),
+    })
+
+    # 4) UV con orden de coordenadas invertido (reflexion) se detecta como
+    #    "flipped" -- inversion local, señal de mala parametrizacion
+    uv_flipped = [[v[1], v[0]] for v in vertices_flat]  # swap x/y = reflexion
+    dist_flipped = _lscm_distortion(vertices_flat, faces, uv_flipped)
+    checks.append({
+        "name": "reflexion_se_detecta_como_flipped",
+        "flipped_triangles": dist_flipped["flipped_triangles"],
+        "passed": dist_flipped["flipped_triangles"] > 0,
+    })
+
+    # 5) cara degenerada (vertice repetido, area cero) no crashea, se cuenta
+    #    como skip en vez de producir un resultado invalido silencioso
+    faces_with_degenerate = faces + [[0, 0, 1]]
+    dist_degenerate = _lscm_distortion(vertices_flat, faces_with_degenerate, uv_identity)
+    checks.append({
+        "name": "cara_degenerada_no_crashea",
+        "skipped_degenerate": dist_degenerate["skipped_degenerate"],
+        "passed": dist_degenerate["skipped_degenerate"] >= 1,
+    })
+
+    # 6) flatten_and_distortion combina ambos pasos en una sola llamada
+    combo = compute_lscm_tool("flatten_and_distortion", {"vertices": vertices_flat, "faces": faces})
+    checks.append({
+        "name": "flatten_and_distortion_combina_ambos_pasos",
+        "has_uv": "uv" in combo,
+        "has_distortion": "distortion" in combo,
+        "passed": "uv" in combo and "distortion" in combo,
+    })
+
+    # 7) mode invalido levanta ValueError -- a diferencia de otras tools del
+    #    repo que devuelven {"error": ...}, esta funcion levanta una excepcion;
+    #    el chequeo confirma que es una excepcion capturable y no un crash
+    #    silencioso ni un resultado incorrecto devuelto como si fuera valido
+    try:
+        compute_lscm_tool("modo_que_no_existe", {})
+        mode_invalido_ok = False
+    except ValueError:
+        mode_invalido_ok = True
+    except Exception:
+        mode_invalido_ok = False
+    checks.append({
+        "name": "mode_invalido_levanta_valueerror_no_crash_silencioso",
+        "passed": mode_invalido_ok,
+    })
+
+    validation_passed = all(c["passed"] for c in checks)
+    return {
+        "checks": checks,
+        "validation_passed": validation_passed,
+        "n_checks": len(checks),
+    }
+
+
+# ---------------------------------------------------------------------------
 # Entry point del tool
 # ---------------------------------------------------------------------------
 
 def compute_lscm_tool(mode, params=None):
     params = params or {}
+
+    if mode == "validate":
+        return _validate_lscm()
 
     if mode == "flatten":
         vertices = params["vertices"]
@@ -292,7 +406,7 @@ LSCM_TOOL_SCHEMA = {
         "properties": {
             "mode": {
                 "type": "string",
-                "enum": ["flatten", "distortion", "flatten_and_distortion"],
+                "enum": ["flatten", "distortion", "flatten_and_distortion", "validate"],
                 "description": "flatten: aplana 3D->2D. distortion: mide distorsion "
                                 "dado un UV existente. flatten_and_distortion: hace "
                                 "ambas cosas en una sola llamada.",

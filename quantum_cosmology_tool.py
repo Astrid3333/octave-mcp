@@ -337,12 +337,16 @@ def _friedmann_corrections(params):
 # ----------------------------------------------------------------------
 def compute_quantum_cosmology_tool(mode, params=None):
     params = params or {}
-    if mode == "self_test":
+    if mode in ("self_test", "validate"):
+        # "validate" es alias de "self_test": el harness de validacion
+        # (run_all_validations.py) siempre llama con el payload estandar
+        # mode="validate"; el nombre original "self_test" se mantiene por
+        # compatibilidad con quien ya lo use asi.
         return _self_test()
     elif mode == "friedmann_corrections":
         return _friedmann_corrections(params)
     else:
-        return {"error": f"Modo desconocido: {mode}. Modos validos: self_test, friedmann_corrections."}
+        return {"error": f"Modo desconocido: {mode}. Modos validos: self_test, friedmann_corrections, validate."}
 
 
 QUANTUM_COSMOLOGY_TOOL_SCHEMA = {

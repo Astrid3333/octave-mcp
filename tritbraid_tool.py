@@ -240,10 +240,14 @@ def _validate_physics(n_trials=200, seed=1234):
 def compute_tritbraid(mode="validate_physics", program="1,2,M,0,M,2,M", seed=42, initial_state=None):
     if mode == "run_program":
         return _run_program(program, seed, initial_state)
-    elif mode == "validate_physics":
+    elif mode in ("validate_physics", "validate"):
+        # "validate" es alias de "validate_physics": el harness de
+        # validacion (run_all_validations.py) siempre llama con el payload
+        # estandar mode="validate"; el nombre original "validate_physics"
+        # se mantiene por compatibilidad con quien ya lo use asi.
         return _validate_physics(seed=seed)
     else:
-        return {"error": f"modo desconocido: {mode!r} (validos: run_program, validate_physics)"}
+        return {"error": f"modo desconocido: {mode!r} (validos: run_program, validate_physics, validate)"}
 
 
 if __name__ == "__main__":
