@@ -552,6 +552,7 @@ def compute_chemometrics(mode, params=None):
         "pcr_calibration": pcr_calibration,
         "doe_design": doe_design,
         "validate_recovery": validate_recovery,
+        "validate": validate,
     }
     if mode not in dispatch:
         raise ValueError(
@@ -586,6 +587,7 @@ CHEMOMETRICS_TOOL_SCHEMA = {
                     "pcr_calibration",
                     "doe_design",
                     "validate_recovery",
+                    "validate",
                 ],
             },
             "params": {
@@ -660,3 +662,105 @@ except ImportError:
         pass
 
 register_tool("chemometrics_tool", CHEMOMETRICS_TOOL_SCHEMA, lambda args, _f=compute_chemometrics: _f(**args))
+
+
+# ---------------------------------------------------------------------------
+# Validacion propia (mode="validate")
+# ---------------------------------------------------------------------------
+
+def validate(params=None):
+    checks = []
+
+    # --- validate_recovery: con ruido bajo, PLS y PCR deben recuperar bien ---
+    rec = validate_recovery({
+        "true_concentrations": [1.0, 2.0, 3.0, 4.0, 5.0, 1.5, 2.5, 3.5, 4.5, 5.5],
+        "noise_std": 0.005,
+        "seed": 0,
+    })
+    checks.append({
+        "name": "validate_recovery_pls_cv_r2_alto_con_ruido_bajo",
+        "passed": rec["pls"]["cv_r2"] > 0.9,
+        "detail": f"cv_r2={rec['pls']['cv_r2']:.4f}",
+    })
+    checks.append({
+        "name": "validate_recovery_pcr_cv_r2_alto_con_ruido_bajo",
+        "passed": rec["pcr"]["cv_r2"] > 0.9,
+        "detail": f"cv_r2={rec['pcr']['cv_r2']:.4f}",
+    })
+
+    # --- doe_design full_factorial: n_runs = producto de niveles ---
+    factor_levels = {"temp": [20, 30, 40], "pH": [5, 7, 9]}
+    ff = doe_design({"design_type": "full_factorial", "factor_levels": factor_levels})
+    expected_runs = 3 * 3
+    unique_rows = len({tuple(row) for row in ff["design_matrix"]})
+    checks.append({
+        "name": "doe_full_factorial_n_runs_es_producto_de_niveles",
+        "passed": ff["n_runs"] == expected_runs,
+        "detail": f"n_runs={ff['n_runs']} esperado={expected_runs}",
+    })
+    checks.append({
+        "name": "doe_full_factorial_filas_sin_duplicados",
+        "passed": unique_rows == ff["n_runs"],
+        "detail": f"filas_unicas={unique_rows} n_runs={ff['n_runs']}",
+    })
+
+    # --- doe_design latin_hypercube: estratificacion (sin repetidos por columna) ---
+    lhs = doe_design({"design_type": "latin_hypercube", "n_factors": 2, "n_runs": 10, "seed": 0})
+    matrix = lhs["design_matrix"]
+    col0 = [row[0] for row in matrix]
+    col1 = [row[1] for row in matrix]
+    checks.append({
+        "name": "doe_latin_hypercube_n_runs_correcto",
+        "passed": lhs["n_runs"] == 10 and len(matrix) == 10,
+        "detail": f"n_runs={lhs['n_runs']} filas={len(matrix)}",
+    })
+    checks.append({
+        "name": "doe_latin_hypercube_estratificacion_sin_repetidos_por_columna",
+        "passed": len(set(col0)) == 10 and len(set(col1)) == 10,
+        "detail": f"col0_unicos={len(set(col0))} col1_unicos={len(set(col1))}",
+    })
+
+    # --- doe_design box_behnken: smoke test (encoding interno desconocido) ---
+    try:
+        bb = doe_design({"design_type": "box_behnken", "n_factors": 3})
+        checks.append({
+            "name": "doe_box_behnken_corre_sin_error_y_devuelve_filas",
+            "passed": bb["n_runs"] > 0 and len(bb["design_matrix"]) == bb["n_runs"],
+            "detail": f"n_runs={bb['n_runs']} variant={bb.get('variant')}",
+        })
+    except Exception as e:
+        checks.append({
+            "name": "doe_box_behnken_corre_sin_error_y_devuelve_filas",
+            "passed": False,
+            "detail": f"exception: {e}",
+        })
+
+    # --- ValueError esperados ---
+    try:
+        doe_design({"design_type": "full_factorial"})  # sin factor_levels
+        ff_err = False
+    except ValueError:
+        ff_err = True
+    checks.append({
+        "name": "valueerror_falta_factor_levels_en_full_factorial",
+        "passed": ff_err,
+        "detail": "",
+    })
+
+    try:
+        compute_chemometrics("modo_inexistente", {})
+        mode_err = False
+    except ValueError:
+        mode_err = True
+    checks.append({
+        "name": "valueerror_modo_desconocido_en_compute_chemometrics",
+        "passed": mode_err,
+        "detail": "",
+    })
+
+    all_pass = all(c["passed"] for c in checks)
+    return {
+        "validation_passed": all_pass,
+        "n_checks": len(checks),
+        "checks": checks,
+    }
