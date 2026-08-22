@@ -132,8 +132,11 @@ def compute_qm_potential_well(
     mass=1.0,
     hbar=1.0,
     n_states=5,
+    mode=None,
     **kwargs,
 ):
+    if mode == "validate":
+        return validate()
     if x_range is None:
         x_range = _default_x_range(preset, well_params)
     xmin, xmax = x_range
@@ -193,7 +196,8 @@ QM_POTENTIAL_WELL_SCHEMA = {   'type': 'object',
                       'n_points': {'type': 'integer'},
                       'mass': {'type': 'number'},
                       'hbar': {'type': 'number'},
-                      'n_states': {'type': 'integer'}}}
+                      'n_states': {'type': 'integer'},
+                      'mode': {'type': 'string', 'enum': ['validate']}}}
 
 try:
     from tool_registry import register_tool
@@ -209,3 +213,57 @@ try:
 except ImportError:
     pass
 
+
+
+# ---------------------------------------------------------------------------
+# Validacion propia (mode="validate") -- energias analiticas conocidas
+# infinite_well: E_n = n^2*pi^2/2 (n=1,2,3,...) con L=1,m=1,hbar=1
+# harmonic_oscillator: E_n = n+0.5 (n=0,1,2,...) con omega=1,m=1,hbar=1
+# ---------------------------------------------------------------------------
+
+def validate():
+    import math
+    checks = []
+
+    try:
+        r1 = compute_qm_potential_well(preset="infinite_well", mass=1.0, hbar=1.0,
+                                        n_states=3, n_points=400)
+        analytic = [n ** 2 * math.pi ** 2 / 2 for n in (1, 2, 3)]
+        got = r1["energies"][:3]
+        max_rel_error = max(abs(g - a) / a for g, a in zip(got, analytic))
+        checks.append({
+            "name": "infinite_well_energias_analiticas",
+            "passed": max_rel_error < 0.02,
+            "detail": f"got={got} analytic={analytic} max_rel_error={max_rel_error:.4f}",
+        })
+    except Exception as e:
+        checks.append({
+            "name": "infinite_well_corre_sin_error",
+            "passed": False,
+            "detail": str(e),
+        })
+
+    try:
+        r2 = compute_qm_potential_well(preset="harmonic_oscillator", mass=1.0, hbar=1.0,
+                                        n_states=3, n_points=400)
+        analytic2 = [n + 0.5 for n in (0, 1, 2)]
+        got2 = r2["energies"][:3]
+        max_rel_error2 = max(abs(g - a) / a for g, a in zip(got2, analytic2))
+        checks.append({
+            "name": "harmonic_oscillator_energias_analiticas",
+            "passed": max_rel_error2 < 0.02,
+            "detail": f"got={got2} analytic={analytic2} max_rel_error={max_rel_error2:.4f}",
+        })
+    except Exception as e:
+        checks.append({
+            "name": "harmonic_oscillator_corre_sin_error",
+            "passed": False,
+            "detail": str(e),
+        })
+
+    all_pass = all(c["passed"] for c in checks)
+    return {
+        "validation_passed": all_pass,
+        "n_checks": len(checks),
+        "checks": checks,
+    }
