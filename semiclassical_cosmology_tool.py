@@ -278,7 +278,7 @@ SEMICLASSICAL_COSMOLOGY_TOOL_SCHEMA = {
         "properties": {
             "mode": {
                 "type": "string",
-                "enum": ["friedmann_lqg_correction", "bounce_dynamics", "power_spectrum"],
+                "enum": ["friedmann_lqg_correction", "bounce_dynamics", "power_spectrum", "validate"],
             },
             "params": {
                 "type": "object",
@@ -307,3 +307,59 @@ except ImportError:
         pass
 
 register_tool("semiclassical_cosmology_tool", SEMICLASSICAL_COSMOLOGY_TOOL_SCHEMA, lambda args, _f=compute_semiclassical_cosmology_tool: _f(**args))
+
+
+# ---------------------------------------------------------------------------
+# Validacion propia (mode="validate") -- reusa checks ya embebidos
+# ---------------------------------------------------------------------------
+
+def validate(params=None):
+    checks = []
+
+    # friedmann_lqg_correction: usa su propio chequeo interno H numerico vs analitico
+    r1 = friedmann_lqg_correction({"rho0": 1.0, "a0": 1.0, "w": 0.0, "rho_c": 100.0, "kappa": 1.0, "t_max": 5.0, "n_points": 2000})
+    t_np = np.array(r1["t"])
+    a_np = np.array(r1["a"])
+    H_np = np.array(r1["H"])
+    mask = np.abs(H_np) > 0.2 * np.max(np.abs(H_np))
+    dadt_numeric = np.gradient(a_np, t_np)
+    H_numeric = dadt_numeric / a_np
+    rel_err = np.abs(H_numeric[mask] - H_np[mask]) / (np.abs(H_np[mask]) + 1e-8)
+    err1 = float(np.max(rel_err))
+    checks.append({
+        "name": "friedmann_lqg_correction_H_numerico_vs_analitico_lejos_del_bounce",
+        "passed": err1 < 0.05,
+        "detail": f"max_relative_error_excluyendo_vecindad_bounce={round(err1,6)}",
+    })
+
+    # bounce_dynamics: w=0 (materia) siempre debe dar bounce genuino
+    r2 = bounce_dynamics({"rho0": 1.0, "a0": 1.0, "w": 0.0, "rho_c": 100.0, "kappa": 1.0})
+    checks.append({
+        "name": "bounce_dynamics_w0_es_bounce_genuino",
+        "passed": bool(r2["is_true_bounce"]) and r2["addot_over_a_at_bounce"] > 0,
+        "detail": f"addot_over_a={r2['addot_over_a_at_bounce']} is_true_bounce={r2['is_true_bounce']}",
+    })
+
+    # power_spectrum: senal sintetica sin(2*pi*f0*t), f0=5Hz, dt=0.01, n=200
+    import math
+    f0 = 5.0
+    dt = 0.01
+    n = 200
+    signal = [math.sin(2 * math.pi * f0 * i * dt) for i in range(n)]
+    r3 = power_spectrum({"signal": signal, "dt": dt, "detrend": True})
+    peak = r3["peak_frequency"]
+    freq_resolution = 1.0 / (n * dt)
+    checks.append({
+        "name": "power_spectrum_recupera_frecuencia_conocida",
+        "passed": abs(peak - f0) < freq_resolution,
+        "detail": f"peak_frequency={peak} f0_esperado={f0} resolucion={freq_resolution}",
+    })
+
+    all_pass = all(c["passed"] for c in checks)
+    return {
+        "validation_passed": all_pass,
+        "n_checks": len(checks),
+        "checks": checks,
+    }
+
+_MODE_DISPATCH["validate"] = validate
