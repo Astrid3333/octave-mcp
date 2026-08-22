@@ -261,6 +261,85 @@ def interpret_math_query(query: str, auto_run: bool = False) -> dict:
     return result
 
 
+def validate(params=None):
+    """Checks anclados a frases canonicas fijas -> tool/args exactos
+    esperados del parser regex (no solo 'no crashea')."""
+    checks = []
+
+    # --- gradiente: tool correcto, variables limpias, order=1 (sin 'hessiano') ---
+    r1 = interpret_math_query("gradiente de x**2+y respecto a x,y")
+    step1 = r1["steps"][0] if r1["steps"] else {}
+    checks.append({
+        "name": "gradiente_parsea_tool_variables_order1",
+        "tool": step1.get("tool"),
+        "args": step1.get("args"),
+        "passed": bool(step1.get("tool") == "compute_gradient_hessian"
+                        and step1.get("args", {}).get("variables") == "x,y"
+                        and step1.get("args", {}).get("order") == 1),
+    })
+
+    # --- hessiano: mismo patron, pero debe detectar 'hessiano' -> order=2 ---
+    r2 = interpret_math_query("hessiano de x**2+y respecto a x,y")
+    step2 = r2["steps"][0] if r2["steps"] else {}
+    checks.append({
+        "name": "hessiano_detecta_palabra_clave_order2",
+        "tool": step2.get("tool"),
+        "order": step2.get("args", {}).get("order"),
+        "passed": bool(step2.get("tool") == "compute_gradient_hessian"
+                        and step2.get("args", {}).get("order") == 2),
+    })
+
+    # --- jacobiano: expressions y variables extraidos correctamente ---
+    r3 = interpret_math_query("jacobiano de x+y,x-y respecto a x,y")
+    step3 = r3["steps"][0] if r3["steps"] else {}
+    checks.append({
+        "name": "jacobiano_parsea_expressions_y_variables",
+        "tool": step3.get("tool"),
+        "args": step3.get("args"),
+        "passed": bool(step3.get("tool") == "compute_jacobian"
+                        and step3.get("args", {}).get("expressions") == "x+y,x-y"
+                        and step3.get("args", {}).get("variables") == "x,y"),
+    })
+
+    # --- error de truncamiento: x0 como float, mode correcto ---
+    r4 = interpret_math_query("error de truncamiento de sin(x) en x0=1.5")
+    step4 = r4["steps"][0] if r4["steps"] else {}
+    x0_val = step4.get("args", {}).get("x0")
+    checks.append({
+        "name": "error_truncamiento_x0_parseado_como_float",
+        "tool": step4.get("tool"),
+        "x0": x0_val,
+        "passed": bool(step4.get("tool") == "math_error_analyzer"
+                        and step4.get("args", {}).get("mode") == "truncation_roundoff"
+                        and isinstance(x0_val, float)
+                        and abs(x0_val - 1.5) < 1e-9),
+    })
+
+    # --- separacion de clausulas: '; y luego' debe partir en 2 ---
+    r5 = interpret_math_query(
+        "gradiente de x**2 respecto a x; y luego "
+        "error de truncamiento de cos(x) en x0=0"
+    )
+    checks.append({
+        "name": "separacion_clausulas_conector_y_luego",
+        "n_clauses": len(r5["clauses"]),
+        "n_steps": len(r5["steps"]),
+        "passed": bool(len(r5["clauses"]) == 2 and len(r5["steps"]) == 2),
+    })
+
+    # --- clausula sin match cae en 'unmatched', no crashea ni inventa tool ---
+    r6 = interpret_math_query("esto no es una consulta matematica reconocible")
+    checks.append({
+        "name": "clausula_sin_match_cae_en_unmatched",
+        "unmatched": r6.get("unmatched"),
+        "n_steps": len(r6.get("steps", [])),
+        "passed": bool(len(r6.get("unmatched", [])) == 1 and len(r6.get("steps", [])) == 0),
+    })
+
+    all_passed = all(c["passed"] for c in checks)
+    return {"checks": checks, "validation_passed": all_passed}
+
+
 MATH_INTERPRETER_TOOL_SCHEMA = {
     "name": "math_interpreter",
     "description": (
@@ -274,6 +353,11 @@ MATH_INTERPRETER_TOOL_SCHEMA = {
     "inputSchema": {
         "type": "object",
         "properties": {
+            "mode": {
+                "type": "string",
+                "enum": ["validate"],
+                "description": "Opcional. 'validate' corre la bateria de autochequeo en vez de interpretar una query.",
+            },
             "query": {
                 "type": "string",
                 "description": "Consulta en espanol, una o mas peticiones separadas por ';', 'y luego', o 'y' + verbo.",
@@ -318,4 +402,11 @@ except ImportError:
     def register_tool(name, schema, handler):
         pass
 
-register_tool("math_interpreter", MATH_INTERPRETER_TOOL_SCHEMA, lambda args, _f=interpret_math_query: _f(**args))
+def _math_interpreter_handler(args):
+    if args.get("mode") == "validate":
+        return validate(args)
+    args = {k: v for k, v in args.items() if k != "mode"}
+    return interpret_math_query(**args)
+
+
+register_tool("math_interpreter", MATH_INTERPRETER_TOOL_SCHEMA, _math_interpreter_handler)
