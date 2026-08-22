@@ -37,7 +37,7 @@ MATH_VISUALIZATION_TOOL_SCHEMA = {
         "properties": {
             "mode": {
                 "type": "string",
-                "enum": ["function_plot", "phase_portrait", "bifurcation_render", "vector_field"],
+                "enum": ["function_plot", "phase_portrait", "bifurcation_render", "vector_field", "validate"],
             },
             "function_expr": {"type": "string", "description": "Expresion sympy en x (mode=function_plot)"},
             "domain": {"type": "array", "items": {"type": "number"}, "description": "[a,b] (mode=function_plot)"},
@@ -235,6 +235,80 @@ def _vector_field(args):
     }
 
 
+def validate(params=None):
+    """Checks anclados a metadata expuesta + verificacion numerica real
+    del motor de integracion via _build_rhs (no solo 'no exploto')."""
+    checks = []
+
+    # --- function_plot: f(x)=x**2 en [-3,3], extremos exactos del linspace ---
+    res_fp = _function_plot({"function_expr": "x**2", "domain": [-3, 3]})
+    checks.append({
+        "name": "function_plot_x_cuadrado_y_max_exacto_en_borde_dominio",
+        "y_max": res_fp.get("y_max"),
+        "passed": bool(abs(res_fp.get("y_max", -1) - 9.0) < 1e-9),
+    })
+    checks.append({
+        "name": "function_plot_x_cuadrado_y_min_cerca_de_cero",
+        "y_min": res_fp.get("y_min"),
+        "passed": bool(res_fp.get("y_min", 999) < 1e-3),
+    })
+
+    # --- vector_field: campo constante u=1, v=0 -> magnitud exacta 1.0 ---
+    res_vf = _vector_field({
+        "vector_expr_u": "1", "vector_expr_v": "0",
+        "xy_domain": [-2, 2, -2, 2],
+    })
+    checks.append({
+        "name": "vector_field_campo_constante_magnitud_maxima_exacta",
+        "max_magnitude": res_vf.get("max_magnitude"),
+        "passed": bool(abs(res_vf.get("max_magnitude", -1) - 1.0) < 1e-9),
+    })
+
+    # --- bifurcation_render: dataset sintetico, conteo exacto de puntos ---
+    r_values = [1, 2, 3]
+    x_values = [[0.1], [0.2, 0.3], [0.4, 0.5, 0.6]]
+    res_br = _bifurcation_render({"r_values": r_values, "x_values": x_values})
+    expected_n = sum(len(xs) for xs in x_values)
+    checks.append({
+        "name": "bifurcation_render_conteo_puntos_coincide_con_dataset_sintetico",
+        "expected": expected_n,
+        "actual": res_br.get("n_points_total"),
+        "passed": bool(res_br.get("n_points_total") == expected_n),
+    })
+
+    # --- phase_portrait: n_points hardcodeado a 6000, cualquier sistema ---
+    res_pp = _phase_portrait({"system": "van_der_pol", "tspan": [0, 5]})
+    checks.append({
+        "name": "phase_portrait_n_points_hardcodeado_6000",
+        "n_points": res_pp.get("n_points"),
+        "passed": bool(res_pp.get("n_points") == 6000),
+    })
+
+    # --- phase_portrait: verificacion numerica real via _build_rhs ---
+    # oscilador armonico simple: dx/dt = y[1], dy/dt = -y[0]
+    # solucion analitica con y0=[1,0]: y[0](t)=cos(t), y[1](t)=-sin(t)
+    # en t=2*pi debe volver casi exacto a y0
+    import numpy as _np
+    from scipy.integrate import solve_ivp as _solve_ivp
+
+    rhs, dim = _build_rhs("custom", "y[1];-y[0]", None)
+    y0 = [1.0, 0.0]
+    t_final = 2 * _np.pi
+    sol = _solve_ivp(rhs, [0, t_final], y0, t_eval=[0, t_final], rtol=1e-10, atol=1e-12)
+    y_end = sol.y[:, -1]
+    err = float(_np.max(_np.abs(y_end - _np.array(y0))))
+    checks.append({
+        "name": "phase_portrait_oscilador_armonico_retorna_a_y0_tras_un_periodo",
+        "y0": y0,
+        "y_final": y_end.tolist(),
+        "error_max": err,
+        "passed": bool(err < 1e-6),
+    })
+
+    all_passed = all(c["passed"] for c in checks)
+    return {"checks": checks, "validation_passed": all_passed}
+
+
 def compute_math_visualization(mode="function_plot", **kwargs):
     if mode == "function_plot":
         return _function_plot(kwargs)
@@ -244,6 +318,8 @@ def compute_math_visualization(mode="function_plot", **kwargs):
         return _bifurcation_render(kwargs)
     elif mode == "vector_field":
         return _vector_field(kwargs)
+    elif mode == "validate":
+        return validate(kwargs)
     else:
         raise ValueError(f"mode desconocido: {mode}")
 
