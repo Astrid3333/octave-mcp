@@ -65,24 +65,27 @@ las llamadas existentes) o dejarlo documentado como excepción conocida.
 | Tool | Resultado |
 |---|---|
 | math_visualization | ✅ validate agregado (6 checks, commit 525cc66). Detectada por discovery automático (usa mode). |
+| math_interpreter | ✅ validate agregado (6 checks, commit eda4eb0). Detectada por discovery automático (usa mode, wrapper de handler). |
 | ancient_calculator | ✅ validate ya existía y funciona (6 checks, confirmado 2026-08-22). No detectada por discovery (usa preset, no mode) — ver nota arriba. |
+| ethnomath | ✅ validate ya existía y funciona (8 checks: maya round-trip, teorema chino resto, vedic x2 métodos, quipu round-trip, pi Arquímedes + enri japonés Richardson, preset desconocido). No detectada por discovery (usa preset, no mode) — mismo caso que ancient_calculator. |
+| math_explainer | ➡️ Grupo 1 (exenta). Templating puro: interpola valores ya calculados por otra tool en texto español, sin mode, sin cómputo propio. No hay solución analítica que verificar, solo fidelidad de formato — fuera de alcance de esta tanda. |
+| math_philosophy_history | ➡️ Grupo 1 (exenta, confirmado). `compute_math_philosophy_history(topic, params) -> str`, contenido narrativo fijo por tópico, sin mode, sin cómputo. |
 
-## Grupo 3 — A revisar (posible caso mixto: ¿determinista o explicativo?)
+## Grupo 3 — A revisar (pendiente)
 
 | Tool | Notas |
 |---|---|
-| math_explainer | revisar si genera output determinista chequeable |
-| math_interpreter | ídem |
-| math_philosophy_history | probablemente exenta (contenido, no cómputo) |
-| ethnomath | revisar |
-| ethnomath2 | revisar |
+| ethnomath2 | revisar (probable continuación de ethnomath, mismo patrón esperado) |
 | originarios | revisar |
 | paleography | revisar |
 | levant | revisar |
 
 ## Próximos pasos
-1. Revisar una por una las 8 restantes del Grupo 3, reclasificar a Grupo 1 o 2.
+1. Revisar las 4 restantes (ethnomath2, originarios, paleography, levant).
 2. Resolver el rename de run_math_pipeline (liberar mode=validate real).
-3. Empezar backlog del Grupo 2 (8 confirmadas + las que bajen del Grupo 3).
+3. Empezar backlog del Grupo 2 real (entropy_structure, persistent_homology,
+   lscm_tool, multivariate_bayes_tool, statistical_physics_tool,
+   knowledge_graph_tool, semantic_bridge, numeral_systems_embedding).
 4. Evaluar normalizar schema de toxicity_predictor para que discovery la cuente.
-5. Evaluar normalizar preset→mode en ancient_calculator para que discovery la cuente.
+5. Evaluar normalizar preset→mode en ancient_calculator y ethnomath para que
+   discovery las cuente (mismo problema estructural en ambas).
