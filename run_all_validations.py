@@ -74,6 +74,7 @@ ALTERNATE_VALIDATE_MODE = {
     "virtual_pharmacokinetics": "self_test",
     "toxicity_predictor": "self_test",
     "carbon_footprint_tool": "validate",
+    "workspace_validate": "validate",
     # NOTA (2026-08-20): plague_sir, settlement_clusters, historical_extractor
     # y abstract_algebra estuvieron mapeadas aca hasta que se confirmo que su
     # inputSchema ya declara "validate" en el enum de mode -- el chequeo
