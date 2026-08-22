@@ -49,7 +49,7 @@ PERSISTENT_HOMOLOGY_SCHEMA = {
         "properties": {
             "preset": {
                 "type": "string",
-                "enum": ["circle", "two_clusters", "random_noise", "custom"],
+                "enum": ["circle", "two_clusters", "random_noise", "custom", "validate"],
                 "default": "circle",
             },
             "points": {"type": "array", "description": "Lista de puntos (cada uno una lista de coordenadas), solo si preset='custom'"},
@@ -160,6 +160,9 @@ def _gen_random_noise(n_points, seed):
 
 def compute_persistent_homology(preset="circle", points=None, max_edge_length=None,
                                  max_dim=2, n_points=20, seed=1, run_id=None):
+    if preset == "validate":
+        return _validate_persistent_homology()
+
     known = None
 
     if preset == "custom":
@@ -236,6 +239,88 @@ def compute_persistent_homology(preset="circle", points=None, max_edge_length=No
         result["trajectory_saved"] = "error" not in save_result
 
     return result
+
+
+def _validate_persistent_homology() -> dict:
+    checks = []
+
+    # 1) circle: debe aparecer al menos un ciclo H1 con persistencia
+    #    significativa (no un artefacto de corte), y traer known_reference
+    r_circle = compute_persistent_homology("circle", n_points=20, seed=1, max_edge_length=2.5)
+    h1 = r_circle.get("H1_barcode", [])
+    max_h1_persist_circle = max((b["persistence"] or 0.0) for b in h1) if h1 else 0.0
+    threshold_circle = 0.2 * r_circle.get("max_edge_length_used", 1.0)
+    checks.append({
+        "name": "circle_produce_h1_con_persistencia_significativa",
+        "max_h1_persistence": max_h1_persist_circle,
+        "threshold": threshold_circle,
+        "has_known_reference": "known_reference" in r_circle,
+        "passed": max_h1_persist_circle > threshold_circle and "known_reference" in r_circle,
+    })
+
+    # 2) two_clusters: exactamente 2 componentes H0 esenciales, y CUALQUIER
+    #    H1 que aparezca es espurio (persistencia chica) -- con nubes de
+    #    puntos finitas es normal que se cuele algun ciclo H1 de vida muy
+    #    corta por casualidad geometrica, sin que eso implique un agujero real
+    r_two = compute_persistent_homology("two_clusters", n_points=20, seed=1, max_edge_length=1.0)
+    h1_two = r_two.get("H1_barcode", [])
+    max_h1_persist_two = max((b["persistence"] or 0.0) for b in h1_two) if h1_two else 0.0
+    threshold_two = 0.15 * r_two.get("max_edge_length_used", 1.0)
+    checks.append({
+        "name": "two_clusters_2_componentes_h0_h1_espurio_o_ausente",
+        "H0_essential_count": r_two.get("H0_essential_count"),
+        "max_h1_persistence": max_h1_persist_two,
+        "threshold": threshold_two,
+        "passed": r_two.get("H0_essential_count") == 2 and max_h1_persist_two < threshold_two,
+    })
+
+    # 3) random_noise: sin H1 dominante (baseline sin estructura topologica),
+    #    su ciclo mas persistente debe ser bastante menor al del circle real
+    r_noise = compute_persistent_homology("random_noise", n_points=20, seed=1, max_edge_length=2.5)
+    h1_noise = r_noise.get("H1_barcode", [])
+    max_h1_persist_noise = max((b["persistence"] or 0.0) for b in h1_noise) if h1_noise else 0.0
+    checks.append({
+        "name": "random_noise_sin_h1_dominante_vs_circle",
+        "max_h1_persistence_noise": max_h1_persist_noise,
+        "max_h1_persistence_circle": max_h1_persist_circle,
+        "passed": max_h1_persist_noise < 0.5 * max_h1_persist_circle,
+    })
+
+    # 4) preset='custom' sin 'points' da error estructurado, no crashea
+    r_custom_sin_points = compute_persistent_homology("custom")
+    checks.append({
+        "name": "custom_sin_points_da_error_no_crash",
+        "passed": "error" in r_custom_sin_points,
+    })
+
+    # 5) preset desconocido da error estructurado
+    r_bad = compute_persistent_homology("preset_que_no_existe")
+    checks.append({
+        "name": "preset_desconocido_da_error_no_crash",
+        "passed": "error" in r_bad,
+    })
+
+    # 6) run_id persiste points/h0_diagram/h1_diagram en el workspace
+    #    y se puede limpiar despues
+    run_id = "_validate_persistent_homology_selftest"
+    r_run = compute_persistent_homology("circle", n_points=15, seed=1, max_edge_length=2.5, run_id=run_id)
+    persisted_ok = r_run.get("trajectory_saved") is True and r_run.get("run_id") == run_id
+    cleanup_ok = False
+    try:
+        from workspace_tool import delete_run
+        delete_run(run_id)
+        cleanup_ok = True
+    except Exception:
+        cleanup_ok = False
+    checks.append({
+        "name": "run_id_persiste_points_y_diagramas_en_workspace",
+        "trajectory_saved": r_run.get("trajectory_saved"),
+        "cleanup_ok": cleanup_ok,
+        "passed": persisted_ok,
+    })
+
+    all_passed = all(c["passed"] for c in checks)
+    return {"checks": checks, "validation_passed": all_passed, "n_checks": len(checks)}
 
 
 if __name__ == "__main__":
