@@ -273,7 +273,95 @@ def compute_letterform_classification(reference_classes, unknown_sample, feature
 # Dispatcher
 # ---------------------------------------------------------------------------
 
+def _validate_paleography():
+    """Checks anclados a casos sinteticos con solucion conocida de
+    antemano (no solo 'no exploto')."""
+    checks = []
+
+    # --- correspondence_seriation: matriz diagonal tipo Guttman ---
+    # cada unidad concentra su peso en rasgos contiguos, corriendo en
+    # diagonal: el eje 1 deberia recuperar el orden original o su reverso.
+    matrix = [
+        [10, 8, 1, 0],
+        [8, 10, 8, 1],
+        [1, 8, 10, 8],
+        [0, 1, 8, 10],
+    ]
+    labels = ["u0", "u1", "u2", "u3"]
+    r1 = compute_correspondence_seriation(matrix, row_labels=labels)
+    order = r1.get("seriation_order")
+    forward = labels
+    reverse = list(reversed(labels))
+    checks.append({
+        "name": "correspondence_seriation_matriz_diagonal_recupera_orden",
+        "seriation_order": order,
+        "passed": bool(order == forward or order == reverse),
+    })
+
+    # --- feature_dating_regression: calibracion perfectamente lineal ---
+    dates = [100, 200, 300, 400, 500]
+    features = [1, 2, 3, 4, 5]
+    r2 = compute_feature_dating_regression(dates, features, unknown_features=[3.5])
+    checks.append({
+        "name": "feature_dating_regression_r_squared_exacto_1",
+        "r_squared": r2.get("r_squared"),
+        "passed": bool(r2.get("r_squared") is not None and abs(r2["r_squared"] - 1.0) < 1e-9),
+    })
+    checks.append({
+        "name": "feature_dating_regression_predicted_date_exacto",
+        "predicted_date": r2.get("predicted_date"),
+        "passed": bool(abs(r2.get("predicted_date", -1) - 350.0) < 1e-6),
+    })
+    checks.append({
+        "name": "feature_dating_regression_residual_std_error_casi_cero",
+        "residual_std_error": r2.get("residual_std_error"),
+        "passed": bool(r2.get("residual_std_error", 999) < 1e-6),
+    })
+
+    # --- letterform_classification: dos clases bien separadas ---
+    reference_classes = {
+        "clase_A": [[0.0, 0.0], [0.1, -0.1], [-0.1, 0.1], [0.05, 0.0]],
+        "clase_B": [[10.0, 10.0], [10.1, 9.9], [9.9, 10.1], [10.05, 10.0]],
+    }
+    r3 = compute_letterform_classification(reference_classes, unknown_sample=[0.02, 0.02])
+    d = r3.get("mahalanobis_distances", {})
+    checks.append({
+        "name": "letterform_classification_predice_clase_verdadera",
+        "predicted_class": r3.get("predicted_class"),
+        "distances": d,
+        "passed": bool(r3.get("predicted_class") == "clase_A"
+                        and d.get("clase_A", 999) < d.get("clase_B", -1)),
+    })
+
+    # --- validacion de entrada: matrix con negativos -> ValueError ---
+    raised1 = False
+    try:
+        compute_correspondence_seriation([[1, -1], [2, 2], [3, 3]])
+    except ValueError:
+        raised1 = True
+    checks.append({
+        "name": "correspondence_seriation_valores_negativos_levanta_valueerror",
+        "passed": raised1,
+    })
+
+    # --- validacion de entrada: muy pocos puntos de calibracion ---
+    raised2 = False
+    try:
+        compute_feature_dating_regression([100, 200], [1, 2], unknown_features=[1.5])
+    except ValueError:
+        raised2 = True
+    checks.append({
+        "name": "feature_dating_regression_pocos_puntos_levanta_valueerror",
+        "passed": raised2,
+    })
+
+    all_passed = all(c["passed"] for c in checks)
+    return {"checks": checks, "validation_passed": all_passed, "n_checks": len(checks)}
+
+
 def compute_paleography(mode, **kwargs):
+    if mode == "validate":
+        return _validate_paleography()
     if mode == "correspondence_seriation":
         return compute_correspondence_seriation(
             kwargs["matrix"],
@@ -312,7 +400,7 @@ PALEOGRAPHY_TOOL_SCHEMA = {
         "properties": {
             "mode": {
                 "type": "string",
-                "enum": ["correspondence_seriation", "feature_dating_regression", "letterform_classification"],
+                "enum": ["correspondence_seriation", "feature_dating_regression", "letterform_classification", "validate"],
             },
             "matrix": {
                 "type": "array",
