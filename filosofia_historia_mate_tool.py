@@ -327,14 +327,60 @@ PRESETS = {
 }
 
 
+def _validate_math_philosophy_history() -> dict:
+    checks = []
+
+    # 1) topic="" devuelve la lista completa de topics disponibles
+    listing = json.loads(compute_math_philosophy_history(""))
+    checks.append({
+        "name": "topic_vacio_devuelve_todos_los_topics_disponibles",
+        "n_topics": len(listing.get("topics_disponibles", [])),
+        "expected": len(PRESETS),
+        "passed": listing.get("topics_disponibles") == list(PRESETS.keys()),
+    })
+
+    # 2) cada preset real trae 'estado_academico' explicito (no se presenta
+    #    todo con el mismo nivel de certeza, como promete la nota de arriba)
+    faltantes = [t for t in PRESETS if "estado_academico" not in PRESETS[t]]
+    checks.append({
+        "name": "todos_los_presets_declaran_estado_academico",
+        "topics_sin_estado_academico": faltantes,
+        "passed": len(faltantes) == 0,
+    })
+
+    # 3) topic invalido da error estructurado, no crashea ni adivina
+    invalido = json.loads(compute_math_philosophy_history("topic_que_no_existe_xyz"))
+    checks.append({
+        "name": "topic_invalido_da_error_no_crash",
+        "passed": "error" in invalido and "topics_disponibles" in invalido,
+    })
+
+    # 4) roundtrip: pedir un topic real devuelve exactamente ese preset
+    if PRESETS:
+        primer_topic = next(iter(PRESETS))
+        recibido = json.loads(compute_math_philosophy_history(primer_topic))
+        checks.append({
+            "name": "topic_real_devuelve_preset_exacto",
+            "topic": primer_topic,
+            "passed": recibido == PRESETS[primer_topic],
+        })
+
+    all_passed = all(c["passed"] for c in checks)
+    return {"checks": checks, "validation_passed": all_passed, "n_checks": len(checks)}
+
+
 def compute_math_philosophy_history(topic: str = "", params: dict = None) -> str:
     """
     Punto de entrada, mismo patron que compute_ancestral_octave.
 
     topic="" -> devuelve la lista de topics disponibles.
+    topic="validate" -> corre la bateria de autochequeo.
     topic=<uno de PRESETS> -> devuelve el preset completo.
     topic invalido -> error con sugerencias, no adivina.
     """
+    if topic == "validate":
+        return json.dumps(_validate_math_philosophy_history(), ensure_ascii=False, indent=2)
+
     if not topic:
         return json.dumps({
             "topics_disponibles": list(PRESETS.keys()),
