@@ -24,9 +24,10 @@ Modos:
   - validate             : autochequeo de los 3 modos anteriores.
 
 Renderizado: cada modo acepta render=True para devolver un PNG estatico
-en base64 (matplotlib). La animacion tipo GIF (traza progresiva) queda
-para un modo aparte si se necesita -- no incluida aca para no acoplar
-generacion de imagenes pesadas al calculo geometrico base.
+en base64 (matplotlib), con ejes matematicos en el origen y flechas de
+direccion (draw_axes). El modo animate_trace genera un GIF en base64
+con traza progresiva sobre parametric_curve o cycloid_family (requiere
+pillow instalado; matplotlib lo usa como writer="pillow").
 """
 
 import base64
@@ -35,27 +36,67 @@ import io
 import numpy as np
 import sympy as sp
 from scipy.integrate import quad
+import sys
+import json
 
 MODES = [
     "parametric_curve",
     "cycloid_family",
     "curve_with_vectors",
+    "animate_trace",
     "validate",
 ]
+
+TOOL_SCHEMA = {
+    "name": "plotting_tools",
+    "description": (
+        "Curvas parametricas 2D y visualizacion matematica: curva "
+        "parametrica generica, familia de cicloides (cicloide / "
+        "epicicloide / hipocicloide), curva con vectores tangente/normal "
+        "en un punto, triedro de Frenet-Serret 3D (tangente/normal/"
+        "binormal), y animacion GIF de traza progresiva. Modos: "
+        "parametric_curve, cycloid_family, curve_with_vectors, "
+        "frenet_frame_3d, animate_trace, self_test, validate."
+    ),
+    "inputSchema": {
+        "type": "object",
+        "properties": {
+            "mode": {
+                "type": "string",
+                "enum": ["parametric_curve", "cycloid_family",
+                         "curve_with_vectors", "frenet_frame_3d",
+                         "animate_trace", "self_test", "validate"],
+            },
+            "params": {
+                "type": "object",
+                "properties": {
+                    "fx": {"type": "string", "description": "expresion x(t) (parametric_curve, curve_with_vectors, animate_trace con curve_mode=parametric_curve)"},
+                    "fy": {"type": "string", "description": "expresion y(t) (parametric_curve, curve_with_vectors, animate_trace)"},
+                    "fz": {"type": "string", "description": "expresion z(t) (frenet_frame_3d)"},
+                    "t_min": {"type": "number", "description": "t inicial (parametric_curve, curve_with_vectors)"},
+                    "t_max": {"type": "number", "description": "t final (parametric_curve, curve_with_vectors)"},
+                    "n_points": {"type": "integer", "description": "cantidad de puntos"},
+                    "closed": {"type": "boolean", "description": "si la curva es cerrada (parametric_curve)"},
+                    "r": {"type": "number", "description": "radio de la rueda (cycloid_family, animate_trace con curve_mode=cycloid_family)"},
+                    "kind": {"type": "string", "enum": ["cycloid", "epicycloid", "hypocycloid"], "description": "tipo de cicloide"},
+                    "R_fixed": {"type": "number", "description": "radio del circulo fijo (epicycloid/hypocycloid)"},
+                    "revolutions": {"type": "number", "description": "vueltas (cycloid_family)"},
+                    "t_point": {"type": "number", "description": "punto t donde evaluar T/N (curve_with_vectors)"},
+                    "render": {"type": "boolean", "description": "si True, devuelve png_base64 (default False)"},
+                    "curve_mode": {"type": "string", "enum": ["parametric_curve", "cycloid_family"], "description": "curva base a animar (animate_trace, default parametric_curve)"},
+                    "n_frames": {"type": "integer", "description": "cantidad de cuadros del GIF (animate_trace, default 60)"},
+                    "fps": {"type": "integer", "description": "cuadros por segundo del GIF (animate_trace, default 20)"},
+                },
+            },
+        },
+        "required": ["mode"],
+    },
+}
 
 _T = sp.symbols("t", real=True)
 
 
-def compute_plotting_curves(mode="parametric_curve", **kwargs):
-    if mode == "validate":
-        return _validate_plotting_curves()
-    if mode == "parametric_curve":
-        return _parametric_curve(**kwargs)
-    if mode == "cycloid_family":
-        return _cycloid_family(**kwargs)
-    if mode == "curve_with_vectors":
-        return _curve_with_vectors(**kwargs)
-    raise ValueError(f"mode desconocido: {mode!r}. Modos validos: {MODES}")
+# compute_plotting_curves() reemplazada por run() mas abajo (patron de auto-registro)
 
 
 # --------------------------------------------------------------------------
@@ -74,9 +115,6 @@ def _render_png_base64(x, y, title="", extra_draw=None, equal_aspect=True):
     import matplotlib.pyplot as plt
 
     fig, ax = plt.subplots(figsize=(6, 6))
-    # ejes matematicos en el origen (draw_axes), no en el borde
-    ax.axhline(0, color="black", linewidth=0.8)
-    ax.axvline(0, color="black", linewidth=0.8)
     ax.plot(x, y, "b-", linewidth=2)
     if extra_draw is not None:
         extra_draw(ax)
@@ -84,6 +122,24 @@ def _render_png_base64(x, y, title="", extra_draw=None, equal_aspect=True):
         ax.set_aspect("equal", adjustable="datalim")
     ax.grid(True, alpha=0.3)
     ax.set_title(title)
+
+    # ejes matematicos en el origen (draw_axes) CON flechas de direccion,
+    # en vez de usar los ejes del borde de la grafica -- se dibujan al
+    # final, sobre los limites ya calculados por autoscale, y luego se
+    # restauran esos limites para que las flechas no los alteren.
+    xlim = ax.get_xlim()
+    ylim = ax.get_ylim()
+    ax.axhline(0, color="black", linewidth=0.8, zorder=1)
+    ax.axvline(0, color="black", linewidth=0.8, zorder=1)
+    arrow_kw = dict(arrowstyle="-|>", color="black", mutation_scale=14, linewidth=0.8)
+    ax.annotate("", xy=(xlim[1], 0),
+                xytext=(xlim[1] - (xlim[1] - xlim[0]) * 0.03, 0),
+                arrowprops=arrow_kw, annotation_clip=False)
+    ax.annotate("", xy=(0, ylim[1]),
+                xytext=(0, ylim[1] - (ylim[1] - ylim[0]) * 0.03),
+                arrowprops=arrow_kw, annotation_clip=False)
+    ax.set_xlim(xlim)
+    ax.set_ylim(ylim)
 
     buf = io.BytesIO()
     fig.savefig(buf, format="png", dpi=110, bbox_inches="tight")
@@ -229,6 +285,97 @@ def _cycloid_arch_area_galileo(r, n_points=4000):
 
 
 # --------------------------------------------------------------------------
+# 4. Animacion de traza progresiva (GIF en base64)
+# --------------------------------------------------------------------------
+
+def _animate_trace(curve_mode="parametric_curve", n_frames=60, fps=20, **curve_kwargs):
+    """
+    Genera un GIF (base64) con la traza progresiva de una curva ya
+    definida por parametric_curve o cycloid_family. Reutiliza el calculo
+    exacto de esas funciones (misma x(t), y(t)) y solo agrega la logica
+    de animacion -- no reimplementa geometria.
+
+    curve_kwargs se pasan tal cual a _parametric_curve o _cycloid_family
+    (sin render, que no aplica aca).
+    """
+    curve_kwargs = dict(curve_kwargs)
+    curve_kwargs.pop("render", None)
+
+    if curve_mode == "parametric_curve":
+        data = _parametric_curve(render=False, **curve_kwargs)
+    elif curve_mode == "cycloid_family":
+        data = _cycloid_family(render=False, **curve_kwargs)
+    else:
+        raise ValueError(
+            f"curve_mode desconocido: {curve_mode!r}. "
+            "Usar 'parametric_curve' o 'cycloid_family'."
+        )
+
+    x = np.asarray(data["x"], dtype=float)
+    y = np.asarray(data["y"], dtype=float)
+    n_points = len(x)
+    if n_points < 2:
+        raise ValueError("la curva necesita al menos 2 puntos para animar")
+
+    n_frames = max(2, min(int(n_frames), n_points))
+    frame_idx = np.linspace(1, n_points, n_frames, dtype=int)
+
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    import matplotlib.animation as animation
+
+    x_pad = 0.1 * (np.ptp(x) + 1e-9)
+    y_pad = 0.1 * (np.ptp(y) + 1e-9)
+
+    fig, ax = plt.subplots(figsize=(6, 6))
+    ax.set_xlim(x.min() - x_pad, x.max() + x_pad)
+    ax.set_ylim(y.min() - y_pad, y.max() + y_pad)
+    ax.axhline(0, color="black", linewidth=0.8)
+    ax.axvline(0, color="black", linewidth=0.8)
+    ax.grid(True, alpha=0.3)
+    ax.set_aspect("equal", adjustable="box")
+    ax.set_title(f"{curve_mode} (animate_trace)")
+
+    line, = ax.plot([], [], "b-", linewidth=2)
+    point, = ax.plot([], [], "ro", markersize=8)
+
+    def _update(frame):
+        idx = frame_idx[frame]
+        line.set_data(x[:idx], y[:idx])
+        point.set_data([x[idx - 1]], [y[idx - 1]])
+        return line, point
+
+    anim = animation.FuncAnimation(
+        fig, _update, frames=len(frame_idx), blit=True
+    )
+
+    import os
+    import tempfile
+    tmp_fd, tmp_path = tempfile.mkstemp(suffix=".gif")
+    os.close(tmp_fd)
+    try:
+        anim.save(tmp_path, writer="pillow", fps=fps)
+        plt.close(fig)
+        with open(tmp_path, "rb") as _gif_f:
+            gif_b64 = base64.b64encode(_gif_f.read()).decode("ascii")
+    finally:
+        try:
+            os.remove(tmp_path)
+        except OSError:
+            pass
+
+    return {
+        "mode": "animate_trace",
+        "curve_mode": curve_mode,
+        "n_frames": int(len(frame_idx)),
+        "fps": int(fps),
+        "gif_base64": gif_b64,
+        "underlying_params": data.get("params", {}),
+    }
+
+
+# --------------------------------------------------------------------------
 # 3. Curva con vectores tangente / normal
 # --------------------------------------------------------------------------
 
@@ -304,25 +451,110 @@ def _curve_with_vectors(fx="cos(t)", fy="sin(t)", t_point=0.7,
 # 4. Validate
 # --------------------------------------------------------------------------
 
-def _validate_plotting_curves():
+
+def _frenet_frame_3d(fx, fy, fz, t_point, t_min=0.0, t_max=1.0,
+                      n_points=200, render=False):
+    t = _T
+    x_expr = _parse_expr(fx)
+    y_expr = _parse_expr(fy)
+    z_expr = _parse_expr(fz)
+
+    x1, y1, z1 = (sp.diff(e, t) for e in (x_expr, y_expr, z_expr))
+    x2, y2, z2 = (sp.diff(e, t) for e in (x1, y1, z1))
+
+    r1 = np.array([float(x1.subs(t, t_point)),
+                   float(y1.subs(t, t_point)),
+                   float(z1.subs(t, t_point))])
+    r2 = np.array([float(x2.subs(t, t_point)),
+                   float(y2.subs(t, t_point)),
+                   float(z2.subs(t, t_point))])
+
+    T = r1 / np.linalg.norm(r1)
+    cross_12 = np.cross(r1, r2)
+    cross_norm = np.linalg.norm(cross_12)
+
+    if cross_norm < 1e-12:
+        arbitrary = np.array([1.0, 0.0, 0.0])
+        if abs(np.dot(T, arbitrary)) > 0.9:
+            arbitrary = np.array([0.0, 1.0, 0.0])
+        B = np.cross(T, arbitrary)
+        B = B / np.linalg.norm(B)
+        N = np.cross(B, T)
+        curvature = 0.0
+    else:
+        B = cross_12 / cross_norm
+        N = np.cross(B, T)
+        curvature = cross_norm / (np.linalg.norm(r1) ** 3)
+
+    result = {
+        "T": T.tolist(), "N": N.tolist(), "B": B.tolist(),
+        "curvature": float(curvature),
+        "dot_T_N": float(np.dot(T, N)),
+        "dot_T_B": float(np.dot(T, B)),
+        "dot_N_B": float(np.dot(N, B)),
+        "norm_T": float(np.linalg.norm(T)),
+        "norm_N": float(np.linalg.norm(N)),
+        "norm_B": float(np.linalg.norm(B)),
+        "triad_dextrogyro": float(np.dot(T, np.cross(N, B))),
+    }
+
+    if render:
+        f_x = sp.lambdify(t, x_expr, "numpy")
+        f_y = sp.lambdify(t, y_expr, "numpy")
+        f_z = sp.lambdify(t, z_expr, "numpy")
+        ts_ = np.linspace(t_min, t_max, n_points)
+
+        def _eval_grid(f):
+            val = f(ts_)
+            return np.broadcast_to(np.asarray(val, dtype=float), ts_.shape).astype(float)
+
+        xs, ys, zs = _eval_grid(f_x), _eval_grid(f_y), _eval_grid(f_z)
+        point = np.array([float(x_expr.subs(t, t_point)),
+                           float(y_expr.subs(t, t_point)),
+                           float(z_expr.subs(t, t_point))])
+        result["png_base64"] = _render_png_base64_3d(xs, ys, zs, point, T, N, B)
+
+    return result
+
+
+def _render_png_base64_3d(x, y, z, point, T, N, B, scale=None):
+    from mpl_toolkits.mplot3d import Axes3D  # noqa: F401  (registra proyeccion 3d)
+
+    fig = plt.figure(figsize=(6, 6))
+    ax = fig.add_subplot(111, projection="3d")
+    ax.plot(x, y, z, color="tab:blue", linewidth=1.2)
+
+    if scale is None:
+        span = max(np.ptp(x), np.ptp(y), np.ptp(z), 1e-9)
+        scale = span * 0.15
+
+    px, py, pz = point
+    ax.quiver(px, py, pz, *(T * scale), color="red", linewidth=1.5)
+    ax.quiver(px, py, pz, *(N * scale), color="green", linewidth=1.5)
+    ax.quiver(px, py, pz, *(B * scale), color="blue", linewidth=1.5)
+    ax.scatter([px], [py], [pz], color="black", s=20)
+    ax.set_box_aspect([1, 1, 1])
+
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=110, bbox_inches="tight")
+    plt.close(fig)
+    buf.seek(0)
+    return base64.b64encode(buf.read()).decode("ascii")
+
+
+def run_self_test():
     checks = []
-    all_passed = True
+
+    def check(name, cond, detail=""):
+        checks.append({"name": name, "passed": bool(cond), "detail": detail})
 
     # -- parametric_curve: circulo unitario --
     out = _parametric_curve(fx="cos(t)", fy="sin(t)", t_min=0.0,
                              t_max=2 * np.pi, n_points=500, closed=True)
     arc_err = abs(out["arc_length"] - 2 * np.pi)
     area_err = abs(out["enclosed_area"] - np.pi)
-    tol = 1e-8
-    passed = arc_err < tol and area_err < tol
-    all_passed &= passed
-    checks.append({
-        "name": "parametric_curve_unit_circle_vs_closed_form",
-        "passed": bool(passed),
-        "arc_length_abs_error": arc_err,
-        "area_abs_error": area_err,
-        "tolerance": tol,
-    })
+    check("parametric_curve: circulo unitario (arco)", arc_err < 1e-8, f"err={arc_err:.2e}")
+    check("parametric_curve: circulo unitario (area)", area_err < 1e-8, f"err={area_err:.2e}")
 
     # -- cycloid: area de Galileo (3*pi*r^2) y longitud de arco (8*r) --
     r = 1.3
@@ -332,16 +564,8 @@ def _validate_plotting_curves():
     length_exact = 8.0 * r
     area_err = abs(area_galileo - area_exact) / area_exact
     length_err = abs(out["arc_length"] - length_exact) / length_exact
-    tol = 1e-4
-    passed = area_err < tol and length_err < tol
-    all_passed &= passed
-    checks.append({
-        "name": "cycloid_arch_vs_galileo_closed_form",
-        "passed": bool(passed),
-        "area_relative_error": area_err,
-        "arc_length_relative_error": length_err,
-        "tolerance": tol,
-    })
+    check("cycloid: area vs Galileo", area_err < 1e-4, f"rel err={area_err:.2e}")
+    check("cycloid: longitud de arco vs 8r", length_err < 1e-4, f"rel err={length_err:.2e}")
 
     # -- hipocicloide con R_fixed=4r -> astroide --
     r = 1.0
@@ -352,49 +576,113 @@ def _validate_plotting_curves():
     length_exact = 6.0 * R_fixed
     area_err = abs(abs(out["green_area"]) - area_exact) / area_exact
     length_err = abs(out["arc_length"] - length_exact) / length_exact
-    tol = 1e-3
-    passed = area_err < tol and length_err < tol
-    all_passed &= passed
-    checks.append({
-        "name": "hypocycloid_astroid_vs_closed_form",
-        "passed": bool(passed),
-        "area_relative_error": area_err,
-        "arc_length_relative_error": length_err,
-        "tolerance": tol,
-    })
+    check("hypocycloid/astroide: area vs forma cerrada", area_err < 1e-3, f"rel err={area_err:.2e}")
+    check("hypocycloid/astroide: longitud vs forma cerrada", length_err < 1e-3, f"rel err={length_err:.2e}")
 
     # -- curve_with_vectors: autoconsistencia T.N=0, |T|=|N|=1 --
     out = _curve_with_vectors(fx="cos(t)+t/5", fy="sin(2*t)", t_point=1.1)
-    tol = 1e-9
-    passed = (abs(out["dot_T_N"]) < tol and
-              abs(out["norm_T"] - 1.0) < tol and
-              abs(out["norm_N"] - 1.0) < tol)
-    all_passed &= passed
-    checks.append({
-        "name": "curve_with_vectors_orthonormality",
-        "passed": bool(passed),
-        "dot_T_N": out["dot_T_N"],
-        "norm_T": out["norm_T"],
-        "norm_N": out["norm_N"],
-        "tolerance": tol,
-    })
+    passed = (abs(out["dot_T_N"]) < 1e-9 and
+              abs(out["norm_T"] - 1.0) < 1e-9 and
+              abs(out["norm_N"] - 1.0) < 1e-9)
+    check("curve_with_vectors: ortonormalidad T,N", passed,
+          f"dot={out['dot_T_N']:.2e}, |T|={out['norm_T']:.6f}, |N|={out['norm_N']:.6f}")
 
-    return {
-        "mode": "validate",
-        "validation_passed": bool(all_passed),
-        "checks": checks,
-    }
+    # -- frenet_frame_3d: helice circular, formulas cerradas conocidas --
+    out = _frenet_frame_3d(fx="cos(t)", fy="sin(t)", fz="t", t_point=1.1)
+    ortho_ok = (abs(out["dot_T_N"]) < 1e-9 and abs(out["dot_T_B"]) < 1e-9 and
+                abs(out["dot_N_B"]) < 1e-9)
+    norms_ok = (abs(out["norm_T"] - 1.0) < 1e-9 and
+                abs(out["norm_N"] - 1.0) < 1e-9 and
+                abs(out["norm_B"] - 1.0) < 1e-9)
+    dextro_ok = abs(out["triad_dextrogyro"] - 1.0) < 1e-9
+    curv_err = abs(out["curvature"] - 0.5)
+    check("frenet_frame_3d: helice - ortonormalidad T,N,B", ortho_ok and norms_ok,
+          f"dotTN={out['dot_T_N']:.2e} dotTB={out['dot_T_B']:.2e} dotNB={out['dot_N_B']:.2e}")
+    check("frenet_frame_3d: helice - triedro dextrogiro", dextro_ok,
+          f"T.(NxB)={out['triad_dextrogyro']:.6f}")
+    check("frenet_frame_3d: helice - curvatura=0.5", curv_err < 1e-9, f"err={curv_err:.2e}")
+
+    # -- frenet_frame_3d: recta (curvatura nula, r'xr''=0, caso degenerado) --
+    out = _frenet_frame_3d(fx="t", fy="t", fz="t", t_point=0.5)
+    ortho_ok = (abs(out["dot_T_N"]) < 1e-9 and abs(out["dot_T_B"]) < 1e-9 and
+                abs(out["dot_N_B"]) < 1e-9)
+    check("frenet_frame_3d: recta - fallback sin r'xr'', ortonormalidad", ortho_ok,
+          f"curvature={out['curvature']:.2e}")
+
+    # -- animate_trace: check liviano (no pixel-perfect) -- confirma que
+    # se genera un GIF base64 no vacio y decodificable, sin validar el
+    # contenido visual cuadro a cuadro.
+    try:
+        out = _animate_trace(curve_mode="parametric_curve", n_frames=5,
+                              fps=10, fx="cos(t)", fy="sin(t)", n_points=50)
+        gif_b64 = out.get("gif_base64", "")
+        decoded_ok = False
+        if gif_b64:
+            try:
+                raw = base64.b64decode(gif_b64, validate=True)
+                decoded_ok = raw[:6] in (b"GIF87a", b"GIF89a")
+            except Exception:
+                decoded_ok = False
+        check("animate_trace: genera GIF base64 valido", decoded_ok,
+              f"len(base64)={len(gif_b64)}")
+    except Exception as e:
+        check("animate_trace: genera GIF base64 valido", False, f"excepcion: {e}")
+
+    total = len(checks)
+    passed_n = sum(1 for c in checks if c["passed"])
+    return {"total": total, "passed": passed_n, "all_passed": passed_n == total, "checks": checks}
 
 
-# --------------------------------------------------------------------------
-# NOTA DE INTEGRACION: mismo patron que mycelial_network_tool.py /
-# fungal_morphology_tool.py -- schema con mode enum (MODES incluyendo
-# "validate") + elif tool_name=="plotting_curves" en el dispatch de
-# server.py. Firma plana / mode estandar => no requiere entradas en
-# ALTERNATE_VALIDATE_MODE / ALTERNATE_VALIDATE_PARAM_NAME /
-# FLAT_SIGNATURE_TOOLS.
-#
-# render=True devuelve png_base64 en el resultado -- pensar si conviene
-# que el schema exponga render como parametro opcional (default False)
-# para no inflar la respuesta de validate ni de llamadas exploratorias.
-# --------------------------------------------------------------------------
+def run(mode, params=None):
+    params = params or {}
+    if mode == "validate":
+        r = run_self_test()
+        return {"checks": r["checks"], "validation_passed": r["all_passed"], "n_checks": r["total"]}
+    elif mode == "self_test":
+        return run_self_test()
+    elif mode == "parametric_curve":
+        return _parametric_curve(**params)
+    elif mode == "cycloid_family":
+        return _cycloid_family(**params)
+    elif mode == "curve_with_vectors":
+        return _curve_with_vectors(**params)
+    elif mode == "animate_trace":
+        return _animate_trace(**params)
+    elif mode == "frenet_frame_3d":
+        return _frenet_frame_3d(**params)
+    else:
+        raise ValueError(
+            f"modo desconocido: {mode} "
+            "(usar parametric_curve/cycloid_family/curve_with_vectors/"
+            "animate_trace/self_test)"
+        )
+
+
+if __name__ == "__main__":
+    mode_arg = sys.argv[1] if len(sys.argv) > 1 else "self_test"
+    params_arg = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+    try:
+        out = run(mode_arg, params_arg)
+        print(json.dumps(out, indent=2, ensure_ascii=False))
+    except Exception as e:
+        print(json.dumps({"error": str(e)}, ensure_ascii=False))
+        sys.exit(1)
+
+
+def _register():
+    """
+    Auto-registro estilo octave-mcp (patron self-registrante via
+    tool_registry, register_tool(name, schema, handler)).
+    """
+    try:
+        import tool_registry
+
+        def _handler(args):
+            return run(args.get("mode"), args.get("params"))
+
+        tool_registry.register_tool("plotting_tools", TOOL_SCHEMA, _handler)
+    except ImportError:
+        pass
+
+
+_register()
