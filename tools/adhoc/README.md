@@ -10,7 +10,11 @@ ejecutan de nuevo.
 - patch_*.py: agregan modo 'validate' a enums de tools existentes,
   agregan entradas a ALTERNATE_VALIDATE_MODE en run_all_validations.py,
   o insertan funciones nuevas (ej. patch_frenet_3d.py en plotting_tools.py)
+- probe_*.py, classify_*.py, discover_schemas.py, verify_exempt*.py:
+  scripts de diagnóstico de una sola sesión (18-ago-2026, 02:37-03:17)
+  para investigar tools huérfanas/duplicadas en tool_registry; no
+  reusables como código, se guardan como referencia de la metodología
 
 Confirmado (23-ago-2026): las tools/archivos que estos 25 scripts
-tocan ya están presentes en el código actual -- ninguno quedó
-pendiente de aplicar.
+wire_*/patch_* tocan ya están presentes en el código actual -- ninguno
+quedó pendiente de aplicar.
