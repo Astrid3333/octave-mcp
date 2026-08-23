@@ -66,6 +66,7 @@ from construction_scheduling_tool import compute_construction_scheduling, CONSTR
 from math_humanizer_tool import compute_math_humanizer, MATH_HUMANIZER_TOOL_SCHEMA
 from game_theory_tool import compute_game_theory, GAME_THEORY_TOOL_SCHEMA
 import tensor_calculus_tool  # auto-registra via tool_registry, no requiere mas ediciones
+import julia_mandelbrot_tool  # auto-registra via tool_registry, no requiere mas ediciones
 from population_genetics_tool import compute_population_genetics, POPULATION_GENETICS_TOOL_SCHEMA
 from network_science_tool import compute_network_science, NETWORK_SCIENCE_TOOL_SCHEMA
 from wavelet_tool import compute_wavelet, WAVELET_TOOL_SCHEMA
