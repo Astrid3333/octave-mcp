@@ -16,7 +16,7 @@ import tempfile
 import textwrap
 
 
-def compute_syntax_check(code, timeout=10):
+def compute_syntax_check(code, timeout=30):
     """
     Devuelve valid=True/False, y si es False, el mensaje de error crudo de
     Octave y la linea detectada si el mensaje la incluye (ojo: la linea
