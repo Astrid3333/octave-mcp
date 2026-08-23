@@ -144,7 +144,10 @@ import vector_optimizer  # auto-registra via tool_registry
 import machine_learning_vector_tool  # auto-registra via tool_registry
 import color_math_tool  # auto-registra via tool_registry
 import teaching_strategies_simulator_tool  # auto-registra via tool_registry
+import mycelial_network_tool  # auto-registra via tool_registry
+import fungal_morphology_tool  # auto-registra via tool_registry
 import plotting_tools  # auto-registra via tool_registry
+import data_file_reader_tool  # auto-registra via tool_registry
 import coordinate_transform_tool  # auto-registra via tool_registry
 from archaeoastronomy_tool import compute_archaeoastronomy, ARCHAEOASTRONOMY_TOOL_SCHEMA
 from quantum_information_tool import compute_quantum_information, QUANTUM_INFORMATION_TOOL_SCHEMA

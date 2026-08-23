@@ -26,28 +26,52 @@ Modos:
 """
 
 import numpy as np
+import sys
+import json
 
-MODES = [
-    "pileus_profile",
-    "stipe_frustum",
-    "gill_doubling",
-    "pore_packing",
-    "validate",
-]
-
-
-def compute_fungal_morphology(mode="pileus_profile", **kwargs):
-    if mode == "validate":
-        return _validate_fungal_morphology()
-    if mode == "pileus_profile":
-        return _pileus_profile(**kwargs)
-    if mode == "stipe_frustum":
-        return _stipe_frustum(**kwargs)
-    if mode == "gill_doubling":
-        return _gill_doubling(**kwargs)
-    if mode == "pore_packing":
-        return _pore_packing(**kwargs)
-    raise ValueError(f"mode desconocido: {mode!r}. Modos validos: {MODES}")
+TOOL_SCHEMA = {
+    "name": "fungal_morphology_tool",
+    "description": (
+        "Matematica de formas del cuerpo fungico (carpoforo): perfil del "
+        "pileo (sombrero) como domo generalizado, geometria del estipite "
+        "(frustum), doblamiento jerarquico de laminillas, y empaquetamiento "
+        "hexagonal de poros en superficie. Modos: pileus_profile, "
+        "stipe_frustum, gill_doubling, pore_packing, self_test, validate."
+    ),
+    "inputSchema": {
+        "type": "object",
+        "properties": {
+            "mode": {
+                "type": "string",
+                "enum": ["pileus_profile", "stipe_frustum", "gill_doubling",
+                         "pore_packing", "self_test", "validate"],
+            },
+            "params": {
+                "type": "object",
+                "properties": {
+                    "R": {"type": "number", "description": "radio del pileo (pileus_profile)"},
+                    "h": {"type": "number", "description": "altura del domo (pileus_profile)"},
+                    "p": {"type": "number", "description": "exponente radial (pileus_profile)"},
+                    "q": {"type": "number", "description": "exponente de altura (pileus_profile)"},
+                    "n_r": {"type": "integer", "description": "puntos radiales (pileus_profile)"},
+                    "r_top": {"type": "number", "description": "radio superior del estipite (stipe_frustum)"},
+                    "r_bottom": {"type": "number", "description": "radio inferior del estipite (stipe_frustum)"},
+                    "H": {"type": "number", "description": "altura del estipite (stipe_frustum)"},
+                    "n_z": {"type": "integer", "description": "puntos axiales (stipe_frustum)"},
+                    "R_cap": {"type": "number", "description": "radio del sombrero (gill_doubling)"},
+                    "r_stipe": {"type": "number", "description": "radio del estipite (gill_doubling)"},
+                    "s_max": {"type": "number", "description": "espaciado angular maximo (gill_doubling)"},
+                    "N0": {"type": "integer", "description": "n gills iniciales (gill_doubling)"},
+                    "max_orders": {"type": "integer", "description": "ordenes maximos de duplicacion (gill_doubling)"},
+                    "pore_diameter": {"type": "number", "description": "diametro de poro (pore_packing)"},
+                    "domain_side": {"type": "number", "description": "lado del dominio (pore_packing)"},
+                    "n_cells_side": {"type": "integer", "description": "celdas por lado (pore_packing)"},
+                },
+            },
+        },
+        "required": ["mode"],
+    },
+}
 
 
 # --------------------------------------------------------------------------
@@ -233,85 +257,91 @@ def _pore_packing(pore_diameter=0.2, domain_side=None, n_cells_side=40):
 
 
 # --------------------------------------------------------------------------
-# 5. Validate
+# 5. self_test / run / registro
 # --------------------------------------------------------------------------
 
-def _validate_fungal_morphology():
+def run_self_test():
     checks = []
-    all_passed = True
 
-    # -- pileus_profile: caso hemisferio exacto (p=q=2, h=R) --
+    def check(name, cond, detail=""):
+        checks.append({"name": name, "passed": bool(cond), "detail": detail})
+
     R = 5.0
     out = _pileus_profile(R=R, h=R, p=2.0, q=2.0, n_r=2000)
     area_exact = 2.0 * np.pi * R ** 2
     vol_exact = (2.0 / 3.0) * np.pi * R ** 3
     area_err = abs(out["surface_area_m2"] - area_exact) / area_exact
     vol_err = abs(out["volume_m3"] - vol_exact) / vol_exact
-    tol = 1e-3
-    passed = area_err < tol and vol_err < tol
-    all_passed &= passed
-    checks.append({
-        "name": "pileus_profile_vs_hemisphere_closed_form",
-        "passed": bool(passed),
-        "area_relative_error": area_err,
-        "volume_relative_error": vol_err,
-        "tolerance": tol,
-    })
+    check("pileus_profile vs hemisferio (area)", area_err < 1e-3, f"rel err={area_err:.2e}")
+    check("pileus_profile vs hemisferio (volumen)", vol_err < 1e-3, f"rel err={vol_err:.2e}")
 
-    # -- stipe_frustum: numerico vs formula cerrada --
     out = _stipe_frustum(r_top=0.5, r_bottom=0.8, H=6.0, n_z=2000)
-    tol_v = 1e-4
-    tol_a = 1e-4
-    passed = (out["volume_abs_error"] < tol_v and out["area_abs_error"] < tol_a)
-    all_passed &= passed
-    checks.append({
-        "name": "stipe_frustum_numeric_vs_closed_form",
-        "passed": bool(passed),
-        "volume_abs_error": out["volume_abs_error"],
-        "area_abs_error": out["area_abs_error"],
-    })
+    check("stipe_frustum: volumen numerico vs cerrado",
+          out["volume_abs_error"] < 1e-4, f"err={out['volume_abs_error']:.2e}")
+    check("stipe_frustum: area numerica vs cerrada",
+          out["area_abs_error"] < 1e-4, f"err={out['area_abs_error']:.2e}")
 
-    # -- gill_doubling: auto-consistencia (espaciado respetado y duplicacion necesaria) --
     out = _gill_doubling(R_cap=4.0, r_stipe=0.3, s_max=0.5, N0=4)
-    passed = (out["constraint_satisfied"] and out["last_doubling_was_necessary"])
-    all_passed &= passed
-    checks.append({
-        "name": "gill_doubling_self_consistency",
-        "passed": bool(passed),
-        "spacing_at_margin_m": out["spacing_at_margin_m"],
-        "spacing_without_last_doubling_m": out["spacing_without_last_doubling_m"],
-        "s_max": out["s_max"],
-    })
+    check("gill_doubling: auto-consistencia",
+          out["constraint_satisfied"] and out["last_doubling_was_necessary"],
+          f"spacing_margin={out['spacing_at_margin_m']:.4f}")
 
-    # -- pore_packing: empirico vs fraccion exacta pi/(2*sqrt(3)) --
-    # n_cells_side grande: el error por efecto de borde decae ~O(1/n)
-    # (circulos completos contados cerca del limite del dominio sobreestiman
-    # la fraccion), confirmado empiricamente barriendo n=40..200 antes de
-    # fijar este valor -- con n=200 el error cae a ~2e-4, tolerancia comoda.
     out = _pore_packing(pore_diameter=0.2, n_cells_side=200)
-    tol = 0.01
-    passed = out["abs_error"] < tol
-    all_passed &= passed
-    checks.append({
-        "name": "pore_packing_vs_hexagonal_exact_fraction",
-        "passed": bool(passed),
-        "packing_fraction_empirical": out["packing_fraction_empirical"],
-        "packing_fraction_exact": out["packing_fraction_exact"],
-        "abs_error": out["abs_error"],
-        "tolerance": tol,
-    })
+    check("pore_packing vs fraccion hexagonal exacta",
+          out["abs_error"] < 0.01, f"err={out['abs_error']:.2e}")
 
-    return {
-        "mode": "validate",
-        "validation_passed": bool(all_passed),
-        "checks": checks,
-    }
+    total = len(checks)
+    passed = sum(1 for c in checks if c["passed"])
+    return {"total": total, "passed": passed, "all_passed": passed == total, "checks": checks}
 
 
-# --------------------------------------------------------------------------
-# NOTA DE INTEGRACION: mismo patron que mycelial_network_tool.py --
-# schema con mode enum (MODES incluyendo "validate") + elif tool_name==
-# "fungal_morphology" en el dispatch de server.py. Firma plana / mode
-# estandar => no requiere entradas en ALTERNATE_VALIDATE_MODE /
-# ALTERNATE_VALIDATE_PARAM_NAME / FLAT_SIGNATURE_TOOLS.
-# --------------------------------------------------------------------------
+def run(mode, params=None):
+    params = params or {}
+    if mode == "validate":
+        r = run_self_test()
+        return {"checks": r["checks"], "validation_passed": r["all_passed"], "n_checks": r["total"]}
+    elif mode == "self_test":
+        return run_self_test()
+    elif mode == "pileus_profile":
+        return _pileus_profile(**params)
+    elif mode == "stipe_frustum":
+        return _stipe_frustum(**params)
+    elif mode == "gill_doubling":
+        return _gill_doubling(**params)
+    elif mode == "pore_packing":
+        return _pore_packing(**params)
+    else:
+        raise ValueError(
+            f"modo desconocido: {mode} "
+            "(usar pileus_profile/stipe_frustum/gill_doubling/pore_packing/self_test)"
+        )
+
+
+if __name__ == "__main__":
+    mode_arg = sys.argv[1] if len(sys.argv) > 1 else "self_test"
+    params_arg = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+    try:
+        out = run(mode_arg, params_arg)
+        print(json.dumps(out, indent=2, ensure_ascii=False))
+    except Exception as e:
+        print(json.dumps({"error": str(e)}, ensure_ascii=False))
+        sys.exit(1)
+
+
+def _register():
+    """
+    Auto-registro estilo octave-mcp (patron self-registrante via
+    tool_registry, register_tool(name, schema, handler)).
+    """
+    try:
+        import tool_registry
+
+        def _handler(args):
+            return run(args.get("mode"), args.get("params"))
+
+        tool_registry.register_tool("fungal_morphology_tool", TOOL_SCHEMA, _handler)
+    except ImportError:
+        pass
+
+
+_register()
