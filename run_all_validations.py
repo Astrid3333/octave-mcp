@@ -67,6 +67,8 @@ ALTERNATE_VALIDATE_MODE = {
     "surface_geometry": "self_test",
     "projective_geometry": "self_test",
     "space_curves": "self_test",
+    "curvilinear_coordinates": "self_test",
+    "trilinear_coordinates": "self_test",
     "scalar_field_cosmology_tool": "self_test",
     "vacuum_energy_density_tool": "self_test",
     "quantum_cosmology_tool": "self_test",
