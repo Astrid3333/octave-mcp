@@ -42,6 +42,11 @@ def _validate():
         "fluid": {"reynolds": 100.0},
         "lid_velocity": 1.0,
         "solver": {"dt": 0.001, "max_steps": 20000, "tol": 1e-6},
+        # timeout mas alto que el default de compute_cfd (300s): en la
+        # maquina de 2 cores, corriendo bajo run_all_validations.py con
+        # PARALLEL_WORKERS=2, se vio superar los 300s por contencion de
+        # CPU con el otro worker aunque la corrida aislada tarda ~0.1s.
+        "timeout_s": 600,
     })
 
     nx, ny = result["mesh"]["nx"], result["mesh"]["ny"]
