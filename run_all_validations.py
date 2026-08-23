@@ -64,6 +64,9 @@ KNOWN_NON_STANDARD_VALIDATE = {
 # fue invocada y confirmada como autochequeo real, no un modo de computo.
 ALTERNATE_VALIDATE_MODE = {
     "tritbraid": "validate_physics",
+    "surface_geometry": "self_test",
+    "projective_geometry": "self_test",
+    "space_curves": "self_test",
     "scalar_field_cosmology_tool": "self_test",
     "vacuum_energy_density_tool": "self_test",
     "quantum_cosmology_tool": "self_test",
