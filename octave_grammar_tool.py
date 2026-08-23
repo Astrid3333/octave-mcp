@@ -291,7 +291,7 @@ def _check_blocks(code):
     return errors
 
 
-def _real_octave_check(code, timeout=10):
+def _real_octave_check(code, timeout=30):
     """Intenta usar el checker real de octave_syntax_tool (envuelve el
     fragmento en una funcion y lo parsea via octave-cli real, sin
     ejecutarlo), cuando esta disponible en el mismo directorio y el
@@ -361,7 +361,7 @@ def _extract_hint_focus(errors):
     return focus
 
 
-def validate_code(code, use_real_check=True, timeout=10):
+def validate_code(code, use_real_check=True, timeout=30):
     errors = _check_delimiters(code) + _check_blocks(code)
 
     real_status = "skipped"
@@ -385,7 +385,7 @@ def validate_code(code, use_real_check=True, timeout=10):
     return result
 
 
-def write_code(code, path, use_real_check=True, timeout=10):
+def write_code(code, path, use_real_check=True, timeout=30):
     validation = validate_code(code, use_real_check=use_real_check, timeout=timeout)
     if validation["validation_status"] == "INVALID":
         return {**validation, "mode": "write_code", "written": False, "path": path}
@@ -543,13 +543,13 @@ def compute_octave_grammar(mode="validate", **kwargs):
         return validate_code(
             kwargs["code"],
             use_real_check=kwargs.get("use_real_check", True),
-            timeout=kwargs.get("timeout", 10),
+            timeout=kwargs.get("timeout", 30),
         )
     elif mode == "write_code":
         return write_code(
             kwargs["code"], kwargs["path"],
             use_real_check=kwargs.get("use_real_check", True),
-            timeout=kwargs.get("timeout", 10),
+            timeout=kwargs.get("timeout", 30),
         )
     elif mode == "validate":
         return validate()
@@ -595,7 +595,7 @@ OCTAVE_GRAMMAR_TOOL_SCHEMA = {
                     "el entorno (ver campo real_check_status en la respuesta)"
                 ),
             },
-            "timeout": {"type": "integer", "description": "timeout en segundos para el chequeo real via octave-cli (default 10)"},
+            "timeout": {"type": "integer", "description": "timeout en segundos para el chequeo real via octave-cli (default 30)"},
         },
         "required": ["mode"],
     },
