@@ -262,7 +262,7 @@ try:
     
     REGISTRY[BREMSSTRAHLUNG_RADIATION_TOOL_SCHEMA["name"]] = {
         "schema": BREMSSTRAHLUNG_RADIATION_TOOL_SCHEMA,
-        "execute": execute
+        "handler": execute
     }
 except Exception as e:
     pass  # Fallback: será registrado vía import en server.py
