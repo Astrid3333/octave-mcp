@@ -209,11 +209,11 @@ def validate_gene_drive():
     """Validación de self-test."""
     tests = []
     
-    # Test 1: Sin drive, alelo recesivo debería desaparecer
+    # Test 1: Sin drive, frecuencia se mantiene estable (Hardy-Weinberg)
     mend = simulate_mendelian(1000, 0.1, 50)
     tests.append({
-        "name": "Sin drive: alelo recesivo desaparece",
-        "passed": int(mend["final_freq_modified"] < 0.05),
+        "name": "Sin drive: frecuencia mendeliana estable",
+        "passed": int(abs(mend["final_freq_modified"] - 0.1) < 0.01),
         "freq": mend["final_freq_modified"]
     })
     
