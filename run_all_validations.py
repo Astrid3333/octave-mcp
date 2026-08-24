@@ -88,6 +88,7 @@ ALTERNATE_VALIDATE_MODE = {
     "entropy_structure": "validate",
     "ethnomath": "validate",
     "ethnomath2": "validate",
+    "math_explainer": "validate",
     # NOTA (2026-08-20): plague_sir, settlement_clusters, historical_extractor
     # y abstract_algebra estuvieron mapeadas aca hasta que se confirmo que su
     # inputSchema ya declara "validate" en el enum de mode -- el chequeo
@@ -120,6 +121,7 @@ ALTERNATE_VALIDATE_PARAM_NAME = {
     "entropy_structure": "preset",
     "ethnomath": "preset",
     "ethnomath2": "preset",
+    "math_explainer": "source_tool",
 }
 
 # Nombres de campo alternativos para "el autochequeo paso" -- distintas
