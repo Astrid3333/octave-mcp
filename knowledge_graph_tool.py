@@ -213,6 +213,110 @@ def _mode_stats(p, tools):
     }
 
 
+def _mode_validate(p, tools):
+    """Self-test autocontenido: usa un catalogo sintetico propio (no el
+    `tools` real del server) para que el resultado sea determinista y no
+    dependa de que tools cambien con el tiempo. Ejercita search, related,
+    stats y el manejo de errores de cada uno."""
+    checks = []
+
+    _VALIDATE_TOOLS = [
+        {
+            "name": "control_theory",
+            "description": (
+                "Teoria de control: respuesta a escalon de lazo PID cerrado, "
+                "estabilidad de Routh-Hurwitz, lugar de raices, control OGY "
+                "para estabilizar orbitas periodicas inestables."
+            ),
+        },
+        {
+            "name": "optimal_control",
+            "description": "Control optimo: LQR, ley de control -Kx, simulacion de lazo cerrado.",
+        },
+        {
+            "name": "bacterial_growth_tool",
+            "description": (
+                "Simulacion de crecimiento bacteriano: modelo logistico y "
+                "exponencial, poblacion bacteriana en funcion del tiempo."
+            ),
+        },
+        {
+            "name": "enzyme_kinetics",
+            "description": "Cinetica enzimatica: Michaelis-Menten, full kinetics E+S<->ES->E+P.",
+        },
+    ]
+
+    def _check(name, condition):
+        checks.append({"name": name, "passed": bool(condition)})
+
+    # --- search: coincidencia directa por nombre+descripcion ---
+    try:
+        r = _mode_search({"query": "estabilidad control PID lazo cerrado"}, _VALIDATE_TOOLS)
+        ok = (
+            bool(r["resultados"])
+            and r["resultados"][0]["tool"] == "control_theory"
+            and (len(r["resultados"]) < 2 or r["resultados"][0]["score"] > r["resultados"][1]["score"])
+        )
+        _check("search_encuentra_match_directo", ok)
+    except Exception:
+        _check("search_encuentra_match_directo", False)
+
+    # --- search: stemming de genero (bacteriano/bacteriana) debe matchear ---
+    try:
+        r = _mode_search({"query": "poblacion bacteriana"}, _VALIDATE_TOOLS)
+        tools_encontradas = [x["tool"] for x in r["resultados"]]
+        _check("search_stemming_genero", "bacterial_growth_tool" in tools_encontradas)
+    except Exception:
+        _check("search_stemming_genero", False)
+
+    # --- search: query vacia/solo stopwords debe lanzar ValueError ---
+    try:
+        _mode_search({"query": "el de la"}, _VALIDATE_TOOLS)
+        _check("search_query_vacia_lanza_valueerror", False)
+    except ValueError:
+        _check("search_query_vacia_lanza_valueerror", True)
+    except Exception:
+        _check("search_query_vacia_lanza_valueerror", False)
+
+    # --- related: control_theory y optimal_control comparten vocabulario ---
+    try:
+        r = _mode_related({"tool_name": "control_theory"}, _VALIDATE_TOOLS)
+        ok = bool(r["relacionadas"]) and r["relacionadas"][0]["tool"] == "optimal_control"
+        _check("related_encuentra_tool_conectada", ok)
+    except Exception:
+        _check("related_encuentra_tool_conectada", False)
+
+    # --- related: tool_name inexistente debe lanzar ValueError ---
+    try:
+        _mode_related({"tool_name": "tool_que_no_existe"}, _VALIDATE_TOOLS)
+        _check("related_tool_inexistente_lanza_valueerror", False)
+    except ValueError:
+        _check("related_tool_inexistente_lanza_valueerror", True)
+    except Exception:
+        _check("related_tool_inexistente_lanza_valueerror", False)
+
+    # --- stats: cuenta tools correctamente ---
+    try:
+        r = _mode_stats({"top_k": 25}, _VALIDATE_TOOLS)
+        _check("stats_cuenta_tools_correctamente", r["n_tools_totales"] == len(_VALIDATE_TOOLS))
+    except Exception:
+        _check("stats_cuenta_tools_correctamente", False)
+
+    # --- modo desconocido debe lanzar ValueError ---
+    try:
+        compute_knowledge_graph("modo_inventado", {}, tools=_VALIDATE_TOOLS)
+        _check("modo_desconocido_lanza_valueerror", False)
+    except ValueError:
+        _check("modo_desconocido_lanza_valueerror", True)
+    except Exception:
+        _check("modo_desconocido_lanza_valueerror", False)
+
+    return {
+        "checks": checks,
+        "validation_passed": all(c["passed"] for c in checks),
+    }
+
+
 def compute_knowledge_graph(mode, params=None, tools=None):
     if tools is None:
         raise ValueError("Se requiere la lista TOOLS del servidor (pasada por el dispatcher)")
@@ -223,8 +327,10 @@ def compute_knowledge_graph(mode, params=None, tools=None):
         return _mode_related(params, tools)
     elif mode == "stats":
         return _mode_stats(params, tools)
+    elif mode == "validate":
+        return _mode_validate(params, tools)
     else:
-        raise ValueError(f"Modo desconocido: {mode}. Usar: search | related | stats")
+        raise ValueError(f"Modo desconocido: {mode}. Usar: search | related | stats | validate")
 
 
 KNOWLEDGE_GRAPH_TOOL_SCHEMA = {
@@ -241,7 +347,7 @@ KNOWLEDGE_GRAPH_TOOL_SCHEMA = {
     "inputSchema": {
         "type": "object",
         "properties": {
-            "mode": {"type": "string", "enum": ["search", "related", "stats"]},
+            "mode": {"type": "string", "enum": ["search", "related", "stats", "validate"]},
             "params": {"type": "object"},
         },
         "required": ["mode"],
