@@ -2,6 +2,7 @@
 import subprocess, json, sys, os
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'tools'))
 import tool_registry
 import debt_snowball_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import retirement_planner_tool  # auto-registra via tool_registry, no requiere mas ediciones
@@ -13,6 +14,7 @@ import surface_geometry_tool  # auto-registra via tool_registry
 import gene_drive_population_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import crisprzip_energy_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import genetic_circuit_control_tool  # auto-registra via tool_registry, no requiere mas ediciones
+import stem_cell_lineage_tool  # auto-registra via tool_registry
 import projective_geometry_tool  # auto-registra via tool_registry
 import space_curves_tool  # auto-registra via tool_registry
 import personal_budget_tool  # auto-registra via tool_registry, no requiere mas ediciones
