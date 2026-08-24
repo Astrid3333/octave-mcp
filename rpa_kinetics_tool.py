@@ -13,6 +13,7 @@ import json
 
 # Schema
 RPA_KINETICS_SCHEMA = {
+    "name": "rpa_kinetics_tool",
     "type": "object",
     "description": "Simula cinética enzimática de RPA (Recombinasa Polimerasa Amplificación)",
     "inputSchema": {
