@@ -236,3 +236,21 @@ if __name__ == "__main__":
     opt = optimize_buffer(100, target_yield=50000, reaction_time=45)
     print(f"   Optimal [RPA]: {opt['optimal_rpa_concentration']:.1f} nM")
     print(f"   Expected yield: {opt['expected_yield']:.0f}")
+
+try:
+    from tool_registry import register_tool
+    register_tool(
+        name="rpa_kinetics_tool",
+        schema=RPA_KINETICS_SCHEMA,
+        handler=lambda args: run_rpa_kinetics_tool(
+            args.get("mode"),
+            args.get("rpa_concentration"),
+            args.get("dna_template"),
+            args.get("reaction_time"),
+            args.get("temperature", 37),
+            args.get("km_michaelis", 50),
+            args.get("vmax", 1000)
+        ),
+    )
+except ImportError:
+    pass
