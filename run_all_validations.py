@@ -90,6 +90,7 @@ ALTERNATE_VALIDATE_MODE = {
     "ethnomath2": "validate",
     "math_explainer": "validate",
     "semantic_bridge": "validate",
+    "numeral_systems_embedding": "validate",
     # NOTA (2026-08-20): plague_sir, settlement_clusters, historical_extractor
     # y abstract_algebra estuvieron mapeadas aca hasta que se confirmo que su
     # inputSchema ya declara "validate" en el enum de mode -- el chequeo
@@ -109,7 +110,7 @@ FLAT_SIGNATURE_TOOLS = {
     "abstract_algebra",
     "plot_workspace_run", "octave_run", "octave_eval_expr", "octave_run_script", "octave_version",
     "levant", "ancient_calculator", "originarios", "persistent_homology", "math_philosophy_history",
-    "entropy_structure", "ethnomath", "ethnomath2", "math_explainer",}
+    "entropy_structure", "ethnomath", "ethnomath2", "math_explainer", "numeral_systems_embedding",}
 
 # Tools cuyo parametro real de invocacion no es "mode" (preset, topic, etc.)
 # -- ver ALTERNATE_VALIDATE_MODE para el valor a pasar en ese parametro.
@@ -123,6 +124,7 @@ ALTERNATE_VALIDATE_PARAM_NAME = {
     "ethnomath": "preset",
     "ethnomath2": "preset",
     "math_explainer": "source_tool",
+    "numeral_systems_embedding": "method",
 }
 
 # Nombres de campo alternativos para "el autochequeo paso" -- distintas
