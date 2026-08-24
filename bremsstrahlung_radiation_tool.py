@@ -246,6 +246,7 @@ def execute(args):
         assert sp < 1e3, "Espectro en rango razonable"
         
         return {
+            "validation_passed": True,
             "status": "OK",
             "spectrum_sample": sp,
             "cross_section_sample": sigma
