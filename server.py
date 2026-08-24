@@ -162,6 +162,8 @@ import curvilinear_coordinates_tool  # auto-registra via tool_registry
 import trilinear_coordinates_tool  # auto-registra via tool_registry
 import ternary_combinatorics_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import landauer_ternary_tool  # auto-registra via tool_registry, no requiere mas ediciones
+import synchrotron_radiation_tool  # auto-registra via tool_registry
+import pair_production_tool  # auto-registra via tool_registry
 from archaeoastronomy_tool import compute_archaeoastronomy, ARCHAEOASTRONOMY_TOOL_SCHEMA
 from quantum_information_tool import compute_quantum_information, QUANTUM_INFORMATION_TOOL_SCHEMA
 from octave_infra_tool import octave_run, octave_eval_expr, octave_run_script, octave_version
