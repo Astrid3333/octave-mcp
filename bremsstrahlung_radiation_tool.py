@@ -191,9 +191,9 @@ def spectrum_calculation(T_e, Z, num_points=200, method="bethe_heitler"):
         "Z": Z
     }
 
-def execute(mode, params):
+def execute(args):
     """Dispatcher principal"""
-    T_e = params.get("T_e", 1.0)
+    mode = args.get("mode", "validate"); params = args.get("params", {}); T_e = params.get("T_e", 1.0)
     Z = params.get("Z", 1)
     omega_gamma = params.get("omega_gamma", T_e / 2)
     num_points = params.get("num_points", 200)
