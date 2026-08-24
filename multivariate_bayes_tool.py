@@ -677,7 +677,8 @@ MULTIVARIATE_BAYES_TOOL_SCHEMA = {   'type': 'object',
                                               'hmc_regression',
                                               'pca_biplot',
                                               'pca_cv',
-                                              'factor_analysis']},
+                                              'factor_analysis',
+                                              'validate']},
                       'params': {'type': 'object'}},
     'required': ['mode', 'params']}
 
