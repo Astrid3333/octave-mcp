@@ -243,23 +243,26 @@ def compute_pair_production(arguments):
 
 PAIR_PRODUCTION_SCHEMA = {
     "name": "pair_production_tool",
-    "type": "object",
-    "properties": {
-        "mode": {
-            "type": "string",
-            "enum": ["cross_section", "threshold_energy", "validate"],
-            "description": "Modo de calculo. 'validate' corre el self-test contra limites fisicos y valores de la literatura (Gould & Schreder 1967).",
+    "description": "Produccion de pares gamma+gamma -> e+e-: seccion eficaz, energia umbral de reaccion, y self-test.",
+    "inputSchema": {
+        "type": "object",
+        "properties": {
+            "mode": {
+                "type": "string",
+                "enum": ["cross_section", "threshold_energy", "validate"],
+                "description": "Modo de calculo. 'validate' corre el self-test contra limites fisicos y valores de la literatura (Gould & Schreder 1967).",
+            },
+            "params": {
+                "type": "object",
+                "description": (
+                    "cross_section: {eps1_erg, eps2_erg, cos_theta=-1.0 (colision frontal por default)}. "
+                    "threshold_energy: {eps_fixed_erg, cos_theta=-1.0}. "
+                    "Unidades CGS-Gaussian: energias de foton en erg."
+                ),
+            },
         },
-        "params": {
-            "type": "object",
-            "description": (
-                "cross_section: {eps1_erg, eps2_erg, cos_theta=-1.0 (colision frontal por default)}. "
-                "threshold_energy: {eps_fixed_erg, cos_theta=-1.0}. "
-                "Unidades CGS-Gaussian: energias de foton en erg."
-            ),
-        },
+        "required": ["mode"],
     },
-    "required": ["mode"],
 }
 
 

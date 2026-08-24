@@ -333,25 +333,28 @@ def compute_synchrotron_radiation(arguments):
 
 SYNCHROTRON_RADIATION_SCHEMA = {
     "name": "synchrotron_radiation_tool",
-    "type": "object",
-    "properties": {
-        "mode": {
-            "type": "string",
-            "enum": ["single_electron", "power_law_spectrum", "critical_frequency", "validate"],
-            "description": "Modo de calculo. 'validate' corre el self-test contra limites asintoticos conocidos.",
+    "description": "Radiacion de sincrotron de electrones relativistas: espectro, frecuencia critica, y self-test.",
+    "inputSchema": {
+        "type": "object",
+        "properties": {
+            "mode": {
+                "type": "string",
+                "enum": ["single_electron", "power_law_spectrum", "critical_frequency", "validate"],
+                "description": "Modo de calculo. 'validate' corre el self-test contra limites asintoticos conocidos.",
+            },
+            "params": {
+                "type": "object",
+                "description": (
+                    "single_electron: {omega, gamma, B_gauss, pitch_angle_rad=pi/2}. "
+                    "power_law_spectrum: {omega_array, gamma_min, gamma_max, p_index=2.5, B_gauss, "
+                    "pitch_angle_rad=pi/2, n_electrons=200}. "
+                    "critical_frequency: {gamma, B_gauss, pitch_angle_rad=pi/2}. "
+                    "Unidades CGS-Gaussian: omega en rad/s, B en Gauss."
+                ),
+            },
         },
-        "params": {
-            "type": "object",
-            "description": (
-                "single_electron: {omega, gamma, B_gauss, pitch_angle_rad=pi/2}. "
-                "power_law_spectrum: {omega_array, gamma_min, gamma_max, p_index=2.5, B_gauss, "
-                "pitch_angle_rad=pi/2, n_electrons=200}. "
-                "critical_frequency: {gamma, B_gauss, pitch_angle_rad=pi/2}. "
-                "Unidades CGS-Gaussian: omega en rad/s, B en Gauss."
-            ),
-        },
+        "required": ["mode"],
     },
-    "required": ["mode"],
 }
 
 
