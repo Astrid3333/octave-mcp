@@ -104,6 +104,7 @@ ALTERNATE_VALIDATE_MODE = {
 # ni tienen **kwargs, asi que el payload estandar {"mode": ..., "params": {}}
 # les tira TypeError. Se omite "params" del payload solo para estas.
 FLAT_SIGNATURE_TOOLS = {
+    "landauer_ternary_tool",
     "ternary_combinatorics_tool",
     "plague_sir",
     "settlement_clusters",
