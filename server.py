@@ -10,6 +10,7 @@ import education_funding_tool  # auto-registra via tool_registry, no requiere ma
 import emergency_fund_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import rpa_kinetics_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import surface_geometry_tool  # auto-registra via tool_registry
+import gene_drive_population_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import projective_geometry_tool  # auto-registra via tool_registry
 import space_curves_tool  # auto-registra via tool_registry
 import personal_budget_tool  # auto-registra via tool_registry, no requiere mas ediciones
