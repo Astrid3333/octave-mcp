@@ -55,23 +55,29 @@ GENE_DRIVE_POPULATION_SCHEMA = {
 
 def gene_drive_inheritance(freq_wild, freq_hetero, freq_modified, cutting_eff):
     """
-    Herencia con gene drive: el alelo modificado se copia a cromosoma homólogo.
+    Herencia simplificada con gene drive: ventaja selectiva del alelo modificado.
+    El drive aumenta la frecuencia del alelo modificado por cada generación.
     """
-    f_w = freq_wild
-    f_h = freq_hetero
-    f_m = freq_modified
+    # Frecuencia alélica total (p = wild, q = modificado)
+    p = freq_wild
+    q = freq_modified
     
-    new_f_w = f_w * f_w + 2 * f_w * f_h * (1 - cutting_eff) + f_h * f_h * (1 - cutting_eff)**2
-    new_f_h = 2 * f_w * f_h * cutting_eff + 2 * f_h * f_m + f_h * f_h * 2 * cutting_eff * (1 - cutting_eff)
-    new_f_m = f_m * f_m + f_h * f_h * cutting_eff**2 + 2 * f_h * f_m * cutting_eff
+    # Gene drive: copia el alelo modificado (copying advantage)
+    # drive_advantage aumenta la frecuencia de q por el cutting efficiency
+    drive_advantage = cutting_eff * q * (1 - q)
     
-    total = new_f_w + new_f_h + new_f_m
-    if total > 0:
-        new_f_w /= total
-        new_f_h /= total
-        new_f_m /= total
+    q_new = q + drive_advantage
+    p_new = 1.0 - q_new
     
-    return new_f_w, new_f_h, new_f_m
+    # Mantener en rango [0,1]
+    q_new = max(0, min(1, q_new))
+    p_new = 1.0 - q_new
+    
+    # Para mantener compatibilidad con heterocigotos
+    freq_hetero_new = 2 * p_new * q_new
+    
+    return p_new, freq_hetero_new, q_new
+
 
 def population_dynamics_ode(y, t, density_dependence, fitness_cost):
     """Dinámica poblacional con dependencia de densidad."""
