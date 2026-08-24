@@ -61,57 +61,33 @@ THERMODYNAMIC_PARAMS = {
 def calculate_binding_energy(guide_seq, target_seq, temperature=37):
     """
     Calcula ΔG de unión para ARN guía-ADN objetivo.
-    Retorna energía libre (kcal/mol) y melting temperature.
-    
-    Fórmula simplificada: ΔG = ΔH - T*ΔS
-    ΔH: entalpia (suma de stacking + basepairs)
-    ΔS: entropía (aproximado)
+    Modelo simplificado pero correcto.
     """
-    # Alinear guía y objetivo
     guide_seq = guide_seq.upper().replace("U", "T")
     target_seq = target_seq.upper()
     
     if len(guide_seq) > len(target_seq):
         return {"error": "Guide longer than target"}
     
-    # Calcular entalpia (sum de pares base)
-    enthalpy = 0.0
+    # Scoring: cada Watson-Crick = +2.0, mismatch = -1.0
+    wc_score = 0.0
     mismatches = 0
     
     for i in range(len(guide_seq)):
-        guide_base = guide_seq[i]
-        target_base = target_seq[i]
-        
-        pair = guide_base + target_base
-        if pair in THERMODYNAMIC_PARAMS:
-            enthalpy += THERMODYNAMIC_PARAMS[pair]
+        if guide_seq[i] == target_seq[i]:
+            wc_score += 2.0  # Watson-Crick favorables
         else:
-            # Mismatch penalidad
-            enthalpy -= 2.5  # penalidad fuerte
+            wc_score -= 1.0  # Mismatch desfavorable
             mismatches += 1
     
-    # Stacking energies (interacción entre pares consecutivos)
-    stacking = 0.0
-    for i in range(len(guide_seq) - 1):
-        # Penalidad general para stacking en mismatches
-        if guide_seq[i] != target_seq[i]:
-            stacking -= 0.5
+    # ΔG ~ -scoring * 0.6 (kcal/mol por bp)
+    delta_g = -wc_score * 0.6
     
-    enthalpy += stacking
-    
-    # Entropía (aproximación): -ΔS ≈ 0.017 * len(seq)
-    entropy_term = 0.017 * len(guide_seq)
-    
-    # ΔG = ΔH - T*ΔS (T en Kelvin)
-    temp_kelvin = temperature + 273.15
-    delta_g = enthalpy - (temp_kelvin * entropy_term)
-    
-    # Melting temperature (Tm) cuando ΔG = 0
-    # ΔG = 0 => T_m = ΔH / ΔS
-    if entropy_term > 0:
-        tm = enthalpy / entropy_term - 273.15
-    else:
-        tm = 0
+    # Melting temperature (Tm): estimación simple
+    # Tm ≈ 4°C * (G+C) + 2°C * (A+T) - mismatch_penalty
+    gc_count = guide_seq.count('G') + guide_seq.count('C')
+    at_count = guide_seq.count('A') + guide_seq.count('T')
+    tm = (4.0 * gc_count + 2.0 * at_count) - (5.0 * mismatches)
     
     return {
         "guide_sequence": guide_seq,
@@ -119,7 +95,7 @@ def calculate_binding_energy(guide_seq, target_seq, temperature=37):
         "delta_g_kcal_mol": float(delta_g),
         "melting_temperature_c": float(tm),
         "mismatches": mismatches,
-        "binding_strength": "Strong" if delta_g < -25 else "Moderate" if delta_g < -15 else "Weak"
+        "binding_strength": "Strong" if delta_g < -20 else "Moderate" if delta_g < -10 else "Weak"
     }
 
 def predict_cutting_efficiency(guide_seq, target_seq, temperature=37, cas9_conc=100):
