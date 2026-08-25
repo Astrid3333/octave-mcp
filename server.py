@@ -287,6 +287,23 @@ from public_data_ingest_tool import compute_public_data_ingest
 from critical_infrastructure_tool import CRITICAL_INFRASTRUCTURE_TOOL_SCHEMA
 from urban_planning_tool import URBAN_PLANNING_TOOL_SCHEMA
 from agricultural_dynamics_tool import agricultural_dynamics_tool
+import photosynthesis_lichen_tool
+import cryptogam_biomass_tool
+import lichen_growth_tool
+import algae_chemostat_tool
+import moss_lsystem_tool
+import periodic_patterns_tool
+import crystal_symmetry_tool
+import compositional_analysis_tool
+import hydrothermal_inference_tool
+import pedotransfer_tool
+import soil_mechanics_tool
+import soil_mixture_tool
+import soil_water_flow_tool
+import pedotransfer_tool
+import soil_mechanics_tool
+import soil_mixture_tool
+import soil_water_flow_tool
 import food_chemistry_tool
 import ethical_food_advisor_tool
 import sustainable_sourcing_tool
