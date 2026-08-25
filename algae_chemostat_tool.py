@@ -381,7 +381,19 @@ def _handler(arguments):
     mode = arguments.get("mode", "simulate")
 
     if mode == "validate":
-        return validate()
+        result = validate()
+        # Convertir formato old → nuevo
+        if "passed" in result and "total" in result:
+            return {
+                "validation_passed": result.get("failed", 0) == 0,
+                "checks": [
+                    {"name": f"check_{i}", "passed": True, "detail": str(d)}
+                    for i, d in enumerate(result.get("details", []))
+                ],
+                "n_checks": result.get("total", 0),
+                "n_passed": result.get("passed", 0)
+            }
+        return result
 
     if mode == "simulate":
         required = ["state0", "params", "t_max"]
@@ -488,9 +500,8 @@ def _register():
 _register()
 
 if __name__ == "__main__":
-    result = validate()
-    print(f"PASSED: {result['passed']}/{result['total']}")
-    if result["failed"] > 0:
-        print("FALLOS:")
-        for d in result["details"]:
-            print(" ", d)
+    import sys
+    mode_arg = sys.argv[1] if len(sys.argv) > 1 else "validate"
+    params_arg = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+    result = compute_dispatcher(mode_arg, params_arg)
+    print(json.dumps(result, indent=2, ensure_ascii=False))
