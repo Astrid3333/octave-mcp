@@ -157,6 +157,10 @@ import virtual_pharmacokinetics  # auto-registra via tool_registry
 import genESOM_simulator  # auto-registra via tool_registry
 import vector_calculus_tool  # auto-registra via tool_registry
 import kinematics_simulator  # auto-registra via tool_registry
+import point_cloud_loader
+import point_cloud_filter
+import point_cloud_registration
+import point_cloud_surface_reconstruction
 import vector_field_visualizer  # auto-registra via tool_registry
 import vector_optimizer  # auto-registra via tool_registry
 import machine_learning_vector_tool  # auto-registra via tool_registry
