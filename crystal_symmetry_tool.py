@@ -87,9 +87,9 @@ def classify_point_group(points):
         pg = "C_inf_v"  # Lineal (homonuclear diatomic)
     elif n_points == 4:
         if abs(angle_between_vectors(
-            [p[i] - centroid[i] for i in range(3)],
+            [points[0][i] - centroid[i] for i in range(3)],
             [points[1][i] - centroid[i] for i in range(3)]
-        ) - 90) < 5:
+        ) - 109.47) < 5:
             pg = "T_d"  # Tetraédrico (simple heurística)
         else:
             pg = "C_4v"
@@ -286,7 +286,7 @@ def _validate():
     # Check 4: Red hexagonal
     hex_vectors = [
         [1, 0, 0],
-        [0.5, math.sqrt(3)/2, 0],
+        [-0.5, math.sqrt(3)/2, 0],
         [0, 0, 1.633]
     ]
     bravais_hex = classify_bravais_lattice(hex_vectors)
