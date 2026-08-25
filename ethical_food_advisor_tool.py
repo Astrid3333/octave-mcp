@@ -456,7 +456,7 @@ ETHICAL_FOOD_ADVISOR_TOOL_SCHEMA = {
 }
 
 
-def _handler(**kwargs):
+def _handler(kwargs):
     mode = kwargs.pop("mode")
     return ethical_food_advisor_tool(mode, **kwargs)
 

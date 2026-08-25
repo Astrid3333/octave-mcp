@@ -462,7 +462,7 @@ FOOD_CHEMISTRY_TOOL_SCHEMA = {
 }
 
 
-def _handler(**kwargs):
+def _handler(kwargs):
     mode = kwargs.pop("mode")
     return food_chemistry_tool(mode, **kwargs)
 

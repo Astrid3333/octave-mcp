@@ -464,7 +464,7 @@ SUSTAINABLE_SOURCING_TOOL_SCHEMA = {
 }
 
 
-def _handler(**kwargs):
+def _handler(kwargs):
     mode = kwargs.pop("mode")
     return sustainable_sourcing_tool(mode, **kwargs)
 

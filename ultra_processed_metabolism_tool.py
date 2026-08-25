@@ -458,7 +458,7 @@ ULTRA_PROCESSED_METABOLISM_TOOL_SCHEMA = {
 }
 
 
-def _handler(**kwargs):
+def _handler(kwargs):
     mode = kwargs.pop("mode")
     return ultra_processed_metabolism_tool(mode, **kwargs)
 
