@@ -1,416 +1,258 @@
+#!/usr/bin/env python3
 """
-kinematics_simulator: simulacion de cinematica/dinamica de particulas via
-integracion numerica RK4, con varios modelos de fuerza predefinidos
-(gravedad uniforme, gravedad + arrastre, oscilador armonico/resorte).
+kinematics_simulator
+---------------------
+Integra numéricamente (RK4) el movimiento de una partícula bajo
+gravedad constante y, opcionalmente, arrastre (drag) proporcional a v^2.
 
-Estado por particula: [x, y, (z), vx, vy, (vz)] -- 2D o 3D segun la
-dimensionalidad de position/velocity inicial.
-
-Convenciones:
-- Todas las unidades son consistentes con el usuario (SI por default:
-  metros, segundos, m/s, m/s^2).
-- La integracion es RK4 de paso fijo (mismo patron que
-  virtual_pharmacokinetics.py), no adaptativo.
+mode="run"      -> devuelve posición y velocidad en cada paso.
+mode="validate" -> dos chequeos:
+      1) sin arrastre: compara la trayectoria RK4 contra la solución
+         analítica del tiro parabólico (precisión del integrador).
+      2) sin arrastre: verifica conservación de energía mecánica
+         (KE + PE gravitatoria) a lo largo de la simulación.
+   (con arrastre, la energía debe *disminuir* monótonamente; también
+    se reporta como chequeo informativo si se pide explícitamente)
 """
-
-import sys
-import json
 
 import numpy as np
 
 
-# ---------------------------------------------------------------------------
-# validacion
-# ---------------------------------------------------------------------------
+def _derivatives(state, g, drag_coeff, mass):
+    # state = [x, y, vx, vy]
+    vx, vy = state[2], state[3]
+    v = np.array([vx, vy])
+    speed = np.linalg.norm(v)
 
-def _validate_vec(v, name, ndim_expected=None):
-    if v is None:
-        raise ValueError(f"falta '{name}' en params")
-    arr = np.array(v, dtype=float)
-    if arr.ndim != 1:
-        raise ValueError(f"{name} debe ser un vector 1D (lista de numeros)")
-    if arr.shape[0] not in (2, 3):
-        raise ValueError(f"{name} debe tener 2 o 3 componentes (2D o 3D), tiene {arr.shape[0]}")
-    if ndim_expected is not None and arr.shape[0] != ndim_expected:
-        raise ValueError(f"{name} tiene {arr.shape[0]} componentes, esperado {ndim_expected} (debe coincidir con position)")
-    if not np.all(np.isfinite(arr)):
-        raise ValueError(f"{name} contiene valores no finitos (NaN/inf)")
-    return arr
+    ax, ay = 0.0, -g
+    if drag_coeff > 0 and speed > 1e-9:
+        drag_acc = -(drag_coeff / mass) * speed * v
+        ax += drag_acc[0]
+        ay += drag_acc[1]
+
+    return np.array([vx, vy, ax, ay])
 
 
-def _validate_physical_params(params, ndim):
-    mass = float(params.get("mass", 1.0))
-    if mass <= 0:
-        raise ValueError("mass debe ser > 0")
+def simulate_kinematics(params):
+    g = params.get("g", 9.81)
+    mass = params.get("mass", 1.0)
+    drag_coeff = params.get("drag_coeff", 0.0)
+    dt = params.get("dt", 0.001)
 
-    force_model = params.get("force_model", "gravity")
-    valid_models = ("gravity", "gravity_drag", "spring", "custom_constant")
-    if force_model not in valid_models:
-        raise ValueError(f"force_model desconocido: {force_model} (usar {'/'.join(valid_models)})")
+    x0 = params.get("x0", 0.0)
+    y0 = params.get("y0", 0.0)
+    speed0 = params.get("speed0", 20.0)
+    angle_deg = params.get("angle_deg", 45.0)
+    angle = np.radians(angle_deg)
+    vx0 = speed0 * np.cos(angle)
+    vy0 = speed0 * np.sin(angle)
 
-    gravity_vec = params.get("gravity")
-    if gravity_vec is None:
-        # default: gravedad terrestre hacia -y (o -z en 3D, convencion: ultimo eje es "arriba")
-        gravity_vec = [0.0] * ndim
-        gravity_vec[-1] = -9.8
-    gravity_vec = _validate_vec(gravity_vec, "gravity", ndim)
+    state = np.array([x0, y0, vx0, vy0], dtype=float)
 
-    drag_coeff = float(params.get("drag_coeff", 0.0))
-    if drag_coeff < 0:
-        raise ValueError("drag_coeff debe ser >= 0")
-
-    spring_k = float(params.get("spring_k", 1.0))
-    if force_model == "spring" and spring_k < 0:
-        raise ValueError("spring_k debe ser >= 0")
-
-    spring_anchor = params.get("spring_anchor")
-    if spring_anchor is None:
-        spring_anchor = [0.0] * ndim
-    spring_anchor = _validate_vec(spring_anchor, "spring_anchor", ndim)
-
-    custom_force = params.get("custom_force")
-    if force_model == "custom_constant":
-        if custom_force is None:
-            raise ValueError("force_model='custom_constant' requiere 'custom_force' (vector de fuerza constante)")
-        custom_force = _validate_vec(custom_force, "custom_force", ndim)
-
-    return {
-        "mass": mass,
-        "force_model": force_model,
-        "gravity": gravity_vec,
-        "drag_coeff": drag_coeff,
-        "spring_k": spring_k,
-        "spring_anchor": spring_anchor,
-        "custom_force": custom_force,
-    }
-
-
-# ---------------------------------------------------------------------------
-# modelos de fuerza -> aceleracion
-# ---------------------------------------------------------------------------
-
-def _acceleration(pos, vel, phys):
-    mass = phys["mass"]
-    model = phys["force_model"]
-
-    if model == "gravity":
-        return phys["gravity"].copy()
-
-    elif model == "gravity_drag":
-        speed = np.linalg.norm(vel)
-        drag_accel = -phys["drag_coeff"] * speed * vel / mass if speed > 1e-12 else np.zeros_like(vel)
-        return phys["gravity"] + drag_accel
-
-    elif model == "spring":
-        # F = -k * (pos - anchor), sin gravedad (oscilador puro)
-        displacement = pos - phys["spring_anchor"]
-        return -phys["spring_k"] * displacement / mass
-
-    elif model == "custom_constant":
-        return phys["custom_force"] / mass
-
-    else:
-        raise ValueError(f"force_model desconocido: {model}")
-
-
-def _derivative(state, ndim, phys):
-    pos = state[:ndim]
-    vel = state[ndim:]
-    accel = _acceleration(pos, vel, phys)
-    return np.concatenate([vel, accel])
-
-
-def _rk4_step(state, dt, ndim, phys):
-    k1 = _derivative(state, ndim, phys)
-    k2 = _derivative(state + 0.5 * dt * k1, ndim, phys)
-    k3 = _derivative(state + 0.5 * dt * k2, ndim, phys)
-    k4 = _derivative(state + dt * k3, ndim, phys)
-    return state + (dt / 6.0) * (k1 + 2 * k2 + 2 * k3 + k4)
-
-
-# ---------------------------------------------------------------------------
-# modo principal
-# ---------------------------------------------------------------------------
-
-def simulate(params):
-    params = params or {}
-    position = _validate_vec(params.get("position"), "position")
-    ndim = position.shape[0]
-    velocity = _validate_vec(params.get("velocity", [0.0] * ndim), "velocity", ndim)
-
-    t_end = float(params.get("t_end", 10.0))
-    if t_end <= 0:
-        raise ValueError("t_end debe ser > 0")
-    n_steps = int(params.get("n_steps", 1000))
-    if n_steps < 1:
-        raise ValueError("n_steps debe ser >= 1")
-
-    phys = _validate_physical_params(params, ndim)
-
-    dt = t_end / n_steps
-    state = np.concatenate([position, velocity])
-
-    stop_at_ground = bool(params.get("stop_at_ground", False))
-    ground_axis = ndim - 1  # ultimo eje = "altura" por convencion
-
+    positions = [state[0:2].copy()]
+    velocities = [state[2:4].copy()]
     times = [0.0]
-    trajectory = [state.copy()]
-
     t = 0.0
-    for _ in range(n_steps):
-        new_state = _rk4_step(state, dt, ndim, phys)
+
+    max_steps = int(params.get("max_steps", 200000))
+    steps = 0
+    while state[1] >= 0.0 and steps < max_steps:
+        k1 = _derivatives(state, g, drag_coeff, mass)
+        k2 = _derivatives(state + 0.5 * dt * k1, g, drag_coeff, mass)
+        k3 = _derivatives(state + 0.5 * dt * k2, g, drag_coeff, mass)
+        k4 = _derivatives(state + dt * k3, g, drag_coeff, mass)
+        state = state + (dt / 6.0) * (k1 + 2 * k2 + 2 * k3 + k4)
         t += dt
-
-        if stop_at_ground and new_state[ground_axis] < 0.0 and state[ground_axis] >= 0.0:
-            # interpolacion lineal simple para encontrar el cruce con altura=0
-            frac = state[ground_axis] / (state[ground_axis] - new_state[ground_axis])
-            crossing_state = state + frac * (new_state - state)
-            crossing_t = t - dt + frac * dt
-            times.append(crossing_t)
-            trajectory.append(crossing_state.copy())
-            state = crossing_state
-            break
-
-        state = new_state
+        steps += 1
+        positions.append(state[0:2].copy())
+        velocities.append(state[2:4].copy())
         times.append(t)
-        trajectory.append(state.copy())
-
-    trajectory = np.array(trajectory)
-    positions = trajectory[:, :ndim]
-    velocities = trajectory[:, ndim:]
 
     return {
-        "ndim": ndim,
-        "n_points": len(times),
-        "dt": dt,
-        "force_model": phys["force_model"],
+        "positions": [p.tolist() for p in positions],
+        "velocities": [v.tolist() for v in velocities],
         "times": times,
-        "positions": positions.tolist(),
-        "velocities": velocities.tolist(),
-        "final_position": positions[-1].tolist(),
-        "final_velocity": velocities[-1].tolist(),
-        "stopped_at_ground": bool(stop_at_ground and times[-1] < t_end),
+        "params": {
+            "g": g, "mass": mass, "drag_coeff": drag_coeff, "dt": dt,
+            "x0": x0, "y0": y0, "speed0": speed0, "angle_deg": angle_deg,
+        },
     }
 
+
+def analytical_projectile(t, x0, y0, vx0, vy0, g):
+    x = x0 + vx0 * t
+    y = y0 + vy0 * t - 0.5 * g * t**2
+    return x, y
+
+
+def _mode_run(params):
+    return simulate_kinematics(params)
+
+
+def _mode_validate(params):
+    tol_position = params.get("tol_position", 1e-3)   # error absoluto máx permitido
+    tol_energy = params.get("tol_energy", 1e-4)        # drift relativo permitido
+
+    # --- Caso sin arrastre: precisión del integrador vs solución analítica ---
+    no_drag_params = dict(params.get("kinematics_params", {}))
+    no_drag_params["drag_coeff"] = 0.0
+    result = simulate_kinematics(no_drag_params)
+
+    g = result["params"]["g"]
+    x0, y0 = result["params"]["x0"], result["params"]["y0"]
+    speed0 = result["params"]["speed0"]
+    angle = np.radians(result["params"]["angle_deg"])
+    vx0, vy0 = speed0 * np.cos(angle), speed0 * np.sin(angle)
+
+    max_pos_error = 0.0
+    for t, (x_num, y_num) in zip(result["times"], result["positions"]):
+        x_an, y_an = analytical_projectile(t, x0, y0, vx0, vy0, g)
+        err = np.hypot(x_num - x_an, y_num - y_an)
+        max_pos_error = max(max_pos_error, err)
+
+    checks = [
+        {
+            "name": "kinematics_analytical_agreement",
+            "passed": bool(max_pos_error < tol_position),
+            "detail": {"max_position_error": max_pos_error, "tolerance": tol_position},
+        }
+    ]
+
+    # --- Conservación de energía mecánica (sin arrastre) ---
+    mass = result["params"]["mass"]
+    energies = []
+    for (x, y), (vx, vy) in zip(result["positions"], result["velocities"]):
+        ke = 0.5 * mass * (vx**2 + vy**2)
+        pe = mass * g * y
+        energies.append(ke + pe)
+
+    e0 = energies[0]
+    e_drift = max(abs(e - e0) for e in energies)
+    rel_e_drift = e_drift / max(abs(e0), 1e-9)
+
+    checks.append({
+        "name": "kinematics_energy_conservation",
+        "passed": bool(rel_e_drift < tol_energy),
+        "detail": {"relative_drift": rel_e_drift, "tolerance": tol_energy},
+    })
+
+    # --- Chequeo informativo: con arrastre, la energía debe disminuir monótonamente ---
+    drag_summary = None
+    if params.get("check_drag_dissipation", True):
+        drag_params = dict(params.get("kinematics_params", {}))
+        drag_params["drag_coeff"] = params.get("drag_coeff_test", 0.05)
+        drag_result = simulate_kinematics(drag_params)
+        dmass = drag_result["params"]["mass"]
+        dg = drag_result["params"]["g"]
+        drag_energies = []
+        for (x, y), (vx, vy) in zip(drag_result["positions"], drag_result["velocities"]):
+            ke = 0.5 * dmass * (vx**2 + vy**2)
+            pe = dmass * dg * y
+            drag_energies.append(ke + pe)
+        # con arrastre, la energía mecánica debe ser no creciente (dentro de tolerancia numérica)
+        increases = [drag_energies[i+1] - drag_energies[i] for i in range(len(drag_energies)-1)]
+        max_increase = max(increases) if increases else 0.0
+        monotonic_ok = max_increase < 1e-6 * max(abs(drag_energies[0]), 1.0)
+        checks.append({
+            "name": "kinematics_drag_dissipates_energy",
+            "passed": bool(monotonic_ok),
+            "detail": {"max_energy_increase_step": max_increase},
+        })
+        drag_summary = {
+            "energy_start": drag_energies[0],
+            "energy_end": drag_energies[-1],
+        }
+
+    validation_passed = all(c["passed"] for c in checks)
+
+    return {
+        "validation_passed": validation_passed,
+        "checks": checks,
+        "summary": {
+            "max_position_error_vs_analytical": max_pos_error,
+            "energy_relative_drift": rel_e_drift,
+            "n_steps": len(result["times"]) - 1,
+            "drag_test": drag_summary,
+        },
+    }
+
+
+def run(mode, params=None):
+    params = params or {}
+    if mode == "validate":
+        return _mode_validate(params)
+    if mode == "simulate_projectile":
+        return _mode_run(params)
+    return {"error": f"unknown mode '{mode}'"}
+
+
+if __name__ == "__main__":
+    import json
+    print(json.dumps(run("validate", {}), indent=2))
+
+
+# ============================================================================
+# TOOL REGISTRATION (auto-agregado)
+# ============================================================================
 
 TOOL_SCHEMA = {
     "name": "kinematics_simulator",
     "description": (
-        "Simulacion de cinematica/dinamica de particulas via integracion "
-        "numerica RK4 de paso fijo. Modelos de fuerza: gravity (gravedad "
-        "uniforme), gravity_drag (gravedad + arrastre cuadratico en "
-        "velocidad), spring (oscilador armonico hacia un punto ancla), "
-        "custom_constant (fuerza constante arbitraria). Modos: simulate, "
-        "self_test."
+        "Integra con RK4 la trayectoria de una particula bajo gravedad "
+        "constante, con arrastre (drag) opcional proporcional a v^2. "
+        "simulate_projectile devuelve posicion/velocidad por paso; "
+        "validate compara contra la solucion analitica del tiro parabolico "
+        "y verifica conservacion de energia mecanica (sin arrastre)."
     ),
     "inputSchema": {
         "type": "object",
         "properties": {
-            "mode": {"type": "string", "enum": ["simulate", "self_test", "validate"]},
-            "params": {
-                "type": "object",
-                "properties": {
-                    "position": {"type": "array", "items": {"type": "number"}, "description": "posicion inicial [x,y] o [x,y,z]"},
-                    "velocity": {"type": "array", "items": {"type": "number"}, "description": "velocidad inicial, mismo ndim que position (default: cero)"},
-                    "mass": {"type": "number", "description": "masa (default 1.0)"},
-                    "force_model": {"type": "string", "enum": ["gravity", "gravity_drag", "spring", "custom_constant"]},
-                    "gravity": {"type": "array", "items": {"type": "number"}, "description": "vector de gravedad (default: -9.8 en el ultimo eje)"},
-                    "drag_coeff": {"type": "number", "description": "coeficiente de arrastre cuadratico, para force_model=gravity_drag (default 0)"},
-                    "spring_k": {"type": "number", "description": "constante de resorte, para force_model=spring (default 1.0)"},
-                    "spring_anchor": {"type": "array", "items": {"type": "number"}, "description": "punto de anclaje del resorte (default: origen)"},
-                    "custom_force": {"type": "array", "items": {"type": "number"}, "description": "vector de fuerza constante, para force_model=custom_constant"},
-                    "t_end": {"type": "number", "description": "tiempo total de simulacion (default 10.0)"},
-                    "n_steps": {"type": "integer", "description": "numero de pasos RK4 (default 1000)"},
-                    "stop_at_ground": {"type": "boolean", "description": "si true, detiene la simulacion cuando la ultima coordenada cruza 0 (default false)"},
-                },
-                "required": ["position"],
+            "mode": {
+                "description": "Modo de operacion",
+                "enum": ["simulate_projectile", "validate"],
+                "type": "string",
             },
+            "g": {"description": "Aceleracion gravitatoria, default 9.81", "type": "number"},
+            "mass": {"description": "Masa de la particula, default 1.0", "type": "number"},
+            "drag_coeff": {"description": "Coeficiente de arrastre (0 = sin arrastre), default 0.0", "type": "number"},
+            "dt": {"description": "Paso de integracion RK4, default 0.001", "type": "number"},
+            "x0": {"description": "Posicion inicial x, default 0.0", "type": "number"},
+            "y0": {"description": "Posicion inicial y (altura), default 0.0", "type": "number"},
+            "speed0": {"description": "Rapidez inicial, default 20.0", "type": "number"},
+            "angle_deg": {"description": "Angulo de lanzamiento en grados, default 45.0", "type": "number"},
+            "max_steps": {"description": "Limite de pasos de integracion, default 200000", "type": "integer"},
+            "tol_position": {"description": "Error absoluto maximo permitido vs solucion analitica para validate, default 1e-3", "type": "number"},
+            "tol_energy": {"description": "Drift relativo de energia permitido para validate, default 1e-4", "type": "number"},
+            "kinematics_params": {"description": "Overrides de parametros (g, mass, x0, y0, speed0, angle_deg, dt) para el sub-chequeo analitico en modo validate", "type": "object"},
+            "check_drag_dissipation": {"description": "Si true (default), agrega un chequeo informativo de que la energia disminuye monotonamente con arrastre", "type": "boolean"},
+            "drag_coeff_test": {"description": "Coeficiente de arrastre usado solo para el chequeo de disipacion, default 0.05", "type": "number"},
         },
         "required": ["mode"],
     },
 }
 
 
-# ---------------------------------------------------------------------------
-# self_test
-# ---------------------------------------------------------------------------
-
-def run_self_test():
-    checks = []
-
-    def check(name, cond, detail=""):
-        checks.append({"name": name, "passed": bool(cond), "detail": detail})
-
-    # 1) proyectil sin arrastre: comparar contra solucion analitica
-    v0, angle_deg, g = 50.0, 45.0, 9.8
-    theta = np.radians(angle_deg)
-    vx0, vy0 = v0 * np.cos(theta), v0 * np.sin(theta)
-
-    out = simulate({
-        "position": [0.0, 0.0],
-        "velocity": [vx0, vy0],
-        "force_model": "gravity",
-        "gravity": [0.0, -g],
-        "t_end": 2.0,
-        "n_steps": 2000,
-    })
-    t_check = 2.0
-    x_analytic = vx0 * t_check
-    y_analytic = vy0 * t_check - 0.5 * g * t_check**2
-    x_numeric, y_numeric = out["final_position"]
-    err_x = abs(x_numeric - x_analytic)
-    err_y = abs(y_numeric - y_analytic)
-    check("proyectil sin arrastre: x(t) coincide con solucion analitica", err_x < 1e-3, f"analitico={x_analytic:.4f}, numerico={x_numeric:.4f}, err={err_x:.2e}")
-    check("proyectil sin arrastre: y(t) coincide con solucion analitica", err_y < 1e-3, f"analitico={y_analytic:.4f}, numerico={y_numeric:.4f}, err={err_y:.2e}")
-
-    # 2) tiempo de vuelo teorico
-    t_vuelo_analitico = 2 * vy0 / g
-    out_ground = simulate({
-        "position": [0.0, 0.0],
-        "velocity": [vx0, vy0],
-        "force_model": "gravity",
-        "gravity": [0.0, -g],
-        "t_end": 20.0,
-        "n_steps": 20000,
-        "stop_at_ground": True,
-    })
-    t_vuelo_numerico = out_ground["times"][-1]
-    err_t = abs(t_vuelo_numerico - t_vuelo_analitico)
-    check("proyectil: tiempo de vuelo coincide con 2*vy0/g", err_t < 1e-2, f"analitico={t_vuelo_analitico:.4f}, numerico={t_vuelo_numerico:.4f}")
-    check("proyectil: stop_at_ground detiene con altura final ~0", abs(out_ground["final_position"][1]) < 1e-2, f"y_final={out_ground['final_position'][1]:.4e}")
-
-    # 3) oscilador armonico: periodo T = 2*pi*sqrt(m/k)
-    m, k = 2.0, 8.0
-    T_analitico = 2 * np.pi * np.sqrt(m / k)
-    x0_osc = 1.0
-    out_osc = simulate({
-        "position": [x0_osc, 0.0],
-        "velocity": [0.0, 0.0],
-        "force_model": "spring",
-        "mass": m,
-        "spring_k": k,
-        "spring_anchor": [0.0, 0.0],
-        "t_end": T_analitico,
-        "n_steps": 5000,
-    })
-    x_final_osc = out_osc["final_position"][0]
-    err_osc = abs(x_final_osc - x0_osc)
-    check("oscilador armonico: retorna a x0 tras un periodo completo", err_osc < 1e-2, f"x0={x0_osc}, x_final={x_final_osc:.4f}, err={err_osc:.2e}")
-
-    # 4) conservacion de energia en oscilador armonico
-    positions_osc = np.array(out_osc["positions"])[:, 0]
-    velocities_osc = np.array(out_osc["velocities"])[:, 0]
-    energy = 0.5 * k * positions_osc**2 + 0.5 * m * velocities_osc**2
-    energy_drift = (energy.max() - energy.min()) / energy[0]
-    check("oscilador armonico: energia mecanica se conserva (drift < 1%)", energy_drift < 0.01, f"drift relativo={energy_drift:.4e}")
-
-    # 5) 3D: caida libre en 3D con gravedad en eje z
-    out_3d = simulate({
-        "position": [0.0, 0.0, 100.0],
-        "velocity": [1.0, 1.0, 0.0],
-        "force_model": "gravity",
-        "gravity": [0.0, 0.0, -9.8],
-        "t_end": 1.0,
-        "n_steps": 1000,
-    })
-    check("3D: ndim detectado correctamente", out_3d["ndim"] == 3, f"ndim={out_3d['ndim']}")
-    z_analytic_3d = 100.0 - 0.5 * 9.8 * 1.0**2
-    z_numeric_3d = out_3d["final_position"][2]
-    err_z3d = abs(z_numeric_3d - z_analytic_3d)
-    check("3D: caida libre en z coincide con solucion analitica", err_z3d < 1e-3, f"analitico={z_analytic_3d:.4f}, numerico={z_numeric_3d:.4f}")
-
-    # 6) custom_constant: F constante => x(t) = 0.5*a*t^2 desde reposo
-    F_custom = [4.0, 0.0]
-    m_custom = 2.0
-    a_expected = F_custom[0] / m_custom
-    out_custom = simulate({
-        "position": [0.0, 0.0],
-        "velocity": [0.0, 0.0],
-        "force_model": "custom_constant",
-        "mass": m_custom,
-        "custom_force": F_custom,
-        "t_end": 3.0,
-        "n_steps": 1000,
-    })
-    x_expected_custom = 0.5 * a_expected * 3.0**2
-    err_custom = abs(out_custom["final_position"][0] - x_expected_custom)
-    check("custom_constant: x(t)=0.5*a*t^2 desde reposo", err_custom < 1e-2, f"esperado={x_expected_custom:.4f}, obtenido={out_custom['final_position'][0]:.4f}")
-
-    # 7) errores esperados
-    try:
-        simulate({"position": [0.0, 0.0], "velocity": [0.0, 0.0, 0.0]})
-        check("ValueError con velocity de ndim distinto a position", False, "no se levanto excepcion")
-    except ValueError:
-        check("ValueError con velocity de ndim distinto a position", True, "")
-
-    try:
-        simulate({"position": [0.0]})
-        check("ValueError con position de 1 componente", False, "no se levanto excepcion")
-    except ValueError:
-        check("ValueError con position de 1 componente", True, "")
-
-    try:
-        simulate({"position": [0.0, 0.0], "force_model": "modelo_inexistente"})
-        check("ValueError con force_model desconocido", False, "no se levanto excepcion")
-    except ValueError:
-        check("ValueError con force_model desconocido", True, "")
-
-    try:
-        simulate({"position": [0.0, 0.0], "force_model": "custom_constant"})
-        check("ValueError con custom_constant sin custom_force", False, "no se levanto excepcion")
-    except ValueError:
-        check("ValueError con custom_constant sin custom_force", True, "")
-
-    try:
-        run("modo_inexistente", {})
-        check("ValueError con modo desconocido en run()", False, "no se levanto excepcion")
-    except ValueError:
-        check("ValueError con modo desconocido en run()", True, "")
-
-    total = len(checks)
-    passed = sum(1 for c in checks if c["passed"])
-    return {"total": total, "passed": passed, "all_passed": passed == total, "checks": checks}
-
-
-# ---------------------------------------------------------------------------
-# dispatch
-# ---------------------------------------------------------------------------
-
-def run(mode, params=None):
-    if mode == "validate":
-        r = run_self_test()
-        return {"checks": r["checks"], "validation_passed": r["all_passed"], "n_checks": r["total"]}
-    if mode == "simulate":
-        return simulate(params or {})
-    elif mode == "self_test":
-        return run_self_test()
-    else:
-        raise ValueError(f"modo desconocido: {mode} (usar simulate/self_test)")
-
-
-if __name__ == "__main__":
-    mode_arg = sys.argv[1] if len(sys.argv) > 1 else "self_test"
-    params_arg = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
-    try:
-        out = run(mode_arg, params_arg)
-        print(json.dumps(out, indent=2, ensure_ascii=False))
-    except Exception as e:
-        print(json.dumps({"error": str(e)}, ensure_ascii=False))
-        sys.exit(1)
+def _handler(arguments):
+    mode = arguments.get("mode", "validate")
+    result = run(mode, arguments)
+    if mode == "validate" and isinstance(result, dict) and "passed" in result and "total" in result:
+        details = result.get("details", [])
+        return {
+            "validation_passed": result.get("passed", 0) == result.get("total", 0),
+            "checks": [
+                {"name": f"check_{i}", "passed": "\u2713" in str(d), "detail": str(d)}
+                for i, d in enumerate(details)
+            ],
+            "n_checks": result.get("total", 0),
+            "n_passed": result.get("passed", 0),
+        }
+    return result
 
 
 def _register():
-    """
-    Auto-registro estilo octave-mcp (patron self-registrante via
-    tool_registry, register_tool(name, schema, handler)).
-    """
     try:
         import tool_registry
-
-        def _handler(args):
-            return run(args.get("mode"), args.get("params"))
-
-        tool_registry.register_tool("kinematics_simulator", TOOL_SCHEMA, _handler)
+        tool_registry.register_tool(TOOL_SCHEMA["name"], TOOL_SCHEMA, _handler)
     except ImportError:
         pass
 
