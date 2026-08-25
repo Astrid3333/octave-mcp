@@ -10,6 +10,7 @@ import json
 import numpy as np
 from scipy.integrate import odeint
 from typing import Dict, Any, Tuple, List
+from tool_registry import register_tool
 
 
 class StemCellLineageModel:
@@ -433,7 +434,48 @@ class StemCellLineageModel:
 def run(mode: str, params: Dict[str, Any]) -> Dict[str, Any]:
     """Global entry point."""
     model = StemCellLineageModel()
-    return model.run(mode, params)
+    result = model.run(mode, params)
+    if mode == "validate" and isinstance(result, dict) and "validation_passed" not in result:
+        result["validation_passed"] = bool(result.get("total_passed") == result.get("total_checks"))
+    return result
+
+
+STEM_CELL_LINEAGE_TOOL_SCHEMA = {
+    "name": "stem_cell_lineage_tool",
+    "description": (
+        "Modelo de EDOs (odeint) de dinamica de linaje de celulas madre: "
+        "compartimentos acoplados con inhibicion de Hill, con modo de "
+        "simulacion temporal, barrido de bifurcacion sobre un parametro "
+        "(default lambda_prol) y estado estacionario por asentamiento "
+        "temporal largo. Modos operacionales: simulate (trayectoria), "
+        "bifurcation (barrido de parametro), steady_state (equilibrio "
+        "por asentamiento), validate (self-checks)."
+    ),
+    "inputSchema": {
+        "type": "object",
+        "properties": {
+            "mode": {
+                "type": "string",
+                "enum": ["simulate", "bifurcation", "steady_state", "validate"],
+            },
+            "params": {
+                "type": "object",
+                "description": (
+                    "t_end, num_points, params (override), y0_override para simulate; "
+                    "param_name, param_range, num_points, t_settle para bifurcation; "
+                    "t_settle para steady_state."
+                ),
+            },
+        },
+        "required": ["mode"],
+    },
+}
+
+register_tool(
+    name="stem_cell_lineage_tool",
+    schema=STEM_CELL_LINEAGE_TOOL_SCHEMA,
+    handler=lambda args: run(args.get("mode"), args.get("params") or {}),
+)
 
 
 if __name__ == "__main__":
