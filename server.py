@@ -16,6 +16,7 @@ import crisprzip_energy_tool  # auto-registra via tool_registry, no requiere mas
 import genetic_circuit_control_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import stem_cell_lineage_tool  # auto-registra via tool_registry
 import stem_cell_niche_tool  # auto-registra via tool_registry
+import cell_fate_decision_tool  # auto-registra via tool_registry
 import projective_geometry_tool  # auto-registra via tool_registry
 import space_curves_tool  # auto-registra via tool_registry
 import personal_budget_tool  # auto-registra via tool_registry, no requiere mas ediciones
