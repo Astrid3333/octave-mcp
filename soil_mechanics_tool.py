@@ -668,3 +668,71 @@ if __name__ == "__main__":
         print(f"FoS: {ex['factor_of_safety']:.2f} ({ex['status']})")
         print(f"Shear strength: {ex['shear_strength_kpa']:.1f} kPa")
         print(f"Failure plane angle: {ex['friction_angle_deg']}°")
+
+
+# ============================================================================
+# TOOL REGISTRATION (auto-agregado)
+# ============================================================================
+
+TOOL_SCHEMA = {
+    "name": 'soil_mechanics_tool',
+    "description": 'Criterios de falla (Mohr-Coulomb, Drucker-Prager) y consolidacion (Cam-Clay modificado) para mecanica de suelos.',
+    "inputSchema": {
+        "type": "object",
+        "properties": {'adhesion_kpa': {'description': 'Adhesion (interface), optional', 'type': 'number'},
+ 'applied_shear_kpa': {'description': 'Applied shear stress [kPa]', 'type': 'number'},
+ 'cohesion_c_kpa': {'description': 'Cohesion [kPa]', 'type': 'number'},
+ 'friction_angle_deg': {'description': 'Internal friction angle [°], [0, 45]', 'type': 'number'},
+ 'initial_pressure_kpa': {'type': 'number'},
+ 'k_kpa': {'description': 'DP yield parameter (optional)', 'type': 'number'},
+ 'kappa_swelling': {'type': 'number'},
+ 'lambda_compression_index': {'type': 'number'},
+ 'mode': {'description': 'Modo de operacion',
+          'enum': ['mohr_coulomb', 'drucker_prager', 'cam_clay', 'validate'],
+          'type': 'string'},
+ 'normal_stress_array': {'description': 'Array of normal stresses for envelope [kPa], optional',
+                         'items': {'type': 'number'},
+                         'type': 'array'},
+ 'normal_stress_kpa': {'description': 'Single normal stress [kPa]', 'type': 'number'},
+ 'overconsolidation_ratio': {'description': 'OCR, optional', 'type': 'number'},
+ 'p_c_kpa': {'description': 'Preconsolidation pressure', 'type': 'number'},
+ 'p_range_kpa': {'description': '[p_min, p_max] for yield surface',
+                 'items': {'type': 'number'},
+                 'type': 'array'},
+ 'phi_critical_state_deg': {'type': 'number'},
+ 'sigma_1_kpa': {'description': 'Major principal stress', 'type': 'number'},
+ 'sigma_2_kpa': {'description': 'Intermediate principal stress (optional)', 'type': 'number'},
+ 'sigma_3_kpa': {'description': 'Minor principal stress', 'type': 'number'},
+ 'void_ratio_final': {'description': 'e_final, optional', 'type': 'number'},
+ 'void_ratio_initial': {'description': 'e₀, optional', 'type': 'number'}},
+        "required": ["mode"],
+    },
+}
+
+
+def _handler(arguments):
+    mode = arguments.get("mode", "validate")
+    result = run(mode, arguments)
+    if mode == "validate" and isinstance(result, dict) and "passed" in result and "total" in result:
+        details = result.get("details", [])
+        return {
+            "validation_passed": result.get("passed", 0) == result.get("total", 0),
+            "checks": [
+                {"name": f"check_{i}", "passed": "\u2713" in str(d), "detail": str(d)}
+                for i, d in enumerate(details)
+            ],
+            "n_checks": result.get("total", 0),
+            "n_passed": result.get("passed", 0),
+        }
+    return result
+
+
+def _register():
+    try:
+        import tool_registry
+        tool_registry.register_tool(TOOL_SCHEMA["name"], TOOL_SCHEMA, _handler)
+    except ImportError:
+        pass
+
+
+_register()

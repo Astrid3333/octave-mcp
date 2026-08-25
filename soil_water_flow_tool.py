@@ -622,3 +622,62 @@ if __name__ == "__main__":
     if "success" in ex:
         for t, z_f in zip(ex["times_s"], ex["wetting_front_depths_m"]):
             print(f"  t={t:>4} s → z_f={z_f:.4f} m")
+
+
+# ============================================================================
+# TOOL REGISTRATION (auto-agregado)
+# ============================================================================
+
+TOOL_SCHEMA = {
+    "name": 'soil_water_flow_tool',
+    "description": 'Solver 1D de la ecuacion de Richards para infiltracion, evaporacion e imbibicion, con solucion analitica Green-Ampt.',
+    "inputSchema": {
+        "type": "object",
+        "properties": {'alpha_1_pa': {'description': 'van Genuchten α [1/Pa]', 'type': 'number'},
+ 'depth_m': {'description': 'Domain depth [m]', 'type': 'number'},
+ 'evaporation_flux_m_s': {'description': 'Surface evaporation rate [m/s]', 'type': 'number'},
+ 'infiltration_flux_m_s': {'description': 'Rainfall flux [m/s]', 'type': 'number'},
+ 'initial_theta': {'description': 'Initial water content', 'type': 'number'},
+ 'k_s_m_s': {'description': 'Saturated K [m/s], default 1e-5', 'type': 'number'},
+ 'mode': {'description': 'Modo de operacion',
+          'enum': ['infiltration_1d', 'evaporation_1d', 'imbibition', 'validate'],
+          'type': 'string'},
+ 'n': {'description': 'van Genuchten n, default 2.0', 'type': 'number'},
+ 'num_nodes': {'description': 'Spatial nodes, default 50', 'type': 'number'},
+ 'simulation_time_s': {'description': '[s], default 3600', 'type': 'number'},
+ 'suction_head_m': {'type': 'number'},
+ 'theta_initial': {'type': 'number'},
+ 'theta_r': {'description': 'Residual water content, default 0.01', 'type': 'number'},
+ 'theta_s': {'description': 'Saturated water content', 'type': 'number'},
+ 'times_s': {'description': 'Time points [s]', 'items': {'type': 'number'}, 'type': 'array'}},
+        "required": ["mode"],
+    },
+}
+
+
+def _handler(arguments):
+    mode = arguments.get("mode", "validate")
+    result = run(mode, arguments)
+    if mode == "validate" and isinstance(result, dict) and "passed" in result and "total" in result:
+        details = result.get("details", [])
+        return {
+            "validation_passed": result.get("passed", 0) == result.get("total", 0),
+            "checks": [
+                {"name": f"check_{i}", "passed": "\u2713" in str(d), "detail": str(d)}
+                for i, d in enumerate(details)
+            ],
+            "n_checks": result.get("total", 0),
+            "n_passed": result.get("passed", 0),
+        }
+    return result
+
+
+def _register():
+    try:
+        import tool_registry
+        tool_registry.register_tool(TOOL_SCHEMA["name"], TOOL_SCHEMA, _handler)
+    except ImportError:
+        pass
+
+
+_register()

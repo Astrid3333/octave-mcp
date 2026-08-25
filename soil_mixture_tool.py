@@ -643,3 +643,61 @@ if __name__ == "__main__":
         print(f"Porosity n: {ex['porosity_n']:.3f} ({ex['porosity_n']*100:.1f}%)")
         print(f"Degree of saturation S_r: {ex['degree_of_saturation_sr']:.3f}")
         print(f"Volumetric water content θ: {ex['volumetric_water_content_theta']:.3f} m³/m³")
+
+
+# ============================================================================
+# TOOL REGISTRATION (auto-agregado)
+# ============================================================================
+
+TOOL_SCHEMA = {
+    "name": 'soil_mixture_tool',
+    "description": 'Relaciones volumetricas de 3 fases y propiedades termicas efectivas del suelo, con contabilidad de materia organica (SOM).',
+    "inputSchema": {
+        "type": "object",
+        "properties": {'bulk_density_g_cm3': {'description': 'ρ_b [g/cm³], typical [1.0, 1.8]', 'type': 'number'},
+ 'degree_of_saturation': {'description': 'S_r [0, 1]', 'type': 'number'},
+ 'loss_on_ignition_pct': {'description': 'LOI [%], optional', 'type': 'number'},
+ 'mineral_density_g_cm3': {'description': 'default 2.65', 'type': 'number'},
+ 'mode': {'description': 'Modo de operacion',
+          'enum': ['volumetric_fractions',
+                   'organic_matter_estimate',
+                   'effective_properties',
+                   'validate'],
+          'type': 'string'},
+ 'organic_carbon_pct': {'description': 'OC [%], optional', 'type': 'number'},
+ 'particle_density_g_cm3': {'description': 'ρ_p [g/cm³], default 2.65', 'type': 'number'},
+ 'porosity': {'description': 'n [0, 1]', 'type': 'number'},
+ 'som_density_g_cm3': {'description': 'default 1.4', 'type': 'number'},
+ 'som_mass_fraction': {'description': '[0, 1], default 0', 'type': 'number'},
+ 'water_content_mass_fraction': {'description': 'w [0, 1] or [%]', 'type': 'number'}},
+        "required": ["mode"],
+    },
+}
+
+
+def _handler(arguments):
+    mode = arguments.get("mode", "validate")
+    result = run(mode, arguments)
+    if mode == "validate" and isinstance(result, dict) and "passed" in result and "total" in result:
+        details = result.get("details", [])
+        return {
+            "validation_passed": result.get("passed", 0) == result.get("total", 0),
+            "checks": [
+                {"name": f"check_{i}", "passed": "\u2713" in str(d), "detail": str(d)}
+                for i, d in enumerate(details)
+            ],
+            "n_checks": result.get("total", 0),
+            "n_passed": result.get("passed", 0),
+        }
+    return result
+
+
+def _register():
+    try:
+        import tool_registry
+        tool_registry.register_tool(TOOL_SCHEMA["name"], TOOL_SCHEMA, _handler)
+    except ImportError:
+        pass
+
+
+_register()

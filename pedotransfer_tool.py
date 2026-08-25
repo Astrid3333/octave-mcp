@@ -618,3 +618,64 @@ if __name__ == "__main__":
         print(f"Parameters: {ex['coefficients']}")
         print(f"Suction (kPa): {ex['suction_kpa']}")
         print(f"Water content θ: {[f'{v:.4f}' for v in ex['water_content_theta']]}")
+
+
+# ============================================================================
+# TOOL REGISTRATION (auto-agregado)
+# ============================================================================
+
+TOOL_SCHEMA = {
+    "name": 'pedotransfer_tool',
+    "description": 'Estima curvas de retencion de agua y conductividad hidraulica desde textura, densidad y materia organica (pedotransfer functions, van Genuchten/Brooks-Corey).',
+    "inputSchema": {
+        "type": "object",
+        "properties": {'bulk_density': {'description': 'g/cm³, typical [1.0, 1.8]', 'type': 'number'},
+ 'clay_fraction': {'description': '[0, 1] USDA clay (<0.002 mm)', 'type': 'number'},
+ 'k_saturated': {'description': 'K_s reference (units flexible), default 1.0', 'type': 'number'},
+ 'mode': {'description': 'Modo de operacion',
+          'enum': ['estimate_water_retention',
+                   'estimate_hydraulic_conductivity',
+                   'ptf_parameters',
+                   'validate'],
+          'type': 'string'},
+ 'model': {'description': "PTF model, default 'van_genuchten'",
+           'enum': ['van_genuchten', 'brooks_corey'],
+           'type': 'string'},
+ 'organic_matter': {'description': '%, optional, default 0', 'type': 'number'},
+ 'sand_fraction': {'description': '[0, 1] USDA sand (>0.05 mm)', 'type': 'number'},
+ 'silt_fraction': {'description': '[0, 1] USDA silt (0.002-0.05 mm)', 'type': 'number'},
+ 'suction_kpa': {'description': 'Matric potential ψ values [kPa]',
+                 'items': {'type': 'number'},
+                 'type': 'array'},
+ 'water_content_theta': {'description': '[m³/m³]', 'items': {'type': 'number'}, 'type': 'array'}},
+        "required": ["mode"],
+    },
+}
+
+
+def _handler(arguments):
+    mode = arguments.get("mode", "validate")
+    result = run(mode, arguments)
+    if mode == "validate" and isinstance(result, dict) and "passed" in result and "total" in result:
+        details = result.get("details", [])
+        return {
+            "validation_passed": result.get("passed", 0) == result.get("total", 0),
+            "checks": [
+                {"name": f"check_{i}", "passed": "\u2713" in str(d), "detail": str(d)}
+                for i, d in enumerate(details)
+            ],
+            "n_checks": result.get("total", 0),
+            "n_passed": result.get("passed", 0),
+        }
+    return result
+
+
+def _register():
+    try:
+        import tool_registry
+        tool_registry.register_tool(TOOL_SCHEMA["name"], TOOL_SCHEMA, _handler)
+    except ImportError:
+        pass
+
+
+_register()
