@@ -39,11 +39,6 @@ import habit_streak_tool  # auto-registra via tool_registry, no requiere mas edi
 import financial_literacy_score_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import earthquake_analysis_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import wildfire_risk_tool  # auto-registra via tool_registry, no requiere mas ediciones
-import spectroscopy_tool  # auto-registra via tool_registry
-import wildfire_intensity_model_tool  # auto-registra via tool_registry
-import geospatial_risk_analysis_tool  # auto-registra via tool_registry
-import tidal_harmonic_analysis_tool  # auto-registra via tool_registry
-import marine_ecosystem_impact_tool  # auto-registra via tool_registry
 import landslide_risk_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import disaster_economics_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import social_impact_tool  # auto-registra via tool_registry, no requiere mas ediciones
@@ -150,8 +145,6 @@ import attractor_geometry_tool  # auto-registra via tool_registry, no requiere m
 import renewable_mpc_controller  # auto-registra via tool_registry, no requiere mas ediciones
 import circular_economy_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import biodiversity_model_tool  # auto-registra via tool_registry, no requiere mas ediciones
-import deforestation_tool  # auto-registra via tool_registry, no requiere mas ediciones
-import poaching_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import crystallography_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import altitude_pressure_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import dynamic_kill_calculator_tool  # auto-registra via tool_registry, no requiere mas ediciones
@@ -172,8 +165,6 @@ import vector_field_visualizer  # auto-registra via tool_registry
 import vector_optimizer  # auto-registra via tool_registry
 import machine_learning_vector_tool  # auto-registra via tool_registry
 import color_math_tool  # auto-registra via tool_registry
-import land_use_change_tool  # auto-registra via tool_registry
-import soil_erosion_tool  # auto-registra via tool_registry
 import teaching_strategies_simulator_tool  # auto-registra via tool_registry
 import mycelial_network_tool  # auto-registra via tool_registry
 import fungal_morphology_tool  # auto-registra via tool_registry
@@ -320,33 +311,10 @@ import soil_water_flow_tool
 import food_chemistry_tool
 import ethical_food_advisor_tool
 import sustainable_sourcing_tool
-import angle_math_tool
-import bloch_equation_tool  # auto-registra via tool_registry
-import relaxometry_tool  # auto-registra via tool_registry
-import kspace_reconstruction_tool  # auto-registra via tool_registry
-import gradient_field_tool  # auto-registra via tool_registry
-import ternary_representation_tool  # auto-registra via tool_registry, no requiere mas ediciones
-import aminoacid_tool  # auto-registra via tool_registry, no requiere mas ediciones
-import hormone_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import ultra_processed_metabolism_tool as _wire_agricultural_dynamics_tool
 from renewable_potential_tool import renewable_potential_tool as _wire_renewable_potential_tool
 from structural_beam_tool import compute_structural_beam_tool as _wire_structural_beam_tool
 from public_data_ingest_tool import PUBLIC_DATA_INGEST_TOOL_SCHEMA
-from ion_chemistry_tool import _dispatch as ion_chemistry_dispatch
-import openems_quantum_circuit_tool  # auto-registra via tool_registry
-import rf_network_analysis  # auto-registra via tool_registry
-import resource_assignment_tool  # auto-registra via tool_registry
-import sandpile_avalanche_tool  # auto-registra via tool_registry
-import cascading_failure_tool  # auto-registra via tool_registry
-import systemic_risk_tool  # auto-registra via tool_registry
-import bloch_equation_tool  # auto-registra via tool_registry
-import cell_fate_decision_tool  # auto-registra via tool_registry
-import gradient_field_tool  # auto-registra via tool_registry
-import kspace_reconstruction_tool  # auto-registra via tool_registry
-import marine_ecosystem_impact_tool  # auto-registra via tool_registry
-import relaxometry_tool  # auto-registra via tool_registry
-import stem_cell_niche_tool  # auto-registra via tool_registry
-import tidal_harmonic_analysis_tool  # auto-registra via tool_registry
 TOOLS = [
     {
             "name": "run_octave",

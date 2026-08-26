@@ -1,0 +1,9 @@
+
+from rpa_kinetics_tool import run_rpa_kinetics_tool, RPA_KINETICS_SCHEMA
+
+TOOLS.append({
+    "name": "rpa_kinetics_tool",
+    "description": "Cinética de Recombinasa Polimerasa (RPA): simula amplificación de ADN con modelo Michaelis-Menten, predice rendimiento, optimiza buffer",
+    "inputSchema": RPA_KINETICS_SCHEMA,
+    "callable": run_rpa_kinetics_tool
+})
