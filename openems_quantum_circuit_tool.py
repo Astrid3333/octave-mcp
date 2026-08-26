@@ -161,6 +161,7 @@ def _mode_self_test(params):
         "mode": "self_test",
         "checks": checks,
         "all_pass": all_pass,
+        "validation_passed": all_pass,
         "note": (
             "Este self_test cubre unicamente 'cpw_impedance_analytic' "
             "(Python puro, sin dependencia de openEMS). El modo "
@@ -345,14 +346,15 @@ def _mode_cpw_resonator_fdtd(params):
 # Dispatch + schema (misma convencion que el resto de octave-mcp)
 # ---------------------------------------------------------------------
 
-def compute_openems_quantum_circuit_tool(mode, params=None):
-    params = params or {}
+def compute_openems_quantum_circuit_tool(args):
+    mode = args.get("mode") if isinstance(args, dict) else args
+    params = args.get("params") or {} if isinstance(args, dict) else {}
     try:
         if mode == "cpw_impedance_analytic":
             return _mode_cpw_impedance_analytic(params)
         elif mode == "cpw_resonator_fdtd":
             return _mode_cpw_resonator_fdtd(params)
-        elif mode == "self_test":
+        elif mode in ("self_test", "validate"):
             return _mode_self_test(params)
         else:
             return {"error": f"Modo desconocido: {mode}"}
@@ -373,7 +375,7 @@ OPENEMS_QUANTUM_CIRCUIT_TOOL_SCHEMA = {
         "properties": {
             "mode": {
                 "type": "string",
-                "enum": ["cpw_impedance_analytic", "cpw_resonator_fdtd", "self_test"],
+                "enum": ["cpw_impedance_analytic", "cpw_resonator_fdtd", "self_test", "validate"],
             },
             "params": {"type": "object"},
         },

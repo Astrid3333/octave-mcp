@@ -320,8 +320,9 @@ RF_NETWORK_ANALYSIS_TOOL_SCHEMA = {
     }
 }
 
-def compute_rf_network_analysis(mode, params=None):
-    params = params or {}
+def compute_rf_network_analysis(args):
+    mode = args.get("mode") if isinstance(args, dict) else args
+    params = args.get("params") or {} if isinstance(args, dict) else {}
     if mode == "validate":
         return validate()
     if mode == "parse_touchstone_s2p":
