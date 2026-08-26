@@ -317,6 +317,10 @@ import food_chemistry_tool
 import ethical_food_advisor_tool
 import sustainable_sourcing_tool
 import angle_math_tool
+import bloch_equation_tool  # auto-registra via tool_registry
+import relaxometry_tool  # auto-registra via tool_registry
+import kspace_reconstruction_tool  # auto-registra via tool_registry
+import gradient_field_tool  # auto-registra via tool_registry
 import ternary_representation_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import aminoacid_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import hormone_tool  # auto-registra via tool_registry, no requiere mas ediciones
