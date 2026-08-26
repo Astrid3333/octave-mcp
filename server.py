@@ -172,6 +172,7 @@ import vector_field_visualizer  # auto-registra via tool_registry
 import vector_optimizer  # auto-registra via tool_registry
 import machine_learning_vector_tool  # auto-registra via tool_registry
 import color_math_tool  # auto-registra via tool_registry
+import land_use_change_tool  # auto-registra via tool_registry
 import teaching_strategies_simulator_tool  # auto-registra via tool_registry
 import mycelial_network_tool  # auto-registra via tool_registry
 import fungal_morphology_tool  # auto-registra via tool_registry
