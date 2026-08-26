@@ -330,6 +330,7 @@ from structural_beam_tool import compute_structural_beam_tool as _wire_structura
 from public_data_ingest_tool import PUBLIC_DATA_INGEST_TOOL_SCHEMA
 import openems_quantum_circuit_tool  # auto-registra via tool_registry
 import rf_network_analysis  # auto-registra via tool_registry
+import resource_assignment_tool  # auto-registra via tool_registry
 TOOLS = [
     {
             "name": "run_octave",
