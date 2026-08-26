@@ -150,6 +150,8 @@ import attractor_geometry_tool  # auto-registra via tool_registry, no requiere m
 import renewable_mpc_controller  # auto-registra via tool_registry, no requiere mas ediciones
 import circular_economy_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import biodiversity_model_tool  # auto-registra via tool_registry, no requiere mas ediciones
+import deforestation_tool  # auto-registra via tool_registry, no requiere mas ediciones
+import poaching_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import crystallography_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import altitude_pressure_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import dynamic_kill_calculator_tool  # auto-registra via tool_registry, no requiere mas ediciones
