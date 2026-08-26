@@ -328,6 +328,8 @@ import ultra_processed_metabolism_tool as _wire_agricultural_dynamics_tool
 from renewable_potential_tool import renewable_potential_tool as _wire_renewable_potential_tool
 from structural_beam_tool import compute_structural_beam_tool as _wire_structural_beam_tool
 from public_data_ingest_tool import PUBLIC_DATA_INGEST_TOOL_SCHEMA
+import openems_quantum_circuit_tool  # auto-registra via tool_registry
+import rf_network_analysis  # auto-registra via tool_registry
 TOOLS = [
     {
             "name": "run_octave",
