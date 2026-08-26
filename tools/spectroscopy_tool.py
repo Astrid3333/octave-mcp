@@ -152,11 +152,11 @@ def _concentration_mol_to_ppm_gas(concentration_mol: float, temperature_K: float
     Returns:
         Concentración en ppm (v/v)
     """
-    R = 8.314  # J/(mol·K) = L·Pa/(mol·K)
+    R = 8.314  # J/(mol·K) = Pa·m³/(mol·K)
     P = 101325  # Pa (presión estándar)
     
-    # [ppm] = [mol/L] × (R·T / P) × 1e6
-    ppm = concentration_mol * (R * temperature_K / P) * 1e6
+    # [ppm] = [mol/L] × (R·T / P) × 1e6 × 1000  (×1000: R en Pa·m³/(mol·K), c en mol/L)
+    ppm = concentration_mol * (R * temperature_K / P) * 1e6 * 1000
     return ppm
 
 
@@ -164,7 +164,7 @@ def _concentration_ppm_to_mol_gas(ppm: float, temperature_K: float = 298.15) -> 
     """Convierte ppm (v/v) a concentración molar (mol/L)."""
     R = 8.314
     P = 101325
-    concentration_mol = ppm / ((R * temperature_K / P) * 1e6)
+    concentration_mol = ppm / ((R * temperature_K / P) * 1e6 * 1000)
     return concentration_mol
 
 
@@ -495,7 +495,7 @@ def run_self_test() -> Dict:
     # Test 5: Gas detection (CO2)
     tests_total += 1
     try:
-        result = _gas_detection('CO2', 0.45, 4.5, 1.0)
+        result = _gas_detection('CO2', 0.0000919, 4.5, 1.0)
         assert 'concentration_ppm' in result, "CO2 detection missing ppm"
         assert result['in_range'], "CO2 concentration not in typical range"
         tests_passed += 1
@@ -567,6 +567,7 @@ def run_self_test() -> Dict:
         'tests_total': tests_total,
         'errors': errors,
         'status': 'PASSED' if tests_passed == tests_total else 'FAILED',
+        'validation_passed': tests_passed == tests_total,
     }
 
 
@@ -620,11 +621,12 @@ TOOL_SCHEMA = {
 }
 
 
-def _register():
-    """Registra la herramienta en tool_registry."""
+try:
     from tool_registry import register_tool
-    register_tool(TOOL_NAME, run, modes=TOOL_MODES)
-
+    register_tool(TOOL_NAME, TOOL_SCHEMA, run)
+except ImportError:
+    pass
 
 if __name__ == '__main__':
-    _register()
+    import json
+    print(json.dumps(run_self_test(), indent=2, default=str))

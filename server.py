@@ -39,6 +39,7 @@ import habit_streak_tool  # auto-registra via tool_registry, no requiere mas edi
 import financial_literacy_score_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import earthquake_analysis_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import wildfire_risk_tool  # auto-registra via tool_registry, no requiere mas ediciones
+import spectroscopy_tool  # auto-registra via tool_registry
 import landslide_risk_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import disaster_economics_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import social_impact_tool  # auto-registra via tool_registry, no requiere mas ediciones
@@ -311,6 +312,7 @@ import soil_water_flow_tool
 import food_chemistry_tool
 import ethical_food_advisor_tool
 import sustainable_sourcing_tool
+import angle_math_tool
 import aminoacid_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import hormone_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import ultra_processed_metabolism_tool as _wire_agricultural_dynamics_tool
