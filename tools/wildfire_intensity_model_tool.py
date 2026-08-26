@@ -551,3 +551,55 @@ if __name__ == "__main__":
         print("→ LISTO PARA DESCARGAR e integrar a octave-mcp/tools/")
     else:
         print(f"→ {total - passed} test(s) fallaron — revisar")
+
+
+# ============================================================================
+# REGISTRO EN TOOL_REGISTRY
+# ============================================================================
+
+TOOL_NAME = "wildfire_intensity_model_tool"
+TOOL_MODES = [
+    "byram_intensity",
+    "agent_ranking",
+    "evacuation_corridors",
+    "thermal_danger_zone",
+    "comparative_analysis",
+]
+
+TOOL_SCHEMA = {
+    "name": TOOL_NAME,
+    "description": (
+        "Modelo de intensidad de incendios forestales: intensidad de linea "
+        "de fuego (Byram 1959), ranking de agentes extintores, corredores "
+        "de evacuacion, zona de peligro termico, y analisis comparativo "
+        "integrado."
+    ),
+    "inputSchema": {
+        "type": "object",
+        "properties": {
+            "mode": {
+                "type": "string",
+                "enum": TOOL_MODES,
+                "description": "Modo de calculo (ver docstring de run())",
+            },
+            "params": {
+                "type": "object",
+                "description": "Parametros segun el modo (ver docstring de run())",
+            },
+        },
+        "required": ["mode"],
+    },
+}
+
+def _register():
+    try:
+        from tool_registry import register_tool
+        register_tool(
+            TOOL_NAME,
+            TOOL_SCHEMA,
+            lambda args: run(args.get("mode"), args.get("params", {})),
+        )
+    except ImportError:
+        pass
+
+_register()
