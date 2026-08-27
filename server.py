@@ -79,6 +79,9 @@ from machine_learning_math_tool import compute_machine_learning_math, MACHINE_LE
 from financial_math_tool import compute_financial_math, FINANCIAL_MATH_TOOL_SCHEMA
 from quantity_takeoff_tool import compute_quantity_takeoff, QUANTITY_TAKEOFF_TOOL_SCHEMA
 from structural_analysis_tool import compute_structural_analysis, STRUCTURAL_ANALYSIS_TOOL_SCHEMA
+import structural_analysis_advanced_tool  # auto-registra via tool_registry
+import finite_element_advanced_tool  # auto-registra via tool_registry
+import statistical_physics_tool_extended  # auto-registra via tool_registry
 from earthworks_tool import compute_earthworks, EARTHWORKS_TOOL_SCHEMA
 from budgeting_tool import compute_budgeting, BUDGETING_TOOL_SCHEMA
 from construction_scheduling_tool import compute_construction_scheduling, CONSTRUCTION_SCHEDULING_TOOL_SCHEMA
@@ -100,7 +103,6 @@ from physics_based_fire_model_tool import physics_based_fire_model
 from chemometrics_tool import compute_chemometrics, CHEMOMETRICS_TOOL_SCHEMA
 from econometrics_tool import compute_econometrics, ECONOMETRICS_TOOL_SCHEMA
 from archaeological_simulation_tool import compute_archaeological_simulation, ARCHAEOLOGICAL_SIMULATION_TOOL_SCHEMA
-from statistical_physics_tool import compute_statistical_physics, STATISTICAL_PHYSICS_TOOL_SCHEMA
 from cfd_tool import compute_cfd, CFD_TOOL_SCHEMA
 from glm_tool import compute_glm, GLM_TOOL_SCHEMA
 from clustering_tool import compute_clustering, CLUSTERING_TOOL_SCHEMA
@@ -630,15 +632,6 @@ if __name__ == "__main__":
                     }
                 elif tool_name == "archaeological_simulation":
                     result = compute_archaeological_simulation(**args)
-                    resp = {
-                        "jsonrpc": "2.0", "id": req_id,
-                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
-                    }
-                elif tool_name == "statistical_physics_tool":
-                    # bug conocido: schema declara "params" anidado pero la funcion
-                    # usa **params flat -> desempaquetamos aca en vez de tocar el schema
-                    _params = args.get("params") or {}
-                    result = compute_statistical_physics(mode=args["mode"], **_params)
                     resp = {
                         "jsonrpc": "2.0", "id": req_id,
                         "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
