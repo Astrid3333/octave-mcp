@@ -584,8 +584,142 @@ def run(mode: str, params: Dict[str, Any]) -> Dict[str, Any]:
         result["mode"] = mode
         return result
     
+    elif mode == "validate":
+        n_passed = validate()
+        n_total = 12
+        return {"validation_passed": n_passed == n_total, "passed": n_passed,
+                "total": n_total, "mode": mode}
+
     else:
         return {"error": f"Modo desconocido: {mode}"}
+
+
+def validate():
+    """12 self-tests para modo=validate (portado desde la version raiz)."""
+    import json as _json
+
+    tests_passed = 0
+
+    try:
+        result = terrain_risk_index(30.0, 180.0, 0.6, 10.0)
+        assert "composite_risk" in result, "Debe haber composite_risk"
+        assert 0 <= result["composite_risk"] <= 1, "Risk debe estar en [0,1]"
+        assert result["risk_level"] in ["bajo", "moderado", "alto", "critico"], "Risk level invalido"
+        tests_passed += 1
+    except Exception as e:
+        print(f"  x Test 1 (Terrain risk): {e}")
+
+    try:
+        result_south = terrain_risk_index(30.0, 180.0, 0.6, 10.0)
+        result_north = terrain_risk_index(30.0, 0.0, 0.6, 10.0)
+        assert result_south["aspect_risk"] >= result_north["aspect_risk"], \
+            "Aspecto sur debe ser >= norte"
+        tests_passed += 1
+    except Exception as e:
+        print(f"  x Test 2 (Aspecto): {e}")
+
+    try:
+        result_sparse = terrain_risk_index(30.0, 180.0, 0.2, 10.0)
+        result_dense = terrain_risk_index(30.0, 180.0, 0.8, 10.0)
+        assert result_dense["vegetation_risk"] > result_sparse["vegetation_risk"], \
+            "Vegetacion densa debe tener mayor riesgo"
+        tests_passed += 1
+    except Exception as e:
+        print(f"  x Test 3 (Vegetacion): {e}")
+
+    try:
+        observers = [(0, 0, 100)]
+        targets = [[(500, 500, 50)], [(1500, 1500, 50)]]
+        result = visibility_matrix(observers, targets, max_range_m=1000.0)
+        assert "coverage_percent" in result, "Debe haber coverage_percent"
+        assert "covered_cells" in result, "Debe haber covered_cells"
+        tests_passed += 1
+    except Exception as e:
+        print(f"  x Test 4 (Visibility): {e}")
+
+    try:
+        observers = [(0, 0, 100), (2000, 0, 100)]
+        targets = [[(500, 500, 50)], [(1500, 500, 50)]]
+        result = visibility_matrix(observers, targets, max_range_m=1000.0)
+        assert result["covered_cells"] > 0, "Debe haber celdas cubiertas"
+        tests_passed += 1
+    except Exception as e:
+        print(f"  x Test 5 (Multi-observer): {e}")
+
+    try:
+        start = (0, 0, 0)
+        waypoints = [(500, 500, 100), (1000, 0, 100)]
+        result = drone_route_optimizer(start, waypoints)
+        assert result["total_distance_m"] > 0, "Distancia debe ser positiva"
+        assert result["flight_time_min"] > 0, "Tiempo vuelo debe ser positivo"
+        assert result["max_altitude_m"] >= 100, "Altitud maxima >= 100m"
+        tests_passed += 1
+    except Exception as e:
+        print(f"  x Test 6 (Drone routing): {e}")
+
+    try:
+        start = (0, 0, 0)
+        waypoints = [(500, 500, 100)]
+        result_light = drone_route_optimizer(start, waypoints, payload_kg=0.2)
+        result_heavy = drone_route_optimizer(start, waypoints, payload_kg=1.5)
+        assert result_heavy["battery_used_percent"] > result_light["battery_used_percent"], \
+            "Carga pesada debe usar mas bateria"
+        tests_passed += 1
+    except Exception as e:
+        print(f"  x Test 7 (Carga en drone): {e}")
+
+    try:
+        terrain_data = [[
+            {"composite_risk": 0.3, "risk_level": "moderado"},
+            {"composite_risk": 0.7, "risk_level": "alto"}
+        ]]
+        result = risk_map_generation(terrain_data)
+        assert "risk_map" in result, "Debe haber risk_map"
+        assert "high_risk_cells" in result, "Debe haber high_risk_cells"
+        assert result["max_risk"] >= result["min_risk"], "Max >= min"
+        tests_passed += 1
+    except Exception as e:
+        print(f"  x Test 8 (Risk map): {e}")
+
+    try:
+        terrain_data = [[{"composite_risk": 0.5}], [{"composite_risk": 0.4}]]
+        intensity_map = [[3.0], [1.0]]
+        result = risk_map_generation(terrain_data, intensity_map)
+        assert len(result["risk_map"]) == 2, "Debe haber 2 filas"
+        tests_passed += 1
+    except Exception as e:
+        print(f"  x Test 9 (Risk + intensity): {e}")
+
+    try:
+        risk_map = [[0.8, 0.7], [0.6, 0.2]]
+        result = surveillance_planning(risk_map, num_drones=2)
+        assert "optimal_positions" in result, "Debe haber optimal_positions"
+        assert len(result["optimal_positions"]) <= 2, "Posiciones <= drones"
+        assert 0 <= result["coverage_percent"] <= 100, "Coverage % valido"
+        tests_passed += 1
+    except Exception as e:
+        print(f"  x Test 10 (Surveillance): {e}")
+
+    try:
+        risk_map = [[0.5, 0.5], [0.5, 0.5]]
+        result = surveillance_planning(risk_map, num_drones=4, coverage_target_percent=95.0)
+        assert "target_met" in result, "Debe indicar si meta alcanzada"
+        tests_passed += 1
+    except Exception as e:
+        print(f"  x Test 11 (Coverage target): {e}")
+
+    try:
+        result = run("terrain_risk_index", {
+            "slope_percent": 25.0, "aspect_deg": 180.0,
+            "vegetation_ndvi": 0.6, "fuel_load_kg_m2": 10.0
+        })
+        json_str = _json.dumps(result, default=str)
+        assert len(json_str) > 0, "JSON debe ser serializable"
+        tests_passed += 1
+    except Exception as e:
+        print(f"  x Test 12 (JSON serialization): {e}")
+
+    return tests_passed
 
 
 # ============================================================================
@@ -765,6 +899,7 @@ TOOL_MODES = [
     "drone_route_optimizer",
     "risk_map_generation",
     "surveillance_planning",
+    "validate",
 ]
 
 TOOL_SCHEMA = {

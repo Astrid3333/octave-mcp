@@ -396,8 +396,126 @@ def run(mode: str, params: Dict[str, Any]) -> Dict[str, Any]:
                       f"radio crítico: {thermal_result['critical_radius_m']:.1f}m"
         }
     
+    elif mode == "validate":
+        n_passed = validate()
+        n_total = 11
+        return {"validation_passed": n_passed == n_total, "passed": n_passed,
+                "total": n_total, "mode": mode}
+
     else:
         return {"error": f"Modo desconocido: {mode}"}
+
+
+def validate():
+    """11 self-tests para modo=validate (portado desde la version raiz)."""
+    import json as _json
+
+    tests_passed = 0
+
+    try:
+        result = byram_intensity_calc(10.0, 500.0)
+        assert result["intensity_mw_m"] > 0, "Intensidad debe ser positiva"
+        assert result["flame_height_m"] > 0, "Altura llama debe ser positiva"
+        assert result["radiation_w_m2"] > 0, "Radiacion debe ser positiva"
+        tests_passed += 1
+    except Exception as e:
+        print(f"  x Test 1 (Byram base): {e}")
+
+    try:
+        result_dry = byram_intensity_calc(10.0, 500.0, fuel_moisture=0.05)
+        result_wet = byram_intensity_calc(10.0, 500.0, fuel_moisture=0.50)
+        assert result_dry["intensity_mw_m"] > result_wet["intensity_mw_m"], \
+            "Combustible seco debe ser mas intenso"
+        tests_passed += 1
+    except Exception as e:
+        print(f"  x Test 2 (Humedad): {e}")
+
+    try:
+        result_calm = byram_intensity_calc(10.0, 500.0, wind_speed=0.0)
+        result_wind = byram_intensity_calc(10.0, 500.0, wind_speed=10.0)
+        assert result_wind["intensity_mw_m"] > result_calm["intensity_mw_m"], \
+            "Viento debe amplificar intensidad"
+        tests_passed += 1
+    except Exception as e:
+        print(f"  x Test 3 (Viento): {e}")
+
+    try:
+        ranking = agent_efficacy_ranking("forest", 2.5, "forest")
+        assert len(ranking["ranking"]) == 4, "Debe haber 4 agentes"
+        assert ranking["recommended"] in [a["agent"] for a in ranking["ranking"]], \
+            "Recomendado debe estar en ranking"
+        assert ranking["ranking"][0]["agent"] in ["water", "foam"], \
+            "Agua o espuma deberia ser primera en fuego forestal"
+        tests_passed += 1
+    except Exception as e:
+        print(f"  x Test 4 (Agent ranking): {e}")
+
+    try:
+        for fire_type in ["grass", "forest", "structure", "vehicle"]:
+            result = agent_efficacy_ranking(fire_type, 1.5, "forest")
+            assert result["recommended"] is not None, f"Debe haber recomendacion para {fire_type}"
+            assert len(result["ranking"]) == 4, f"Ranking debe tener 4 agentes para {fire_type}"
+        tests_passed += 1
+    except Exception as e:
+        print(f"  x Test 5 (Tipos fuego): {e}")
+
+    try:
+        result = thermal_danger_zone(2.5, 15.0)
+        assert result["critical_radius_m"] > result["severe_radius_m"], \
+            "Radio critico debe ser mayor que severo"
+        assert result["critical_radius_m"] > 0, "Radio critico debe ser positivo"
+        tests_passed += 1
+    except Exception as e:
+        print(f"  x Test 6 (Thermal danger): {e}")
+
+    try:
+        result_wind = thermal_danger_zone(2.5, 15.0, wind_direction=45.0)
+        assert result_wind["wind_effect_multiplier"] > 0, "Efecto viento debe ser positivo"
+        tests_passed += 1
+    except Exception as e:
+        print(f"  x Test 7 (Viento en thermal): {e}")
+
+    try:
+        intensity_map = [[5.0, 3.0, 1.0], [4.0, 2.0, 0.5], [2.0, 0.8, 0.2]]
+        result = evacuation_corridors(intensity_map, 0.0, 0.0, grid_size=100.0)
+        assert "safest_corridor" in result, "Debe haber corredor seguro"
+        assert "danger_zones" in result, "Debe haber zonas de peligro"
+        assert result["evacuation_time_min"] >= 0, "Tiempo evacuacion debe ser positivo"
+        tests_passed += 1
+    except Exception as e:
+        print(f"  x Test 8 (Evacuation corridors): {e}")
+
+    try:
+        intensity_map = [[5.0, 0.5], [0.3, 0.1]]
+        result = evacuation_corridors(intensity_map, 0.0, 0.0)
+        assert result["total_danger_zones"] > 0, "Debe detectar zonas peligrosas"
+        assert result["total_safe_cells"] > 0, "Debe haber celdas seguras"
+        tests_passed += 1
+    except Exception as e:
+        print(f"  x Test 9 (Danger zone detection): {e}")
+
+    try:
+        result = run("comparative_analysis", {
+            "fuel_load": 10.0, "reaction_intensity": 500.0, "fuel_moisture": 0.1,
+            "wind_speed": 5.0, "fire_type": "forest", "wind_direction": 45.0
+        })
+        assert "byram" in result, "Debe incluir Byram"
+        assert "agents" in result, "Debe incluir agents"
+        assert "thermal_danger" in result, "Debe incluir thermal_danger"
+        assert "summary" in result, "Debe incluir resumen"
+        tests_passed += 1
+    except Exception as e:
+        print(f"  x Test 10 (Comparative analysis): {e}")
+
+    try:
+        result = run("byram_intensity", {"fuel_load": 10.0, "reaction_intensity": 500.0})
+        json_str = _json.dumps(result, default=str)
+        assert len(json_str) > 0, "JSON debe ser serializable"
+        tests_passed += 1
+    except Exception as e:
+        print(f"  x Test 11 (JSON serialization): {e}")
+
+    return tests_passed
 
 
 # ============================================================================
@@ -564,6 +682,7 @@ TOOL_MODES = [
     "evacuation_corridors",
     "thermal_danger_zone",
     "comparative_analysis",
+    "validate",
 ]
 
 TOOL_SCHEMA = {
