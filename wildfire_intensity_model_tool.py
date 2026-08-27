@@ -396,6 +396,12 @@ def run(mode: str, params: Dict[str, Any]) -> Dict[str, Any]:
                       f"radio crítico: {thermal_result['critical_radius_m']:.1f}m"
         }
     
+    elif mode == "validate":
+        n_passed = validate()
+        n_total = 11
+        return {"validation_passed": n_passed == n_total, "passed": n_passed,
+                "total": n_total, "mode": mode}
+    
     else:
         return {"error": f"Modo desconocido: {mode}"}
 
@@ -551,3 +557,30 @@ if __name__ == "__main__":
         print("→ LISTO PARA DESCARGAR e integrar a octave-mcp/tools/")
     else:
         print(f"→ {total - passed} test(s) fallaron — revisar")
+
+WILDFIRE_INTENSITY_MODEL_TOOL_SCHEMA = {
+    "name": "wildfire_intensity_model",
+    "description": (
+        "Modelo de intensidad de incendio forestal (Byram), ranking de "
+        "agentes de extincion, corredores de evacuacion y zonas de peligro "
+        "termico."
+    ),
+    "inputSchema": {
+        "type": "object",
+        "properties": {
+            "mode": {
+                "type": "string",
+                "enum": ["byram_intensity", "agent_ranking", "evacuation_corridors",
+                         "thermal_danger_zone", "comparative_analysis", "validate"],
+            },
+        },
+        "required": ["mode"],
+    },
+}
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+register_tool("wildfire_intensity_model", WILDFIRE_INTENSITY_MODEL_TOOL_SCHEMA,
+              lambda args: run(args.get("mode"), args))

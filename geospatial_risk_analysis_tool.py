@@ -584,6 +584,12 @@ def run(mode: str, params: Dict[str, Any]) -> Dict[str, Any]:
         result["mode"] = mode
         return result
     
+    elif mode == "validate":
+        n_passed = validate()
+        n_total = 12
+        return {"validation_passed": n_passed == n_total, "passed": n_passed,
+                "total": n_total, "mode": mode}
+    
     else:
         return {"error": f"Modo desconocido: {mode}"}
 
@@ -752,3 +758,30 @@ if __name__ == "__main__":
         print("→ LISTO PARA DESCARGAR e integrar a octave-mcp/tools/")
     else:
         print(f"→ {total - passed} test(s) fallaron — revisar")
+
+GEOSPATIAL_RISK_ANALYSIS_TOOL_SCHEMA = {
+    "name": "geospatial_risk_analysis",
+    "description": (
+        "Analisis geoespacial de riesgo: indice de riesgo por terreno, "
+        "matriz de visibilidad, optimizacion de rutas de drones, generacion "
+        "de mapas de riesgo y planificacion de vigilancia."
+    ),
+    "inputSchema": {
+        "type": "object",
+        "properties": {
+            "mode": {
+                "type": "string",
+                "enum": ["terrain_risk_index", "visibility_matrix", "drone_route_optimizer",
+                         "risk_map_generation", "surveillance_planning", "validate"],
+            },
+        },
+        "required": ["mode"],
+    },
+}
+try:
+    from tool_registry import register_tool
+except ImportError:
+    def register_tool(name, schema, handler):
+        pass
+register_tool("geospatial_risk_analysis", GEOSPATIAL_RISK_ANALYSIS_TOOL_SCHEMA,
+              lambda args: run(args.get("mode"), args))
