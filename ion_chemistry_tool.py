@@ -630,7 +630,7 @@ def validate():
 
     passed = sum(1 for _, ok in checks if ok)
     failed = [name for name, ok in checks if not ok]
-    return {"passed": passed, "total": len(checks), "failed": failed,
+    return {"validation_passed": not failed, "passed": passed, "total": len(checks), "failed": failed,
             "status": "PASSED" if not failed else "FAILED"}
 
 
@@ -680,8 +680,7 @@ TOOL_SCHEMA = {
     "inputSchema": {
         "type": "object",
         "properties": {
-            "mode": {"type": "string", "enum": ["concentration", "ionic_strength", "activity_coefficient", "ph_calculation", "solubility_product", "conductivity", "diffusion_coefficient", "electrophoretic_mobility", "donnan_equilibrium", "validate"], "description": "Selecciona la función/modo principal de la tool."},
-            "mode": {"type": "string", "description": "Sub-modo específico de la operación."},
+            "mode": {"type": "string", "enum": ["concentration", "ionic_strength", "activity_coefficient", "ph_calculation", "solubility_product", "conductivity", "diffusion_coefficient", "electrophoretic_mobility", "donnan_equilibrium", "validate"], "description": "Selecciona la función/modo principal de la tool. Los sub-modos específicos van en kwargs (ver docstring de cada función)."},
             "moles": {"type": "number", "description": "Moles de soluto."},
             "volume_L": {"type": "number", "description": "Volumen en litros."},
             "C1": {"type": "number", "description": "Concentración inicial."},
