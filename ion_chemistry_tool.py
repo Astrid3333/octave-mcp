@@ -680,7 +680,7 @@ TOOL_SCHEMA = {
     "inputSchema": {
         "type": "object",
         "properties": {
-            "operation": {"type": "string", "enum": TOOL_MODES, "description": "Selecciona la función/modo principal de la tool."},
+            "mode": {"type": "string", "enum": ["concentration", "ionic_strength", "activity_coefficient", "ph_calculation", "solubility_product", "conductivity", "diffusion_coefficient", "electrophoretic_mobility", "donnan_equilibrium", "validate"], "description": "Selecciona la función/modo principal de la tool."},
             "mode": {"type": "string", "description": "Sub-modo específico de la operación."},
             "moles": {"type": "number", "description": "Moles de soluto."},
             "volume_L": {"type": "number", "description": "Volumen en litros."},
@@ -741,7 +741,7 @@ TOOL_SCHEMA = {
             "V_in": {"type": "number", "description": "Volumen interno (opcional)."},
             "V_out": {"type": "number", "description": "Volumen externo (opcional)."},
         },
-        "required": ["operation"],
+        "required": ["mode"],
     },
 }
 
@@ -752,7 +752,7 @@ try:
         register_tool(
             name=TOOL_NAME,
             schema=TOOL_SCHEMA,
-            handler=lambda args: _dispatch(args.get("operation"), **{k: v for k, v in args.items() if k != "operation"})
+            handler=lambda args: _dispatch(args.get("mode"), **{k: v for k, v in args.items() if k != "operation"})
         )
 
     _register()

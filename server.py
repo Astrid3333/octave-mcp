@@ -333,6 +333,11 @@ from renewable_potential_tool import renewable_potential_tool as _wire_renewable
 from structural_beam_tool import compute_structural_beam_tool as _wire_structural_beam_tool
 from public_data_ingest_tool import PUBLIC_DATA_INGEST_TOOL_SCHEMA
 from ion_chemistry_tool import _dispatch as ion_chemistry_dispatch
+from domino_effect_tool import run as domino_run
+from cascade_orchestrator_tool import run as orchestrator_run
+from information_cascade_tool import run as info_run
+from bilevel_interdiction_tool import run as bilevel_run
+from cascading_outbreak_predictor import run as outbreak_run
 import openems_quantum_circuit_tool  # auto-registra via tool_registry
 import rf_network_analysis  # auto-registra via tool_registry
 import resource_assignment_tool  # auto-registra via tool_registry
