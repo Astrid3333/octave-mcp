@@ -30,7 +30,7 @@ TOOL_SCHEMA = {
         "proyectividades 1D, cónicas proyectivas (ajuste, polar/tangente, "
         "intersección con recta)."
     ),
-    "input_schema": {
+    "inputSchema": {
         "type": "object",
         "properties": {
             "mode": {

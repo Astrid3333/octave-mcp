@@ -519,7 +519,7 @@ UNIFIED_DARK_SECTOR_TOOL_SCHEMA = {
         "verificaciones internas (regresion a LCDM, conservacion de energia, "
         "cuadratura vs ODE)."
     ),
-    "input_schema": {
+    "inputSchema": {
         "type": "object",
         "properties": {
             "mode": {

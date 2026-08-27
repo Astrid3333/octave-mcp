@@ -36,7 +36,7 @@ TOOL_SCHEMA = {
         "fundamental, curvatura Gaussiana/media/principales y geodésicas. "
         "Acepta superficies paramétricas r(u,v) o implícitas F(x,y,z)=0."
     ),
-    "input_schema": {
+    "inputSchema": {
         "type": "object",
         "properties": {
             "mode": {

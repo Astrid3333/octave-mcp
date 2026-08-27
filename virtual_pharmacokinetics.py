@@ -546,7 +546,7 @@ TOOL_SCHEMA = {
         "parametros quimicos obligatorios (Kp, clearance) -- no los estima. "
         "La tabla de fisiologia es aproximada (no es la tabla exacta de httk)."
     ),
-    "input_schema": {
+    "inputSchema": {
         "type": "object",
         "properties": {
             "mode": {"type": "string", "enum": ["simulate", "self_test", "validate"]},

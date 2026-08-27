@@ -30,7 +30,7 @@ TOOL_SCHEMA = {
         "(tangente, normal, binormal), curvatura, torsión, longitud de arco "
         "y círculo osculador."
     ),
-    "input_schema": {
+    "inputSchema": {
         "type": "object",
         "properties": {
             "mode": {

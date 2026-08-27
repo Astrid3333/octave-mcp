@@ -769,42 +769,31 @@ TOOL_SCHEMA = {
         "faltantes. No sustituye ensayos de laboratorio ni decisiones "
         "regulatorias — es cribado rapido / uso educativo."
     ),
-    "modes": {
-        "descriptors": {
-            "description": "Calcula descriptores moleculares para uno o mas SMILES.",
+    "inputSchema": {
+        "type": "object",
+        "properties": {
+            "mode": {
+                "type": "string",
+                "enum": ["descriptors", "train", "predict", "self_test"],
+                "description": (
+                    "descriptors: calcula descriptores moleculares. "
+                    "train: entrena el clasificador multi-tarea. "
+                    "predict: predice probabilidades con un modelo entrenado. "
+                    "self_test: corre la bateria de validacion interna, sin parametros."
+                ),
+            },
             "params": {
-                "smiles": "string, opcional (uno solo)",
-                "smiles_list": "lista de strings, opcional (varios)",
-                "backend": "'auto' | 'rdkit' | 'lightweight' (default 'auto')",
+                "type": "object",
+                "description": (
+                    "Parametros especificos del modo. "
+                    "descriptors: {smiles, smiles_list, backend}. "
+                    "train: {csv_text, data, task_cols, backend, extended_features, epochs, lr, l2}. "
+                    "predict: {model, smiles, smiles_list}. "
+                    "self_test: no requiere params."
+                ),
             },
         },
-        "train": {
-            "description": "Entrena el clasificador multi-tarea sobre datos etiquetados estilo Tox21.",
-            "params": {
-                "csv_text": "contenido de un CSV con columna smiles + columnas de tareas (0/1/vacio), opcional",
-                "data": "alternativa a csv_text: lista de {'smiles':..., 'labels': {...}}",
-                "task_cols": "lista de nombres de columnas/tareas a usar (default: las 12 de Tox21 presentes)",
-                "backend": "'auto' | 'rdkit' | 'lightweight' (default 'auto')",
-                "extended_features": "bool, agrega logP/TPSA/rotatable bonds (solo si backend=rdkit)",
-                "epochs": "int, default 800",
-                "lr": "float, default 0.15",
-                "l2": "float, default 1e-3",
-            },
-        },
-        "predict": {
-            "description": "Predice probabilidades por tarea para SMILES nuevos usando un modelo entrenado.",
-            "params": {
-                "model": "dict devuelto por mode='train'",
-                "smiles": "string, opcional (uno solo)",
-                "smiles_list": "lista de strings, opcional (varios)",
-            },
-        },
-        "self_test": {
-            "description": "Corre la bateria de validacion (pesos moleculares de referencia, "
-                            "cruce contra RDKit si esta disponible, convergencia del entrenamiento, "
-                            "carga de CSV, manejo de errores). Sin parametros.",
-            "params": {},
-        },
+        "required": ["mode"],
     },
 }
 

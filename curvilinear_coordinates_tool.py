@@ -188,7 +188,7 @@ TOOL_SCHEMA = {
         "métrico g_ij. Para convertir puntos entre sistemas usar "
         "coordinate_transform_tool."
     ),
-    "input_schema": {
+    "inputSchema": {
         "type": "object",
         "properties": {
             "mode": {

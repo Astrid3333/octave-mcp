@@ -188,7 +188,7 @@ TOOL_SCHEMA = {
         "cartesianas, y trilineales de incentro/centroide/circuncentro/"
         "ortocentro a partir de los lados a,b,c."
     ),
-    "input_schema": {
+    "inputSchema": {
         "type": "object",
         "properties": {
             "mode": {
