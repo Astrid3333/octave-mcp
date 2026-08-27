@@ -164,6 +164,7 @@ import tool_catalog_tool  # auto-registra via tool_registry, no requiere mas edi
 import scalar_field_cosmology_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import vacuum_energy_density_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import unified_dark_sector_tool  # auto-registra via tool_registry, no requiere mas ediciones
+import gravitational_waves_tool  # auto-registra via tool_registry
 import toxicity_predictor  # auto-registra via tool_registry
 import virtual_pharmacokinetics  # auto-registra via tool_registry
 import genESOM_simulator  # auto-registra via tool_registry
