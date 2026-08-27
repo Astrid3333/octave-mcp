@@ -188,7 +188,7 @@ def validate():
 
     def check(name, cond):
         nonlocal all_pass
-        results.append({"test": name, "passed": bool(cond)})
+        results.append({"name": name, "passed": bool(cond)})
         all_pass = all_pass and bool(cond)
 
     freq = np.linspace(4e9, 8e9, 5)
@@ -248,7 +248,7 @@ def validate():
     return {
         "tests_passed": sum(r["passed"] for r in results),
         "tests_total": len(results),
-        "results": results,
+        "checks": results,
         "validation_passed": all_pass,
         "status": "PASSED" if all_pass else "FAILED",
     }

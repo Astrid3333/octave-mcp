@@ -79,6 +79,8 @@ from machine_learning_math_tool import compute_machine_learning_math, MACHINE_LE
 from financial_math_tool import compute_financial_math, FINANCIAL_MATH_TOOL_SCHEMA
 from quantity_takeoff_tool import compute_quantity_takeoff, QUANTITY_TAKEOFF_TOOL_SCHEMA
 from structural_analysis_tool import compute_structural_analysis, STRUCTURAL_ANALYSIS_TOOL_SCHEMA
+import rf_network_advanced_tool  # auto-registra via tool_registry
+import nonlinear_vibration_tool  # auto-registra via tool_registry
 import structural_analysis_advanced_tool  # auto-registra via tool_registry
 import finite_element_advanced_tool  # auto-registra via tool_registry
 import statistical_physics_tool_extended  # auto-registra via tool_registry
