@@ -14,7 +14,12 @@ import surface_geometry_tool  # auto-registra via tool_registry
 import gene_drive_population_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import crisprzip_energy_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import genetic_circuit_control_tool  # auto-registra via tool_registry, no requiere mas ediciones
-import stem_cell_lineage_tool  # auto-registra via tool_registry
+import stem_cell_lineage_tool
+import domino_effect_tool
+import cascade_orchestrator_tool
+import cascading_outbreak_predictor
+import information_cascade_tool
+import bilevel_interdiction_tool  # auto-registra via tool_registry
 import cardiac_regeneration_tool  # auto-registra via tool_registry
 import stem_cell_niche_tool  # auto-registra via tool_registry
 import cell_fate_decision_tool  # auto-registra via tool_registry
