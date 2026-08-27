@@ -163,6 +163,11 @@ def validate(params=None):
     validation_passed = bool(r1["passed"] and r2["passed"] and r3["passed"])
     return {
         "wave_2d": r1, "interference": r2, "diffraction": r3,
+        "checks": [
+            {"name": "wave_2d", "passed": bool(r1["passed"])},
+            {"name": "interference", "passed": bool(r2["passed"])},
+            {"name": "diffraction", "passed": bool(r3["passed"])},
+        ],
         "validation_passed": validation_passed,
     }
 

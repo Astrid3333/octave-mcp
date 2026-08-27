@@ -190,6 +190,11 @@ def _validate():
             "expected": "sala reflectante (alpha bajo) debe tener RT60 mayor que sala absorbente (alpha alto)",
             "passed": bool(sabine_ok),
         },
+        "checks": [
+            {"name": "pressure_wave_1d_matches_analytic", "passed": bool(pw_ok)},
+            {"name": "room_modes_lowest_axial_matches_formula", "passed": bool(room_ok)},
+            {"name": "reverberation_sabine_reflective_gt_absorbent", "passed": bool(sabine_ok)},
+        ],
         "validation_passed": bool(pw_ok and room_ok and sabine_ok),
     }
 

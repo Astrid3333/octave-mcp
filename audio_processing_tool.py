@@ -210,6 +210,11 @@ def validate(params=None):
     validation_passed = bool(r1["passed"] and r2["passed"] and r3["passed"])
     return {
         "harmonics": r1, "tone_sweep": r2, "audio_filter": r3,
+        "checks": [
+            {"name": "harmonics", "passed": bool(r1["passed"])},
+            {"name": "tone_sweep", "passed": bool(r2["passed"])},
+            {"name": "audio_filter", "passed": bool(r3["passed"])},
+        ],
         "validation_passed": validation_passed,
     }
 

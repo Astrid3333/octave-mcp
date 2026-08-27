@@ -115,6 +115,10 @@ def _validate():
         "sound_speed_at_20C_ms": c20,
         "attenuation_levels_db": levels,
         "expected": "c(20C) ~343 m/s; nivel recibido decrece monotonamente con la distancia",
+        "checks": [
+            {"name": "sound_speed_20C", "passed": bool(speed_ok)},
+            {"name": "attenuation_monotonic_decrease", "passed": bool(monotonic_ok)},
+        ],
         "validation_passed": bool(speed_ok and monotonic_ok),
     }
 
