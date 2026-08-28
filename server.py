@@ -351,6 +351,7 @@ from cascading_outbreak_predictor import run as outbreak_run
 import openems_quantum_circuit_tool  # auto-registra via tool_registry
 import rf_network_analysis  # auto-registra via tool_registry
 import resource_assignment_tool  # auto-registra via tool_registry
+import fault_dislocation_tool  # noqa: F401  -- autoregistra via tool_registry
 import sandpile_avalanche_tool  # auto-registra via tool_registry
 import cascading_failure_tool  # auto-registra via tool_registry
 import systemic_risk_tool  # auto-registra via tool_registry
