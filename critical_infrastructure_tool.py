@@ -100,11 +100,42 @@ def _betweenness_centrality(nodes, adj):
 # Modos
 # ---------------------------------------------------------------------------
 
+def _validate_nodes_shape(nodes, expect_dicts, mode_name):
+    """Valida que `nodes` tenga la forma que este modo espera.
+    expect_dicts=False: lista plana de ids (network_redundancy_n1,
+    critical_node_identification). expect_dicts=True: lista de dicts
+    {id,capacity,load} (cascading_failure_simulation, load_redistribution).
+    Sin esto, pasar la forma equivocada explota mas abajo con TypeErrors
+    cripticos (unhashable type: 'dict' / string indices must be integers)."""
+    if not nodes:
+        return
+    sample = nodes[0]
+    is_dict = isinstance(sample, dict)
+    if expect_dicts and not is_dict:
+        raise ValueError(
+            f"[{mode_name}] 'nodes' debe ser lista de dicts "
+            f"{{'id','capacity','load'}}, no una lista plana de ids."
+        )
+    if not expect_dicts and is_dict:
+        raise ValueError(
+            f"[{mode_name}] 'nodes' debe ser lista plana de ids "
+            f"(strings), no una lista de dicts {{'id','capacity','load'}}."
+        )
+    if expect_dicts:
+        missing = [k for k in ("id", "capacity", "load") if k not in sample]
+        if missing:
+            raise ValueError(
+                f"[{mode_name}] cada elemento de 'nodes' necesita las claves "
+                f"{missing}; faltan en el primer elemento: {sample}"
+            )
+
+
 def _network_redundancy_n1(params):
     nodes = params["nodes"]
     edges = params["edges"]
     if not nodes or not edges:
         raise ValueError("nodes y edges no pueden estar vacios")
+    _validate_nodes_shape(nodes, expect_dicts=False, mode_name="network_redundancy_n1")
     adj = _build_adjacency(nodes, edges)
     all_nodes = set(nodes)
     base_reach = _bfs_reachable(adj, nodes[0])
@@ -130,6 +161,7 @@ def _network_redundancy_n1(params):
 def _cascading_failure_simulation(params):
     nodes_in = params["nodes"]  # [{"id","capacity","load"}]
     edges = params["edges"]
+    _validate_nodes_shape(nodes_in, expect_dicts=True, mode_name="cascading_failure_simulation")
     max_iterations = int(params.get("max_iterations", 50))
 
     state = {
@@ -186,6 +218,7 @@ def _load_redistribution(params):
     nodes_in = params["nodes"]
     edges = params["edges"]
     failed_node = params["failed_node"]
+    _validate_nodes_shape(nodes_in, expect_dicts=True, mode_name="load_redistribution")
 
     state = {n["id"]: {"capacity": float(n["capacity"]), "load": float(n["load"])} for n in nodes_in}
     if failed_node not in state:
@@ -234,6 +267,7 @@ def _critical_node_identification(params):
     edges = params["edges"]
     if not nodes:
         raise ValueError("nodes no puede estar vacio")
+    _validate_nodes_shape(nodes, expect_dicts=False, mode_name="critical_node_identification")
     adj = _build_adjacency(nodes, edges)
     C = _betweenness_centrality(nodes, adj)
     ranked = sorted(C.items(), key=lambda kv: -kv[1])
