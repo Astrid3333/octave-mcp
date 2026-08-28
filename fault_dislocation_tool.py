@@ -214,7 +214,8 @@ def _validate() -> Dict[str, Any]:
     }
 
 
-def run(mode: str, params: Dict[str, Any]) -> Dict[str, Any]:
+def run(mode: str, params: Dict[str, Any] = None) -> Dict[str, Any]:
+    params = params or {}
     if mode == "forward_deformation":
         return _forward_deformation(params)
     elif mode == "validate":
