@@ -237,7 +237,13 @@ def _validate_physics(n_trials=200, seed=1234):
 # entrypoint
 # ---------------------------------------------------------------------------
 
-def compute_tritbraid(mode="validate_physics", program="1,2,M,0,M,2,M", seed=42, initial_state=None):
+def compute_tritbraid(mode=None, program="1,2,M,0,M,2,M", seed=42, initial_state=None):
+    if mode is None:
+        raise ValueError(
+            "mode es obligatorio (no hay default): "
+            "'run_program' (usa program), 'validate_physics'/'validate' "
+            "(ignora program, corre el harness de validacion)."
+        )
     if mode == "run_program":
         return _run_program(program, seed, initial_state)
     elif mode in ("validate_physics", "validate"):
