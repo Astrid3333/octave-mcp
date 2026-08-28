@@ -272,9 +272,9 @@ FAULT_DISLOCATION_TOOL_SCHEMA = {
 }
 
 register_tool(
-    "fault_dislocation_tool",
-    FAULT_DISLOCATION_TOOL_SCHEMA,
-    run,
+    name="fault_dislocation_tool",
+    schema=FAULT_DISLOCATION_TOOL_SCHEMA,
+    handler=lambda args: run(args.get("mode"), args.get("params") or {}),
 )
 
 
