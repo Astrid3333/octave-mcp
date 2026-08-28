@@ -206,11 +206,13 @@ def _validate() -> Dict[str, Any]:
                           details="success flag de dc3d == 0 en todos los puntos"))
 
     total_passed = sum(1 for c in checks if c["passed"])
+    all_ok = total_passed == len(checks)
     return {
         "checks": checks,
         "total_passed": total_passed,
         "total_checks": len(checks),
-        "status": "success" if total_passed == len(checks) else "failed",
+        "status": "success" if all_ok else "failed",
+        "validation_passed": all_ok,
     }
 
 
