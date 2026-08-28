@@ -36,6 +36,7 @@ from typing import Any, Dict, List, Tuple
 
 import numpy as np
 from okada_wrapper import dc3dwrapper
+from scipy.linalg import solve
 
 
 def _alpha_from_nu(nu: float) -> float:
@@ -216,14 +217,284 @@ def _validate() -> Dict[str, Any]:
     }
 
 
+
+# ---------------------------------------------------------------------------
+# coupling_inversion: submode slip_distribution / interseismic_coupling
+# (usa _single_point_deformation real de arriba, Okada -- no mock)
+# ---------------------------------------------------------------------------
+
+def _lonlat_to_local_km(lon: float, lat: float, ref_lon: float, ref_lat: float) -> Tuple[float, float]:
+    """Convierte (lon,lat) a (x_east_km, y_north_km) relativo a (ref_lon,ref_lat)."""
+    lat_per_m = 1.0 / 111320.0
+    lon_per_m = lat_per_m / math.cos(math.radians(ref_lat))
+    x_east_m = (lon - ref_lon) / lon_per_m
+    y_north_m = (lat - ref_lat) / lat_per_m
+    return x_east_m / 1000.0, y_north_m / 1000.0
+
+
+def _build_fault_patches(fault_geom: Dict[str, Any], n_along: int, n_dip: int) -> List[Dict[str, Any]]:
+    patches = []
+    patch_len = fault_geom['length_m'] / n_along
+    patch_wid = fault_geom['width_m'] / n_dip
+
+    strike = math.radians(fault_geom['strike_angle'])
+    dip = math.radians(fault_geom['dip_angle'])
+
+    lat_per_m = 1.0 / 111320.0
+    lon_per_m = lat_per_m / math.cos(math.radians(fault_geom['lat']))
+
+    for i in range(n_along):
+        for j in range(n_dip):
+            s_center = (i + 0.5) * patch_len
+            d_center = (j + 0.5) * patch_wid
+
+            x_offset = s_center * math.cos(strike)
+            y_offset = s_center * math.sin(strike)
+            z_offset = d_center * math.sin(dip)
+
+            patches.append({
+                'center_lon': fault_geom['lon'] + x_offset * lon_per_m,
+                'center_lat': fault_geom['lat'] + y_offset * lat_per_m,
+                'center_depth_m': fault_geom['depth_m'] + z_offset,
+                'length_m': patch_len,
+                'width_m': patch_wid,
+                'strike': fault_geom['strike_angle'],
+                'dip': fault_geom['dip_angle'],
+                'rake': fault_geom['rake_angle'],
+                'grid_i': i,
+                'grid_j': j,
+            })
+
+    return patches
+
+
+def _build_laplacian_matrix(n_along: int, n_dip: int):
+    n_patches = n_along * n_dip
+    L = []
+    for i in range(n_along):
+        for j in range(n_dip):
+            idx = i * n_dip + j
+            neighbors = []
+            if i > 0:
+                neighbors.append((i - 1) * n_dip + j)
+            if i < n_along - 1:
+                neighbors.append((i + 1) * n_dip + j)
+            if j > 0:
+                neighbors.append(i * n_dip + (j - 1))
+            if j < n_dip - 1:
+                neighbors.append(i * n_dip + (j + 1))
+            row = np.zeros(n_patches)
+            row[idx] = len(neighbors)
+            for n_idx in neighbors:
+                row[n_idx] -= 1.0
+            if np.any(row != 0):
+                L.append(row)
+    return np.array(L) if L else np.zeros((1, n_patches))
+
+
+def _build_green_matrix(patches, obs_gps, obs_insar, fault_geom, nu: float = 0.25):
+    """G real via Okada (_single_point_deformation), NO mock exp(-dist).
+    Filas: 3 por estacion GPS (este/norte/vertical) + 1 por punto InSAR (LOS)."""
+    ref_lon, ref_lat = fault_geom['lon'], fault_geom['lat']
+    n_patches = len(patches)
+
+    rows_G, obs_vector, weights = [], [], []
+
+    def _patch_response(ox_km, oy_km, patch):
+        px_km, py_km = _lonlat_to_local_km(patch['center_lon'], patch['center_lat'], ref_lon, ref_lat)
+        patch_wid_km = patch['width_m'] / 1000.0
+        patch_len_km = patch['length_m'] / 1000.0
+        dip_rad = math.radians(patch['dip'])
+        top_depth_km = (patch['center_depth_m'] - (patch['width_m'] / 2.0) * math.sin(dip_rad)) / 1000.0
+        return _single_point_deformation(
+            x_east=ox_km, y_north=oy_km, z_up=0.0,
+            strike_deg=patch['strike'], dip_deg=patch['dip'],
+            top_depth_km=top_depth_km,
+            length_km=patch_len_km, width_km=patch_wid_km,
+            slip_m=1.0, rake_deg=patch['rake'], opening_m=0.0,
+            ref_x=px_km, ref_y=py_km, nu=nu,
+        )
+
+    for obs in obs_gps:
+        ox_km, oy_km = _lonlat_to_local_km(obs['lon'], obs['lat'], ref_lon, ref_lat)
+        row_e = np.zeros(n_patches)
+        row_n = np.zeros(n_patches)
+        row_v = np.zeros(n_patches)
+        for p_idx, patch in enumerate(patches):
+            resp = _patch_response(ox_km, oy_km, patch)
+            row_e[p_idx] = resp['u_east_m']
+            row_n[p_idx] = resp['u_north_m']
+            row_v[p_idx] = resp['u_up_m']
+        rows_G.extend([row_e, row_n, row_v])
+        obs_vector.extend([
+            obs.get('disp_east_m', 0.0), obs.get('disp_north_m', 0.0), obs.get('disp_vertical_m', 0.0),
+        ])
+        sig_e = obs.get('sigma_east_m', 1.0) or 1.0
+        sig_n = obs.get('sigma_north_m', 1.0) or 1.0
+        sig_v = obs.get('sigma_vertical_m', 1.0) or 1.0
+        weights.extend([1.0 / sig_e, 1.0 / sig_n, 1.0 / sig_v])
+
+    for obs in obs_insar:
+        ox_km, oy_km = _lonlat_to_local_km(obs['lon'], obs['lat'], ref_lon, ref_lat)
+        los_e = obs.get('los_direction_east', 0.0)
+        los_n = obs.get('los_direction_north', 0.0)
+        los_v = obs.get('los_direction_vertical', 0.0)
+        row_los = np.zeros(n_patches)
+        for p_idx, patch in enumerate(patches):
+            resp = _patch_response(ox_km, oy_km, patch)
+            row_los[p_idx] = resp['u_east_m'] * los_e + resp['u_north_m'] * los_n + resp['u_up_m'] * los_v
+        rows_G.append(row_los)
+        obs_vector.append(obs.get('los_displacement_m', 0.0))
+        sig = obs.get('sigma_m', 1.0) or 1.0
+        weights.append(1.0 / sig)
+
+    if not rows_G:
+        raise ValueError("No hay observaciones (gps_observations e insar_observations vacios)")
+
+    return np.array(rows_G), np.array(obs_vector), np.array(weights)
+
+
+def _gcv_criterion(obs, G, weights, lambda_t, lambda_l, L) -> float:
+    Cd_inv = np.diag(weights)
+    A = G.T @ Cd_inv @ G + lambda_t * np.eye(G.shape[1]) + lambda_l * (L.T @ L)
+    b = G.T @ Cd_inv @ obs
+    try:
+        slip_est = solve(A, b)
+    except np.linalg.LinAlgError:
+        return float("inf")
+    residual = obs - G @ slip_est
+    misfit = np.sum((weights * residual) ** 2)
+    try:
+        A_inv = np.linalg.inv(A)
+        trace_A_inv_GtCG = np.trace(A_inv @ G.T @ Cd_inv @ G)
+    except np.linalg.LinAlgError:
+        trace_A_inv_GtCG = 0.1
+    n = len(obs)
+    denom = (n - trace_A_inv_GtCG) ** 2
+    return misfit / denom if denom > 0 else float("inf")
+
+
+def _auto_tune_lambdas(G, obs_vector, weights, L):
+    lt_grid = np.logspace(-6, 0, 7)
+    ll_grid = np.logspace(-5, 1, 7)
+    best_gcv = float("inf")
+    best_lt, best_ll = lt_grid[0], ll_grid[0]
+    for lt in lt_grid:
+        for ll in ll_grid:
+            gcv = _gcv_criterion(obs_vector, G, weights, lt, ll, L)
+            if gcv < best_gcv:
+                best_gcv, best_lt, best_ll = gcv, lt, ll
+    return float(best_lt), float(best_ll), float(best_gcv)
+
+
+def _solve_regularized(G, obs_vector, weights, L, lambda_tikhonov, lambda_laplacian):
+    n_patches = G.shape[1]
+    auto_tuned = False
+    gcv_score = None
+    if lambda_tikhonov is None or lambda_laplacian is None:
+        lt_auto, ll_auto, gcv_score = _auto_tune_lambdas(G, obs_vector, weights, L)
+        if lambda_tikhonov is None:
+            lambda_tikhonov = lt_auto
+        if lambda_laplacian is None:
+            lambda_laplacian = ll_auto
+        auto_tuned = True
+
+    Cd_inv = np.diag(weights)
+    A = G.T @ Cd_inv @ G + lambda_tikhonov * np.eye(n_patches) + lambda_laplacian * (L.T @ L)
+    b = G.T @ Cd_inv @ obs_vector
+    try:
+        x_est = solve(A, b)
+    except np.linalg.LinAlgError:
+        x_est = np.linalg.lstsq(A, b, rcond=None)[0]
+
+    residual_rms = float(np.sqrt(np.mean((obs_vector - G @ x_est) ** 2)))
+    return x_est, lambda_tikhonov, lambda_laplacian, residual_rms, auto_tuned, gcv_score
+
+
+def _solve_slip_distribution(obs_gps, obs_insar, fault_geom, n_along, n_dip,
+                              lambda_tikhonov=None, lambda_laplacian=None):
+    patches = _build_fault_patches(fault_geom, n_along, n_dip)
+    L = _build_laplacian_matrix(n_along, n_dip)
+    G, obs_vector, weights = _build_green_matrix(patches, obs_gps, obs_insar, fault_geom)
+
+    slip_est, lam_t, lam_l, rms, auto_tuned, gcv_score = _solve_regularized(
+        G, obs_vector, weights, L, lambda_tikhonov, lambda_laplacian
+    )
+    slip_grid = slip_est.reshape((n_along, n_dip))
+    metadata = {
+        'n_patches': len(patches), 'n_obs_rows': len(obs_vector),
+        'lambda_tikhonov': lam_t, 'lambda_laplacian': lam_l,
+        'lambda_auto_tuned': auto_tuned, 'gcv_score': gcv_score,
+        'mean_slip_m': float(np.mean(slip_est)), 'max_slip_m': float(np.max(slip_est)),
+        'residual_rms': rms,
+    }
+    return slip_est, slip_grid, metadata
+
+
+def _solve_interseismic_coupling(obs_gps, obs_insar, fault_geom, n_along, n_dip,
+                                  lambda_tikhonov=None, lambda_laplacian=None):
+    """Backslip: rake+180 respecto al slip cosismico directo."""
+    fault_geom_backslip = dict(fault_geom)
+    fault_geom_backslip['rake_angle'] = (fault_geom['rake_angle'] + 180.0) % 360.0
+
+    patches = _build_fault_patches(fault_geom_backslip, n_along, n_dip)
+    L = _build_laplacian_matrix(n_along, n_dip)
+    G, obs_vector, weights = _build_green_matrix(patches, obs_gps, obs_insar, fault_geom_backslip)
+
+    alpha_unc, lam_t, lam_l, rms, auto_tuned, gcv_score = _solve_regularized(
+        G, obs_vector, weights, L, lambda_tikhonov, lambda_laplacian
+    )
+    coupling = np.clip(alpha_unc, 0.0, 1.0)
+    coupling_grid = coupling.reshape((n_along, n_dip))
+    metadata = {
+        'n_patches': len(patches), 'n_obs_rows': len(obs_vector),
+        'lambda_tikhonov': lam_t, 'lambda_laplacian': lam_l,
+        'lambda_auto_tuned': auto_tuned, 'gcv_score': gcv_score,
+        'mean_coupling': float(np.mean(coupling)),
+        'locked_fraction': float(np.sum(coupling > 0.95) / len(coupling)),
+        'creeping_fraction': float(np.sum(coupling < 0.05) / len(coupling)),
+        'residual_rms': rms,
+        'rake_convention': 'backslip = rake_angle + 180 (deficit de slip)',
+    }
+    return coupling, coupling_grid, metadata
+
+
+def _coupling_inversion(params: Dict[str, Any]) -> Dict[str, Any]:
+    submode = params.get('submode')
+    fault_geom = params.get('fault_geometry', {})
+    n_along = int(params.get('n_along', 5))
+    n_dip = int(params.get('n_dip', 5))
+    obs_gps = params.get('gps_observations', [])
+    obs_insar = params.get('insar_observations', [])
+    lam_t = params.get('lambda_tikhonov')
+    lam_l = params.get('lambda_laplacian')
+
+    if submode == 'slip_distribution':
+        slip_est, slip_grid, meta = _solve_slip_distribution(
+            obs_gps, obs_insar, fault_geom, n_along, n_dip, lam_t, lam_l
+        )
+        return {'mode': 'coupling_inversion', 'submode': 'slip_distribution',
+                'slip_vector': slip_est.tolist(), 'slip_grid': slip_grid.tolist(), 'metadata': meta}
+    elif submode == 'interseismic_coupling':
+        coupling, coupling_grid, meta = _solve_interseismic_coupling(
+            obs_gps, obs_insar, fault_geom, n_along, n_dip, lam_t, lam_l
+        )
+        return {'mode': 'coupling_inversion', 'submode': 'interseismic_coupling',
+                'coupling_vector': coupling.tolist(), 'coupling_grid': coupling_grid.tolist(), 'metadata': meta}
+    else:
+        return {'error': f"submode desconocido: {submode!r} (validos: slip_distribution, interseismic_coupling)"}
+
+
 def run(mode: str, params: Dict[str, Any] = None) -> Dict[str, Any]:
     params = params or {}
     if mode == "forward_deformation":
         return _forward_deformation(params)
+    elif mode == "coupling_inversion":
+        return _coupling_inversion(params)
     elif mode == "validate":
         return _validate()
     else:
-        return {"error": f"modo desconocido: {mode!r} (validos: forward_deformation, validate)"}
+        return {"error": f"modo desconocido: {mode!r} (validos: forward_deformation, coupling_inversion, validate)"}
 
 
 from tool_registry import register_tool
@@ -242,7 +513,7 @@ FAULT_DISLOCATION_TOOL_SCHEMA = {
         "properties": {
             "mode": {
                 "type": "string",
-                "enum": ["forward_deformation", "validate"],
+                "enum": ["forward_deformation", "coupling_inversion", "validate"],
             },
             "params": {
                 "type": "object",
@@ -264,6 +535,27 @@ FAULT_DISLOCATION_TOOL_SCHEMA = {
                         "type": "array", "items": {"type": "number"}, "default": [0.0, 0.0],
                     },
                     "nu": {"type": "number", "default": 0.25},
+                    "submode": {
+                        "type": "string",
+                        "enum": ["slip_distribution", "interseismic_coupling"],
+                        "description": "solo para mode=coupling_inversion",
+                    },
+                    "fault_geometry": {
+                        "type": "object",
+                        "description": "solo para mode=coupling_inversion: strike_angle/dip_angle/rake_angle/lon/lat/depth_m/length_m/width_m",
+                    },
+                    "n_along": {"type": "integer", "description": "solo para mode=coupling_inversion"},
+                    "n_dip": {"type": "integer", "description": "solo para mode=coupling_inversion"},
+                    "gps_observations": {
+                        "type": "array", "items": {"type": "object"},
+                        "description": "solo para mode=coupling_inversion: lon/lat/disp_east_m/disp_north_m/disp_vertical_m/sigma_*",
+                    },
+                    "insar_observations": {
+                        "type": "array", "items": {"type": "object"},
+                        "description": "solo para mode=coupling_inversion: lon/lat/los_displacement_m/los_direction_*/sigma_m",
+                    },
+                    "lambda_tikhonov": {"type": "number", "description": "solo coupling_inversion; None = auto-tune via GCV"},
+                    "lambda_laplacian": {"type": "number", "description": "solo coupling_inversion; None = auto-tune via GCV"},
                 },
             },
         },
