@@ -3,6 +3,19 @@ import json
 import numpy as np
 
 
+def _check_params(params, allowed_keys, mode_name):
+    """Valida que las claves de params sean subconjunto de allowed_keys.
+    Si hay una clave no reconocida, tira ValueError explicito en vez de
+    dejar que params.get() la ignore silenciosamente y caiga a un
+    default sin avisar (bug real detectado: depth_m en water_waves)."""
+    unknown = sorted(set(params.keys()) - set(allowed_keys))
+    if unknown:
+        raise ValueError(
+            f"[{mode_name}] parametro(s) no reconocido(s): {unknown}. "
+            f"Validos: {sorted(allowed_keys)}"
+        )
+
+
 # ---------------------------------------------------------------------------
 # mode 1: plasma
 # ---------------------------------------------------------------------------
@@ -16,6 +29,9 @@ def plasma(params):
     Se valida: (a) el cutoff exacto en k=0, (b) que la velocidad de grupo
     numerica (diferencia finita central) coincide con la analitica
     domega/dk = c^2 k/omega (EM) o 3 k v_th^2/omega (Langmuir)."""
+    _check_params(
+        params, {"wave_type", "omega_p", "c", "v_th", "k_max", "n_points"}, "plasma"
+    )
     wave_type = params.get("wave_type", "electromagnetic")
     omega_p = float(params.get("omega_p", 1.0e10))  # rad/s
     c = float(params.get("c", 3.0e8))
@@ -68,6 +84,7 @@ def water_waves(params):
     (a) aguas profundas (k h >> 1): tanh(k h)->1, omega^2 ~ g k + (sigma/rho) k^3
     (b) aguas someras (k h << 1): tanh(k h)~k h, omega^2 ~ g h k^2
         (ondas no dispersivas, vg=vp=sqrt(g h))."""
+    _check_params(params, {"g", "rho", "sigma", "h"}, "water_waves")
     g = float(params.get("g", 9.81))
     rho = float(params.get("rho", 1000.0))
     sigma = float(params.get("sigma", 0.072))  # tension superficial agua-aire N/m
@@ -130,6 +147,9 @@ def periodic_medium(params):
     homogeneo y K=omega/c exactamente, sin gaps; (b) con contraste de
     impedancia/velocidad, se abre un gap cerca de la condicion de Bragg
     k1 d1 + k2 d2 = pi."""
+    _check_params(
+        params, {"d1", "d2", "c1", "c2", "Z1", "Z2", "n_omega"}, "periodic_medium"
+    )
     d1 = float(params.get("d1", 1.0))
     d2 = float(params.get("d2", 1.0))
     c1 = float(params.get("c1", 1.0))
@@ -227,7 +247,16 @@ DISPERSION_RELATION_TOOL_SCHEMA = {
         "type": "object",
         "properties": {
             "mode": {"type": "string", "enum": ["plasma", "water_waves", "periodic_medium", "validate"]},
-            "params": {"type": "object", "description": "Parametros especificos de cada modo"},
+            "params": {
+                "type": "object",
+                "description": (
+                    "Claves por modo (cualquier otra clave tira error). "
+                    "plasma: wave_type ('electromagnetic'|'langmuir'), omega_p, "
+                    "c, v_th, k_max, n_points. water_waves: g, rho, sigma, h "
+                    "(SOLO estos 4; no existe wavelength_m, k se deriva de h). "
+                    "periodic_medium: d1, d2, c1, c2, Z1, Z2, n_omega."
+                ),
+            },
         },
         "required": ["mode"],
     },

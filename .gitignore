@@ -42,3 +42,4 @@ wire_crystallography.sh
 dark_sector_vs_cc_data.png
 patch_frenet_3d.py
 *.backup-*
+patch_*.py
