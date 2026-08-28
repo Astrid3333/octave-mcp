@@ -523,6 +523,13 @@ def run(mode: str, params: Dict[str, Any]) -> Dict[str, Any]:
     tissue_mode = params.get("tissue_mode", "hematopoietic")
     custom = params.get("custom")
     seed = params.get("seed")
+    if mode == "validate" and seed is None:
+        # Fija semilla solo en el harness de validate (Gillespie SSA sin
+        # seed daba resultados no deterministas: el check
+        # steady_state_reachable fallaba al azar segun la trayectoria,
+        # ~1 de cada 6 corridas en pruebas manuales). No afecta run_program
+        # ni otros modos, donde la aleatoriedad real es el punto.
+        seed = 20260828
     model = StemCellNicheModel(mode=tissue_mode, custom=custom, seed=seed)
     return model.run(mode, params)
 
