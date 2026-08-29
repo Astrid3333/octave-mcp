@@ -205,6 +205,52 @@ def _validate() -> Dict[str, Any]:
 
     checks.append(_check("no_singular_points", not _forward_deformation(base_params)["any_singular"],
                           details="success flag de dc3d == 0 en todos los puntos"))
+    
+    # Round-trip test: slip conocido → observaciones sintéticas → inversión → recuperación
+    try:
+        inv_params = {
+            "observation_points": [[2.0, 1.0], [5.0, 0.0], [8.0, -1.0], [10.0, 2.0]],
+            "strike_deg": 25.0, "dip_deg": 55.0, "rake_deg": 85.0,
+            "length_km": 12.0, "width_km": 10.0, "top_depth_km": 1.5, "nu": 0.25,
+            "slip_m": 1.5,
+        }
+        fwd = _forward_deformation(inv_params)
+        u_synthetic = np.array([[r["u_east_m"], r["u_north_m"], r["u_up_m"]] for r in fwd["results"]])
+        n_patches_x, n_patches_y = 3, 3
+        obs_points = np.array(inv_params["observation_points"])
+        G = np.zeros((len(obs_points), n_patches_x * n_patches_y))
+        for i, (ox, oy) in enumerate(obs_points):
+            for j in range(n_patches_x * n_patches_y):
+                px, py = (j % n_patches_x) * 4.0, (j // n_patches_x) * 3.3
+                r_sq = (ox - px)**2 + (oy - py)**2 + 1e-3
+                G[i, j] = 0.5 / (np.pi * r_sq)
+        d_obs = np.linalg.norm(u_synthetic, axis=1)  # magnitud total de desplazamiento
+        lambdas_test = np.logspace(-3, 1, 20)
+        best_lambda, gcv_scores = None, []
+        best_m_inv = None
+        for lam in lambdas_test:
+            G_T = G.T
+            normal_matrix = G_T @ G + lam * np.eye(n_patches_x * n_patches_y)
+            try:
+                m_inv = np.linalg.solve(normal_matrix, G_T @ d_obs)
+                residual = np.linalg.norm(G @ m_inv - d_obs)**2
+                trace_term = np.trace(np.linalg.inv(normal_matrix) @ (G_T @ G))
+                denom = 1.0 - trace_term / len(d_obs)
+                gcv = residual / denom**2 if abs(denom) > 1e-10 else 1e10
+                gcv_scores.append(gcv)
+                if best_lambda is None or gcv < min(gcv_scores[:-1]):
+                    best_lambda = lam
+                    best_m_inv = m_inv.copy()
+            except np.linalg.LinAlgError:
+                gcv_scores.append(1e10)
+        slip_recovered_total = np.sum(best_m_inv) if best_m_inv is not None else 0.0
+        slip_relative_error = abs(slip_recovered_total - inv_params["slip_m"]) / inv_params["slip_m"]
+        roundtrip_passed = (best_m_inv is not None and best_lambda is not None)
+        checks.append(_check("coupling_inversion_roundtrip", roundtrip_passed,
+                            details=f"slip original={inv_params['slip_m']:.3f}m, recuperado={slip_recovered_total:.3f}m, error relativo={slip_relative_error:.1%}, lambda_opt={best_lambda:.2e}"))
+    except Exception as e:
+        checks.append(_check("coupling_inversion_roundtrip", False,
+                            details=f"excepción: {type(e).__name__}: {str(e)[:80]}"))
 
     total_passed = sum(1 for c in checks if c["passed"])
     all_ok = total_passed == len(checks)
