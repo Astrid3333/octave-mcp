@@ -46,7 +46,7 @@ STRUCTURAL_ANALYSIS_TOOL_SCHEMA = {
             "supports": {"type": "object", "description": "{'A': 'pin'|'roller_x'|'roller_y'}. truss_analysis."},
             "loads": {"type": "object", "description": "{'C': [Fx, Fy]}, Fy negativo=hacia abajo. truss_analysis."},
             "shape": {"type": "string", "enum": ["rectangular", "circular", "hollow_rectangular", "hollow_circular"], "description": "section_properties."},
-            "dims": {"type": "object", "description": "Dimensiones según 'shape'. section_properties."},
+            "dims": {"type": "object", "description": "Dimensiones según 'shape' (section_properties): rectangular={b,h}; circular={d}; hollow_rectangular={b,h,t}; hollow_circular={d,t}. Opcional 'c' (m): distancia a fibra extrema, default h/2 o d/2."},
             "force": {"type": "number", "description": "stress_check."},
             "area": {"type": "number", "description": "stress_check."},
             "allowable_stress": {"type": "number", "description": "stress_check."},
@@ -512,7 +512,14 @@ def compute_structural_analysis(mode, **params):
             loads=params.get("loads"),
         )
     if mode == "section_properties":
-        return _section_properties(params["shape"], params["dims"])
+        try:
+            return _section_properties(params["shape"], params["dims"])
+        except KeyError as e:
+            raise ValueError(
+                f"Falta la clave {e} en 'dims' para shape='{params.get('shape')}'. "
+                "Claves esperadas: rectangular={b,h}, circular={d}, "
+                "hollow_rectangular={b,h,t}, hollow_circular={d,t}."
+            ) from e
     if mode == "stress_check":
         return _stress_check(params["force"], params["area"], params["allowable_stress"])
 
