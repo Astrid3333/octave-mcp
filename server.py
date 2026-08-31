@@ -15,6 +15,9 @@ import gene_drive_population_tool  # auto-registra via tool_registry, no requier
 import crisprzip_energy_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import genetic_circuit_control_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import stem_cell_lineage_tool
+import femur_biomechanics_tool
+import drug_delivery_poiseuille_tool
+import fatigue_analysis_tool
 import domino_effect_tool
 import cascade_orchestrator_tool
 import cascading_outbreak_predictor
