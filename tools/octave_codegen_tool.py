@@ -183,7 +183,11 @@ def _register():
     try:
         import tool_registry
         tool_registry.register_tool(
-            "{tool_name}", {schema_var}, {dispatch_fn}
+            "{tool_name}",
+            {schema_var},
+            lambda args: {dispatch_fn}(
+                args.get("mode"), **(args.get("params") or {{}})
+            ),
         )
     except ImportError:
         pass
