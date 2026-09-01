@@ -51,7 +51,7 @@ OCTAVE_CODEGEN_TOOL_SCHEMA = {
         "octave_grammar_tool. write_scaffold repite scaffold_tool, valida que el boilerplate "
         "compile, y solo entonces escribe. mode='validate' corre el autochequeo."
     ),
-    "input_schema": {
+    "inputSchema": {
         "type": "object",
         "properties": {
             "mode": {
@@ -148,7 +148,7 @@ run_all_validations.py).
 {schema_var} = {{
     "name": "{tool_name}",
     "description": "{desc}",
-    "input_schema": {{
+    "inputSchema": {{
         "type": "object",
         "properties": {{
             "mode": {{"type": "string", "enum": [{mode_enum}]}},
@@ -305,7 +305,11 @@ def _register():
     try:
         import tool_registry
         tool_registry.register_tool(
-            "octave_codegen_tool", OCTAVE_CODEGEN_TOOL_SCHEMA, compute_octave_codegen_tool
+            "octave_codegen_tool",
+            OCTAVE_CODEGEN_TOOL_SCHEMA,
+            lambda args: compute_octave_codegen_tool(
+                args.get("mode"), **(args.get("params") or {})
+            ),
         )
     except ImportError:
         pass
