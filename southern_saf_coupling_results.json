@@ -1,0 +1,210 @@
+{
+  "Carrizo": {
+    "fault_geometry": {
+      "lon": -119.87,
+      "lat": 35.31,
+      "depth_m": 0.0,
+      "length_m": 141221.95232226557,
+      "width_m": 15000.0,
+      "strike_angle": 118.31318413855507,
+      "dip_angle": 90.0,
+      "rake_angle": 180.0
+    },
+    "n_stations": 102,
+    "coupling_grid": [
+      [
+        0.0,
+        1.0
+      ],
+      [
+        1.0,
+        0.0
+      ],
+      [
+        0.0,
+        1.0
+      ],
+      [
+        0.0,
+        1.0
+      ],
+      [
+        0.0,
+        1.0
+      ],
+      [
+        1.0,
+        1.0
+      ]
+    ],
+    "metadata": {
+      "n_patches": 12,
+      "n_obs_rows": 306,
+      "lambda_tikhonov": 1e-06,
+      "lambda_laplacian": 1e-05,
+      "lambda_auto_tuned": true,
+      "gcv_score": 2.3666138089801825,
+      "mean_coupling": 0.5833333333333334,
+      "locked_fraction": 0.5833333333333334,
+      "creeping_fraction": 0.4166666666666667,
+      "residual_rms": 0.3625286916647659,
+      "rake_convention": "backslip = rake_angle + 180 (deficit de slip)"
+    }
+  },
+  "Mojave": {
+    "fault_geometry": {
+      "lon": -118.51,
+      "lat": 34.7,
+      "depth_m": 0.0,
+      "length_m": 103178.21386429873,
+      "width_m": 15000.0,
+      "strike_angle": 115.9355120282018,
+      "dip_angle": 90.0,
+      "rake_angle": 180.0
+    },
+    "n_stations": 113,
+    "coupling_grid": [
+      [
+        0.0,
+        1.0
+      ],
+      [
+        1.0,
+        0.0
+      ],
+      [
+        0.0,
+        1.0
+      ],
+      [
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        1.0
+      ],
+      [
+        1.0,
+        1.0
+      ]
+    ],
+    "metadata": {
+      "n_patches": 12,
+      "n_obs_rows": 339,
+      "lambda_tikhonov": 1e-06,
+      "lambda_laplacian": 1e-05,
+      "lambda_auto_tuned": true,
+      "gcv_score": 2.3627855597470426,
+      "mean_coupling": 0.5,
+      "locked_fraction": 0.5,
+      "creeping_fraction": 0.5,
+      "residual_rms": 0.5309491382476899,
+      "rake_convention": "backslip = rake_angle + 180 (deficit de slip)"
+    }
+  },
+  "San Bernardino": {
+    "fault_geometry": {
+      "lon": -117.5,
+      "lat": 34.29,
+      "depth_m": 0.0,
+      "length_m": 102528.07994126927,
+      "width_m": 15000.0,
+      "strike_angle": 113.37127480478603,
+      "dip_angle": 90.0,
+      "rake_angle": 180.0
+    },
+    "n_stations": 129,
+    "coupling_grid": [
+      [
+        0.0,
+        1.0
+      ],
+      [
+        1.0,
+        0.0
+      ],
+      [
+        0.0,
+        1.0
+      ],
+      [
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        1.0
+      ],
+      [
+        1.0,
+        1.0
+      ]
+    ],
+    "metadata": {
+      "n_patches": 12,
+      "n_obs_rows": 387,
+      "lambda_tikhonov": 1e-06,
+      "lambda_laplacian": 1e-05,
+      "lambda_auto_tuned": true,
+      "gcv_score": 0.7421834613589965,
+      "mean_coupling": 0.5,
+      "locked_fraction": 0.5,
+      "creeping_fraction": 0.5,
+      "residual_rms": 0.3082431140093751,
+      "rake_convention": "backslip = rake_angle + 180 (deficit de slip)"
+    }
+  },
+  "Coachella": {
+    "fault_geometry": {
+      "lon": -116.47,
+      "lat": 33.92,
+      "depth_m": 0.0,
+      "length_m": 94697.32751395903,
+      "width_m": 15000.0,
+      "strike_angle": 131.80185392268197,
+      "dip_angle": 90.0,
+      "rake_angle": 180.0
+    },
+    "n_stations": 111,
+    "coupling_grid": [
+      [
+        0.46351407341352147,
+        0.0
+      ],
+      [
+        1.0,
+        0.0
+      ],
+      [
+        1.0,
+        1.0
+      ],
+      [
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        1.0
+      ],
+      [
+        1.0,
+        1.0
+      ]
+    ],
+    "metadata": {
+      "n_patches": 12,
+      "n_obs_rows": 333,
+      "lambda_tikhonov": 1e-06,
+      "lambda_laplacian": 1e-05,
+      "lambda_auto_tuned": true,
+      "gcv_score": 0.8351699230695472,
+      "mean_coupling": 0.5386261727844601,
+      "locked_fraction": 0.5,
+      "creeping_fraction": 0.4166666666666667,
+      "residual_rms": 0.35902788212448034,
+      "rake_convention": "backslip = rake_angle + 180 (deficit de slip)"
+    }
+  }
+}

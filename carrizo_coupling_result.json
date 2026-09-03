@@ -1,0 +1,53 @@
+{
+  "fault_geometry": {
+    "lon": -119.87,
+    "lat": 35.31,
+    "depth_m": 0.0,
+    "length_m": 141221.95232226557,
+    "width_m": 15000.0,
+    "strike_angle": 118.31318413855507,
+    "dip_angle": 90.0,
+    "rake_angle": 0.0
+  },
+  "rake_used": 0.0,
+  "n_stations": 53,
+  "coupling_grid": [
+    [
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0
+    ],
+    [
+      1.0,
+      0.0
+    ],
+    [
+      1.0,
+      0.0
+    ],
+    [
+      1.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0
+    ]
+  ],
+  "metadata": {
+    "n_patches": 12,
+    "n_obs_rows": 159,
+    "lambda_tikhonov": 1e-06,
+    "lambda_laplacian": 1e-05,
+    "lambda_auto_tuned": true,
+    "gcv_score": 2.6309773153805196,
+    "mean_coupling": 0.25,
+    "locked_fraction": 0.25,
+    "creeping_fraction": 0.75,
+    "residual_rms": 0.392543919993494,
+    "rake_convention": "backslip = rake_angle + 180 (deficit de slip)"
+  }
+}
