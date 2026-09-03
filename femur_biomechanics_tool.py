@@ -110,6 +110,33 @@ def _stress_check(applied_stress_mpa, direction, load_type):
     }
 
 
+def _residual_limb_compare(measured_length_mm, param="longitud"):
+    """Compara una longitud medida (ej. BoundBox Z de un muñón en FreeCAD) contra
+    un parametro de referencia de la Tabla 3.1 dado en mm. Pensado para el caso de
+    uso de un munon transfemoral (mas corto que el femur completo por definicion)."""
+    if measured_length_mm is None or measured_length_mm <= 0:
+        raise ValueError("measured_length_mm debe ser > 0")
+    if param not in _GEOMETRY_TABLE:
+        raise ValueError(f"param desconocido: {param}. Opciones: {sorted(_GEOMETRY_TABLE.keys())}")
+    entry = _GEOMETRY_TABLE[param]
+    if "mean_mm" not in entry or "range_mm" not in entry:
+        raise ValueError(f"param '{param}' no tiene datos en mm (mean_mm/range_mm) -- no aplica a residual_limb_compare")
+    mean = entry["mean_mm"]
+    lo, hi = entry["range_mm"]
+    return {
+        "param": param,
+        "label": entry["label"],
+        "measured_length_mm": measured_length_mm,
+        "reference_mean_mm": mean,
+        "reference_range_mm": [lo, hi],
+        "pct_of_reference_mean": (measured_length_mm / mean) * 100.0,
+        "below_population_range": measured_length_mm < lo,
+        "above_population_range": measured_length_mm > hi,
+        "deficit_vs_mean_mm": mean - measured_length_mm,
+        "source_confidence": entry.get("confidence", "ok"),
+    }
+
+
 def _validate():
     checks = []
 
@@ -148,6 +175,24 @@ def _validate():
     ok8 = r8["safety_factor"] == float("inf")
     checks.append(("stress_check_zero_stress_inf_sf", ok8))
 
+    # residual_limb_compare: longitud igual a la media -> pct 100%, sin deficit, dentro de rango
+    r9 = _residual_limb_compare(443.6, "longitud")
+    ok9 = abs(r9["pct_of_reference_mean"] - 100.0) < 1e-6 and abs(r9["deficit_vs_mean_mm"]) < 1e-6 and not r9["below_population_range"]
+    checks.append(("residual_limb_compare_at_mean_100pct", ok9))
+
+    # residual_limb_compare: longitud por debajo del rango poblacional -> flag below_population_range
+    r10 = _residual_limb_compare(380.0, "longitud")
+    ok10 = r10["below_population_range"] is True and abs(r10["deficit_vs_mean_mm"] - 63.6) < 1e-6
+    checks.append(("residual_limb_compare_below_range_flagged", ok10))
+
+    # residual_limb_compare: param sin datos en mm (angulo) -> ValueError
+    ok11 = False
+    try:
+        _residual_limb_compare(100.0, "I_angulo_cuello_vertical_deg")
+    except ValueError:
+        ok11 = True
+    checks.append(("residual_limb_compare_rejects_non_mm_param", ok11))
+
     passed = sum(1 for _, ok in checks if ok)
     return {
         "mode": "validate",
@@ -166,7 +211,9 @@ FEMUR_BIOMECHANICS_TOOL_SCHEMA = {
         "(Tabla 3.2: resistencia maxima del hueso cortical a traccion/compresion/cortante por "
         "direccion, y modulo de Young 17 GPa axial / 11 GPa transversal) del femur humano, "
         "fuente TFG Losa Zapico UPM 2018. Incluye un chequeo de tension aplicada vs limite de "
-        "resistencia osea (stress_check). No reemplaza analisis FEM ni datos clinicos "
+        "resistencia osea (stress_check), y una comparacion de longitud de munon residual vs. "
+        "la referencia poblacional (residual_limb_compare, ej. contra el BoundBox de un objeto "
+        "FreeCAD). No reemplaza analisis FEM ni datos clinicos "
         "individualizados; valores poblacionales de referencia."
     ),
     "inputSchema": {
@@ -174,10 +221,11 @@ FEMUR_BIOMECHANICS_TOOL_SCHEMA = {
         "properties": {
             "mode": {
                 "type": "string",
-                "enum": ["geometry_reference", "cortical_strength_reference", "young_modulus", "stress_check", "validate"],
+                "enum": ["geometry_reference", "cortical_strength_reference", "young_modulus", "stress_check", "residual_limb_compare", "validate"],
                 "description": "Operacion a realizar, o 'validate' para autotest",
             },
-            "param": {"type": "string", "description": "geometry_reference: clave especifica de la tabla (opcional, si se omite devuelve toda la tabla)"},
+            "param": {"type": "string", "description": "geometry_reference/residual_limb_compare: clave especifica de la tabla (para residual_limb_compare debe tener datos en mm, default 'longitud'; para geometry_reference opcional, si se omite devuelve toda la tabla)"},
+            "measured_length_mm": {"type": "number", "description": "residual_limb_compare: longitud medida a comparar contra la referencia poblacional, mm (ej. BoundBox Z de un munon en FreeCAD)"},
             "direction": {"type": "string", "enum": ["transversal", "longitudinal", "longitudinal_axial"], "description": "cortical_strength_reference / young_modulus / stress_check: direccion de carga"},
             "load_type": {"type": "string", "enum": ["traccion", "compresion", "cortante"], "description": "stress_check: tipo de carga"},
             "applied_stress_mpa": {"type": "number", "description": "stress_check: magnitud de la tension aplicada, en MPa"},
@@ -203,6 +251,11 @@ def compute_femur_biomechanics_tool(mode, **kwargs):
         if applied is None or direction is None or load_type is None:
             raise ValueError("stress_check requiere 'applied_stress_mpa', 'direction' y 'load_type'")
         return {"mode": mode, **_stress_check(float(applied), direction, load_type)}
+    elif mode == "residual_limb_compare":
+        measured = kwargs.get("measured_length_mm")
+        if measured is None:
+            raise ValueError("residual_limb_compare requiere 'measured_length_mm'")
+        return {"mode": mode, **_residual_limb_compare(float(measured), kwargs.get("param", "longitud"))}
     else:
         raise ValueError(f"Modo desconocido: {mode}")
 

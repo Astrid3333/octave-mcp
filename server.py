@@ -342,6 +342,7 @@ import ternary_representation_tool  # auto-registra via tool_registry, no requie
 import aminoacid_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import hormone_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import octave_codegen_tool  # auto-registra via tool_registry, no requiere mas ediciones
+import arm_prosthesis_biomech_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import ultra_processed_metabolism_tool as _wire_agricultural_dynamics_tool
 from renewable_potential_tool import renewable_potential_tool as _wire_renewable_potential_tool
 from structural_beam_tool import compute_structural_beam_tool as _wire_structural_beam_tool
