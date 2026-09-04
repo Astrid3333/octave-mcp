@@ -296,10 +296,15 @@ def benford_test(params):
         "mad": mad,
         "conformity_nigrini": conformity,
         "interpretation": (
-            "MAD bajo + p-value alto => los datos son consistentes con Benford "
-            "(naturales, no manipulados/generados en lote). Desviacion fuerte "
-            "(no_conforme, p-value bajo) es señal de datos artificiales, redondeados, "
-            "truncados, o generados con un rango acotado (tipico de cuentas creadas en lote)."
+            f"conformity_nigrini={conformity} (criterio MAD de Nigrini, mas robusto que "
+            f"el p-value chi2 en muestras chicas). "
+            + ("Consistente con Benford: datos naturales, no parecen manipulados/generados "
+               "en lote." if conformity in ("conformidad_cercana", "conformidad_aceptable")
+               else "Conformidad marginal: zona limite, revisar con mas datos si es posible."
+               if conformity == "conformidad_marginal"
+               else "Desviacion significativa de Benford: señal de datos artificiales, "
+               "redondeados, truncados, o generados con un rango acotado "
+               "(tipico de cuentas creadas en lote).")
         ),
     }
 
@@ -378,7 +383,7 @@ def register(reg):
 
 # Auto-register al importarse
 import tool_registry as _treg
-_register(_treg)
+register(_treg)
 if __name__ == "__main__":
     import json
     print(json.dumps(run("validate", {}), indent=2, ensure_ascii=False))
