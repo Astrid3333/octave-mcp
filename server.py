@@ -356,10 +356,6 @@ from cascading_outbreak_predictor import run as outbreak_run
 import openems_quantum_circuit_tool  # auto-registra via tool_registry
 import rf_network_analysis  # auto-registra via tool_registry
 import resource_assignment_tool  # auto-registra via tool_registry
-from tools.power_law_benford_tool import register as _register_power_law_benford
-from tools.kleinberg_burst_tool import register as _register_kleinberg_burst
-_register_power_law_benford(tool_registry)
-_register_kleinberg_burst(tool_registry)
 import fault_dislocation_tool  # noqa: F401  -- autoregistra via tool_registry
 import sandpile_avalanche_tool  # auto-registra via tool_registry
 import cascading_failure_tool  # auto-registra via tool_registry

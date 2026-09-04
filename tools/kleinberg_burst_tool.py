@@ -61,6 +61,7 @@ TOOL_SCHEMA = {
         },
     },
     "required": ["mode"],
+    "name": TOOL_NAME,
 }
 
 
@@ -266,6 +267,11 @@ def register(reg):
     reg.register_tool(TOOL_NAME, TOOL_SCHEMA, lambda args: run(args.get("mode"), args.get("params") or {}))
 
 
+
+
+# Auto-register al importarse
+import tool_registry as _treg
+_register(_treg)
 if __name__ == "__main__":
     import json
     print(json.dumps(run("validate", {}), indent=2, ensure_ascii=False))
