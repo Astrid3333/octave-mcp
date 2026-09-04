@@ -271,7 +271,7 @@ def register(reg):
 
 # Auto-register al importarse
 import tool_registry as _treg
-_register(_treg)
+register(_treg)
 if __name__ == "__main__":
     import json
     print(json.dumps(run("validate", {}), indent=2, ensure_ascii=False))
