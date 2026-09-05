@@ -249,12 +249,16 @@ def _register():
     try:
         import tool_registry
         tool_registry.register_tool(
-            name="electrowinning_faraday_tool",
-            schema=TOOL_SCHEMA,
-            handler=lambda mode, params=None: run(mode, params),
+            "electrowinning_faraday_tool",
+            TOOL_SCHEMA,
+            lambda args: run(args.get("mode"), args.get("params") or {}),
         )
     except ImportError:
         pass  # permite import standalone para testear sin el server completo
 
 
 _register()
+
+if __name__ == "__main__":
+    import json
+    print(json.dumps(run("validate"), indent=2, ensure_ascii=False))
