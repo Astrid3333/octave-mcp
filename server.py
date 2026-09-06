@@ -373,6 +373,7 @@ import stem_cell_niche_tool  # auto-registra via tool_registry
 import tidal_harmonic_analysis_tool  # auto-registra via tool_registry
 import genetic_ternary_encoder_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import material_substitution_tool  # auto-registra via tool_registry
+import biomass_to_advanced_materials_tool  # auto-registra
 TOOLS = [
     {
             "name": "run_octave",
