@@ -372,6 +372,7 @@ import relaxometry_tool  # auto-registra via tool_registry
 import stem_cell_niche_tool  # auto-registra via tool_registry
 import tidal_harmonic_analysis_tool  # auto-registra via tool_registry
 import genetic_ternary_encoder_tool  # auto-registra via tool_registry, no requiere mas ediciones
+import material_substitution_tool  # auto-registra via tool_registry
 TOOLS = [
     {
             "name": "run_octave",
