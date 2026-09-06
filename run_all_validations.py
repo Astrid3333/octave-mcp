@@ -78,6 +78,7 @@ ALTERNATE_VALIDATE_MODE = {
     "unified_dark_sector_tool": "self_test",
     "virtual_pharmacokinetics": "self_test",
     "toxicity_predictor": "self_test",
+    "biomass_to_advanced_materials_tool": "validate",
     "carbon_footprint_tool": "validate",
     "workspace_validate": "validate",
     "levant": "validate",
