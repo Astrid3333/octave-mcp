@@ -116,9 +116,9 @@ def compute_validate():
     check5 = {"name": "ferrite_magnetic_properties_in_range", "br_tesla": result1["ferrite_properties"]["remanence_tesla"], "hc_ka_m": result1["ferrite_properties"]["coercivity_ka_m"], "mgoe": result1["ferrite_properties"]["mgoe"], "passed": 0 < result1["ferrite_properties"]["remanence_tesla"] < 1.5 and result1["ferrite_properties"]["coercivity_ka_m"] > 100}
     checks.append(check5)
     return {"validation_passed": all(c.get("passed", True) for c in checks), "n_passed": sum(1 for c in checks if c.get("passed", True)), "n_checks": len(checks), "checks": checks}
-def compute_biomass_to_advanced_materials(mode, params=None):
-    if params is None:
-        params = {}
+def compute_biomass_to_advanced_materials(args):
+    mode = args.get("mode")
+    params = args
     if mode == "oil_recycling_to_ferrite":
         return compute_oil_recycling_to_ferrite(params)
     elif mode == "biomass_laser_graphene":
