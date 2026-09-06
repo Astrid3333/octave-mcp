@@ -69,6 +69,9 @@ import hydrometeo_data_tool  # auto-registra via tool_registry, no requiere mas 
 import flood_risk_narrator_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import carbon_footprint_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import flood_connectivity_tool  # auto-registra via tool_registry, no requiere mas ediciones
+import power_law_benford_tool  # auto-registra via tool_registry
+import kleinberg_burst_tool  # auto-registra via tool_registry
+import fire_propagation_tool  # auto-registra via tool_registry
 from lyapunov_tool import compute_lyapunov_exponent, LYAPUNOV_TOOL_SCHEMA
 from stiff_ode_tool import integrate_stiff_ode, STIFF_ODE_TOOL_SCHEMA
 from bifurcation_tool import compute_bifurcation_diagram, BIFURCATION_TOOL_SCHEMA

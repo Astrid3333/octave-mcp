@@ -30,16 +30,19 @@ import numpy as np
 TOOL_NAME = "kleinberg_burst_tool"
 
 TOOL_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "mode": {
-            "type": "string",
-            "enum": ["detect_bursts", "validate"],
-        },
-        "params": {
-            "type": "object",
-            "properties": {
-                "timestamps": {
+    "name": TOOL_NAME,
+    "description": "Detección de ráfagas de eventos con autómata jerárquico de Kleinberg (2002): identifica períodos de actividad anómalamente intensa.",
+    "inputSchema": {
+        "type": "object",
+        "properties": {
+            "mode": {
+                "type": "string",
+                "enum": ["detect_bursts", "validate"],
+            },
+            "params": {
+                "type": "object",
+                "properties": {
+                    "timestamps": {
                     "type": "array",
                     "items": {"type": "number"},
                     "description": "Timestamps de eventos (segundos u otra unidad consistente), no necesariamente ordenados.",
@@ -60,8 +63,8 @@ TOOL_SCHEMA = {
             "required": ["timestamps"],
         },
     },
-    "required": ["mode"],
-    "name": TOOL_NAME,
+    "required": ["mode"]
+    }
 }
 
 

@@ -27,6 +27,9 @@ import numpy as np
 TOOL_NAME = "power_law_benford_tool"
 
 TOOL_SCHEMA = {
+    "name": TOOL_NAME,
+    "description": "Detección de leyes de potencia y distribuciones de Benford",
+    "inputSchema": {
     "type": "object",
     "properties": {
         "mode": {
@@ -62,7 +65,7 @@ TOOL_SCHEMA = {
         },
     },
     "required": ["mode"],
-    "name": TOOL_NAME,
+    }
 }
 
 
@@ -296,15 +299,10 @@ def benford_test(params):
         "mad": mad,
         "conformity_nigrini": conformity,
         "interpretation": (
-            f"conformity_nigrini={conformity} (criterio MAD de Nigrini, mas robusto que "
-            f"el p-value chi2 en muestras chicas). "
-            + ("Consistente con Benford: datos naturales, no parecen manipulados/generados "
-               "en lote." if conformity in ("conformidad_cercana", "conformidad_aceptable")
-               else "Conformidad marginal: zona limite, revisar con mas datos si es posible."
-               if conformity == "conformidad_marginal"
-               else "Desviacion significativa de Benford: señal de datos artificiales, "
-               "redondeados, truncados, o generados con un rango acotado "
-               "(tipico de cuentas creadas en lote).")
+            "MAD bajo + p-value alto => los datos son consistentes con Benford "
+            "(naturales, no manipulados/generados en lote). Desviacion fuerte "
+            "(no_conforme, p-value bajo) es señal de datos artificiales, redondeados, "
+            "truncados, o generados con un rango acotado (tipico de cuentas creadas en lote)."
         ),
     }
 
@@ -379,11 +377,6 @@ def register(reg):
     reg.register_tool(TOOL_NAME, TOOL_SCHEMA, lambda args: run(args.get("mode"), args.get("params") or {}))
 
 
-
-
-# Auto-register al importarse
-import tool_registry as _treg
-register(_treg)
 if __name__ == "__main__":
     import json
     print(json.dumps(run("validate", {}), indent=2, ensure_ascii=False))

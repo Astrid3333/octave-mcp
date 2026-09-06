@@ -664,7 +664,7 @@ try:
             raise ValueError(f"modo desconocido: {mode}. Modos válidos: {TOOL_MODES}")
         return fn_map[mode](**kwargs)
 
-    register_tool(TOOL_NAME, _dispatch, modes=TOOL_MODES)
+    register_tool(TOOL_NAME, TOOL_SCHEMA, _dispatch)
 
 except ImportError:
     # Permite importar/testear el módulo standalone sin el registry del repo
