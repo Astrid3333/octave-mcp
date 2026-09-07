@@ -5,7 +5,19 @@ _TOOL_NAME = "biomass_to_advanced_materials_tool"
 _DESCRIPTION = "Cadenas de síntesis biomasa->materiales avanzados: ferrita (reemplazo NdFeB), grafeno 3D (laser). Balance masa/energía integrado."
 def _register():
     from tool_registry import register_tool
-    schema = {"name": _TOOL_NAME, "description": _DESCRIPTION, "modes": ["oil_recycling_to_ferrite", "biomass_laser_graphene", "mass_energy_balance", "validate"]}
+    modes = ["oil_recycling_to_ferrite", "biomass_laser_graphene", "mass_energy_balance", "validate"]
+    schema = {
+        "name": _TOOL_NAME,
+        "description": _DESCRIPTION,
+        "modes": modes,
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "mode": {"type": "string", "enum": modes}
+            },
+            "required": ["mode"]
+        }
+    }
     register_tool(_TOOL_NAME, schema, compute_biomass_to_advanced_materials)
 HHV_DATA = {"vegetable_oil_virgin": 39.5, "vegetable_oil_recycled": 38.2, "cellulose": 17.5, "lignin": 26.0, "biomass_average": 18.5}
 COMPOSITION_DATA = {"vegetable_oil_virgin": {"C": 76, "H": 12, "O": 12, "N": 0.0, "S": 0.0, "Ash": 0.0}, "vegetable_oil_recycled": {"C": 75, "H": 12, "O": 13, "N": 0.0, "S": 0.0, "Ash": 0.0}, "cellulose": {"C": 44.4, "H": 6.2, "O": 49.3, "N": 0.1, "S": 0.0, "Ash": 0.0}, "lignin": {"C": 63.0, "H": 6.0, "O": 30.0, "N": 0.5, "S": 0.5, "Ash": 0.0}}
