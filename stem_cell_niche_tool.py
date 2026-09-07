@@ -467,12 +467,17 @@ class StemCellNicheModel:
         except Exception as e:
             checks["schema_consistency"] = {"passed": False, "details": str(e)}
 
+        checks_list = [
+            {"name": name, "passed": info["passed"], "details": info["details"]}
+            for name, info in checks.items()
+        ]
         return {
             "mode": self.mode,
-            "checks": checks,
+            "checks": checks_list,
             "total_passed": passed,
             "total_checks": total,
             "status": "success" if passed == total else "partial",
+            "validation_passed": bool(passed == total),
         }
 
     # ------------------------------------------------------------------
