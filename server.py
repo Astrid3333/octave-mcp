@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+import sys
+sys.modules.setdefault("server", sys.modules["__main__"])
 import subprocess, json, sys, os
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -18,6 +20,13 @@ import stem_cell_lineage_tool
 import ree_solvent_extraction_tool
 import electrowinning_faraday_tool
 import custody_chain_tool
+import power_law_benford_tool
+power_law_benford_tool.register(tool_registry)
+import data_provenance_tool
+data_provenance_tool.register(tool_registry)
+import bot_farm_pipeline_tool
+bot_farm_pipeline_tool.register(tool_registry)
+import ferrite_circular_economy_roadmap_tool
 import femur_biomechanics_tool
 import drug_delivery_poiseuille_tool
 import fatigue_analysis_tool
@@ -72,6 +81,8 @@ import flood_connectivity_tool  # auto-registra via tool_registry, no requiere m
 import power_law_benford_tool  # auto-registra via tool_registry
 import kleinberg_burst_tool  # auto-registra via tool_registry
 import fire_propagation_tool  # auto-registra via tool_registry
+import bio_extraction_tool  # auto-registra via tool_registry
+import chemical_extraction_tool  # auto-registra via tool_registry
 from lyapunov_tool import compute_lyapunov_exponent, LYAPUNOV_TOOL_SCHEMA
 from stiff_ode_tool import integrate_stiff_ode, STIFF_ODE_TOOL_SCHEMA
 from bifurcation_tool import compute_bifurcation_diagram, BIFURCATION_TOOL_SCHEMA
