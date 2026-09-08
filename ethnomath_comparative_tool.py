@@ -314,3 +314,14 @@ def ethnomath_comparative_tool(args: Dict[str, Any]) -> Dict[str, Any]:
             "n_checks": 0,
             "validation_passed": False
         }
+
+
+try:
+    from tool_registry import register_tool
+    register_tool(
+        name=TOOL_SCHEMA["name"],
+        schema=TOOL_SCHEMA,
+        handler=ethnomath_comparative_tool,
+    )
+except ImportError:
+    pass

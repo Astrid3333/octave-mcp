@@ -84,6 +84,7 @@ import kleinberg_burst_tool  # auto-registra via tool_registry
 import fire_propagation_tool  # auto-registra via tool_registry
 import bio_extraction_tool  # auto-registra via tool_registry
 import chemical_extraction_tool  # auto-registra via tool_registry
+import ethnomath_comparative_tool  # auto-registra via tool_registry
 from lyapunov_tool import compute_lyapunov_exponent, LYAPUNOV_TOOL_SCHEMA
 from stiff_ode_tool import integrate_stiff_ode, STIFF_ODE_TOOL_SCHEMA
 from bifurcation_tool import compute_bifurcation_diagram, BIFURCATION_TOOL_SCHEMA
