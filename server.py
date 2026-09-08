@@ -515,6 +515,36 @@ if __name__ == "__main__":
                             "jsonrpc": "2.0", "id": req_id,
                             "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
                         }
+                    elif target == "octave_run":
+                        output = run_octave(target_args.get("code", ""))
+                        resp = {
+                            "jsonrpc": "2.0", "id": req_id,
+                            "result": {"content": [{"type": "text", "text": output or "(sin salida)"}]},
+                        }
+                    elif target == "octave_eval_expr":
+                        output = run_octave(f"disp({target_args.get('expression', '')})")
+                        resp = {
+                            "jsonrpc": "2.0", "id": req_id,
+                            "result": {"content": [{"type": "text", "text": output or "(sin salida)"}]},
+                        }
+                    elif target == "octave_run_script":
+                        script_path = target_args.get("script_path", "")
+                        if not os.path.exists(script_path):
+                            resp = {"jsonrpc": "2.0", "id": req_id, "error": {"code": -32602, "message": f"Script '{script_path}' no encontrado"}}
+                        else:
+                            with open(script_path, 'r') as f:
+                                code = f.read()
+                            output = run_octave(code)
+                            resp = {
+                                "jsonrpc": "2.0", "id": req_id,
+                                "result": {"content": [{"type": "text", "text": output or "(sin salida)"}]},
+                            }
+                    elif target == "octave_version":
+                        output = run_octave("version")
+                        resp = {
+                            "jsonrpc": "2.0", "id": req_id,
+                            "result": {"content": [{"type": "text", "text": output or "(sin versión)"}]},
+                        }
                     else:
                         resp = {"jsonrpc": "2.0", "id": req_id, "error": {"code": -32602, "message": f"Tool '{target}' no encontrada"}}
                 elif tool_name in tool_registry.REGISTRY:
