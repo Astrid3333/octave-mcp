@@ -215,8 +215,10 @@ def _run_suite():
 
 
 def compute_health_check(mode="summary", params=None):
-    if mode not in ("summary", "run"):
-        raise ValueError(f"mode desconocido: {mode!r}. Modos validos: summary, run")
+    if mode == "validate":
+        return _validate()
+    if mode not in ("summary", "run", "validate"):
+        raise ValueError(f"mode desconocido: {mode!r}. Modos validos: summary, run, validate")
     result = _run_suite()
     if result.get("status") != "ok" or mode == "run":
         return result
