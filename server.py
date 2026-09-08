@@ -16,6 +16,7 @@ import surface_geometry_tool  # auto-registra via tool_registry
 import gene_drive_population_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import crisprzip_energy_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import genetic_circuit_control_tool  # auto-registra via tool_registry, no requiere mas ediciones
+import ternary_hamming_tool  # auto-registra via tool_registry
 import stem_cell_lineage_tool
 import ree_solvent_extraction_tool
 import electrowinning_faraday_tool

@@ -234,3 +234,14 @@ if __name__ == "__main__":
     for c in result["checks"]:
         status = "OK" if c["passed"] else "FALLO"
         print(f"  [{status}] {c['name']}")
+
+
+try:
+    from tool_registry import register_tool
+    register_tool(
+        name="ternary_hamming_tool",
+        schema=TOOL_SCHEMA,
+        handler=ternary_hamming_tool,
+    )
+except ImportError:
+    pass
