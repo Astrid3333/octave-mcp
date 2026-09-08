@@ -406,6 +406,51 @@ TOOLS = [
     {"name": "numeral_systems_embedding", "description": "Vectoriza sistemas numericos antiguos (base, tipo posicional/aditivo/ fisico, presencia de cero, redundancia representacional, soporte fisico) y proyecta a 2D via UMAP o t-SNE, para explorar agrupamientos estructurales entre culturas. Dataset base: maya_long_count, suanpan, soroban, roman_hand_abacus, yupana_depasquale, quipu, ifa_binary. Extensible via extra_systems (lista de dicts con el mismo s", "inputSchema": {"type": "object", "properties": {"method": {"type": "string", "enum": ["umap", "tsne", "validate"]}, "extra_systems": {"type": "array"}, "n_neighbors": {"type": "integer"}, "perplexity": {"type": "number"}, "random_state": {"type": "integer"}, "run_id": {"type": "string"}}}},
 ] + tool_registry.get_schemas()
 
+# --- Lazy discovery: indice liviano + meta-tools (evita mandar 332 schemas completos en tools/list) ---
+def _short_desc(desc, maxlen=100):
+    if not desc:
+        return ""
+    return desc if len(desc) <= maxlen else desc[:maxlen].rsplit(" ", 1)[0] + "..."
+
+TOOLS_INDEX = [
+    {"name": t["name"], "description": _short_desc(t.get("description", ""))}
+    for t in TOOLS
+]
+_TOOLS_BY_NAME = {t["name"]: t for t in TOOLS}
+
+META_TOOLS = [
+    {
+        "name": "list_tools",
+        "description": "Lista las tools disponibles en octave-mcp (nombre + descripcion corta). Usar antes de call_tool para descubrir que existe. Filtro opcional por substring.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"filter": {"type": "string", "description": "Substring opcional para filtrar por nombre o descripcion (case-insensitive)."}},
+            "required": [],
+        },
+    },
+    {
+        "name": "get_tool_schema",
+        "description": "Devuelve el inputSchema completo de una tool especifica de octave-mcp, dado su nombre exacto (obtenido via list_tools).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"name": {"type": "string", "description": "Nombre exacto de la tool."}},
+            "required": ["name"],
+        },
+    },
+    {
+        "name": "call_tool",
+        "description": "Ejecuta una tool de octave-mcp por nombre, con sus parametros. El nombre debe venir de list_tools; los parametros deben respetar el inputSchema obtenido via get_tool_schema.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Nombre exacto de la tool a ejecutar."},
+                "arguments": {"type": "object", "description": "Argumentos para la tool, segun su inputSchema."},
+            },
+            "required": ["name"],
+        },
+    },
+]
+
 
 if __name__ == "__main__":
     for line in sys.stdin:
@@ -431,13 +476,44 @@ if __name__ == "__main__":
                 }
 
             elif method == "tools/list":
-                resp = {"jsonrpc": "2.0", "id": req_id, "result": {"tools": TOOLS}}
+                resp = {"jsonrpc": "2.0", "id": req_id, "result": {"tools": META_TOOLS}}
 
             elif method == "tools/call":
                 tool_name = req["params"]["name"]
                 args = req["params"].get("arguments", {})
 
-                if tool_name in tool_registry.REGISTRY:
+                if tool_name == "list_tools":
+                    flt = (args.get("filter") or "").lower()
+                    items = TOOLS_INDEX
+                    if flt:
+                        items = [t for t in items if flt in t["name"].lower() or flt in t["description"].lower()]
+                    result = {"tools": items, "count": len(items)}
+                    resp = {
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                    }
+                elif tool_name == "get_tool_schema":
+                    target = args.get("name")
+                    schema = _TOOLS_BY_NAME.get(target)
+                    if schema is None:
+                        resp = {"jsonrpc": "2.0", "id": req_id, "error": {"code": -32602, "message": f"Tool '{target}' no encontrada"}}
+                    else:
+                        resp = {
+                            "jsonrpc": "2.0", "id": req_id,
+                            "result": {"content": [{"type": "text", "text": json.dumps(schema, ensure_ascii=False, indent=2)}]},
+                        }
+                elif tool_name == "call_tool":
+                    target = args.get("name")
+                    target_args = args.get("arguments", {})
+                    if target in tool_registry.REGISTRY:
+                        result = tool_registry.REGISTRY[target]["handler"](target_args)
+                        resp = {
+                            "jsonrpc": "2.0", "id": req_id,
+                            "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                        }
+                    else:
+                        resp = {"jsonrpc": "2.0", "id": req_id, "error": {"code": -32602, "message": f"Tool '{target}' no encontrada"}}
+                elif tool_name in tool_registry.REGISTRY:
                     result = tool_registry.REGISTRY[tool_name]["handler"](args)
                     resp = {
                         "jsonrpc": "2.0", "id": req_id,
