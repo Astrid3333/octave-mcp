@@ -148,7 +148,7 @@ def build_requests(tools):
     las llamadas de validate."""
     requests = [
         {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}},
-        {"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}},
+        {"jsonrpc": "2.0", "id": 2, "method": "tools/list_full", "params": {}},
     ]
     tool_id_map = {}
     next_id = 3
@@ -200,7 +200,7 @@ def _run_chunk(chunk_tools, id_offset):
     choquen con los de otros chunks al mergear despues."""
     requests = [
         {"jsonrpc": "2.0", "id": id_offset + 1, "method": "initialize", "params": {}},
-        {"jsonrpc": "2.0", "id": id_offset + 2, "method": "tools/list", "params": {}},
+        {"jsonrpc": "2.0", "id": id_offset + 2, "method": "tools/list_full", "params": {}},
     ]
     tool_id_map = {}
     next_id = id_offset + 3
@@ -292,7 +292,7 @@ def main():
     print("Consultando tools/list en server.py ...")
     bootstrap = [
         {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}},
-        {"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}},
+        {"jsonrpc": "2.0", "id": 2, "method": "tools/list_full", "params": {}},
     ]
     input_data = "\n".join(json.dumps(r) for r in bootstrap) + "\n"
     proc = subprocess.run(

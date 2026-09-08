@@ -478,6 +478,10 @@ if __name__ == "__main__":
             elif method == "tools/list":
                 resp = {"jsonrpc": "2.0", "id": req_id, "result": {"tools": META_TOOLS}}
 
+            elif method == "tools/list_full":
+                # Devuelve TOOLS completo (solo para validación pre-push interna)
+                resp = {"jsonrpc": "2.0", "id": req_id, "result": {"tools": TOOLS}}
+
             elif method == "tools/call":
                 tool_name = req["params"]["name"]
                 args = req["params"].get("arguments", {})
