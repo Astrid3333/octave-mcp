@@ -143,6 +143,49 @@ def handle_medical(args):
         "cases": cases.tolist()
     }
 
+def analyze_series(n_years, base=1000, cycle=19, noise_pct=0.10, seed=42):
+    rng = np.random.default_rng(seed)
+    years_arr = np.arange(1, n_years + 1)
+    h_vals = np.array([H((y - 1) % 19 + 1) for y in years_arr])
+    noise = rng.uniform(-noise_pct, noise_pct, size=n_years)
+    hybrid = h_vals * (1 + noise)
+    prng_only = base * (1 + noise)
+
+    def spectral_analysis(series):
+        freqs = np.fft.rfftfreq(len(series))
+        mags = np.abs(np.fft.rfft(series - series.mean()))
+        top_idx = np.argsort(mags[1:])[::-1][:3] + 1
+        periods = [round(1 / freqs[i], 1) if freqs[i] > 0 else None for i in top_idx]
+        return {"top_periods": periods, "magnitudes": mags[top_idx].tolist()}
+
+    def autocorr_at_lag(series, lag):
+        s = (series - series.mean()) / series.std()
+        return float(np.corrcoef(s[:-lag], s[lag:])[0, 1]) if lag < len(series) else None
+
+    return {
+        "mode": "analyze",
+        "n_years": n_years,
+        "stats": {
+            "hybrid": {"mean": float(hybrid.mean()), "std": float(hybrid.std()),
+                       "cv_pct": float(100 * hybrid.std() / hybrid.mean())},
+            "h_only": {"mean": float(h_vals.mean()), "std": float(h_vals.std())},
+            "prng_only": {"mean": float(prng_only.mean()), "std": float(prng_only.std())},
+        },
+        "fourier": {
+            "hybrid": spectral_analysis(hybrid),
+            "prng_only": spectral_analysis(prng_only),
+        },
+        "autocorr_lag19": {
+            "hybrid": autocorr_at_lag(hybrid, cycle),
+            "h_only": autocorr_at_lag(h_vals, cycle),
+            "prng_only": autocorr_at_lag(prng_only, cycle),
+        },
+    }
+
+def handle_analyze(args):
+    n_years = int(args.get('n_years', 30))
+    return analyze_series(n_years)
+
 def main():
     try:
         input_data = json.loads(sys.stdin.read())
@@ -157,6 +200,8 @@ def main():
             result = handle_gracilaria(args)
         elif mode == 'medical':
             result = handle_medical(args)
+        elif mode == 'analyze':
+            result = handle_analyze(args)
         else:
             result = {"error": f"Unknown mode: {mode}"}
         
