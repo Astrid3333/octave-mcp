@@ -146,7 +146,7 @@ def handle_medical(args):
 def analyze_series(n_years, base=1000, cycle=19, noise_pct=0.10, seed=42):
     rng = np.random.default_rng(seed)
     years_arr = np.arange(1, n_years + 1)
-    h_vals = np.array([H((y - 1) % 19 + 1) for y in years_arr])
+    h_vals = np.array([H(int((y - 1) % 19 + 1)) for y in years_arr])
     noise = rng.uniform(-noise_pct, noise_pct, size=n_years)
     hybrid = h_vals * (1 + noise)
     prng_only = base * (1 + noise)
