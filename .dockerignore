@@ -1,0 +1,5 @@
+.git
+archive
+__pycache__
+*.pyc
+*.bak*
