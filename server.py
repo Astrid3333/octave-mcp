@@ -409,7 +409,7 @@ TOOLS = [
     {"name": "numeral_systems_embedding", "description": "Vectoriza sistemas numericos antiguos (base, tipo posicional/aditivo/ fisico, presencia de cero, redundancia representacional, soporte fisico) y proyecta a 2D via UMAP o t-SNE, para explorar agrupamientos estructurales entre culturas. Dataset base: maya_long_count, suanpan, soroban, roman_hand_abacus, yupana_depasquale, quipu, ifa_binary. Extensible via extra_systems (lista de dicts con el mismo s", "inputSchema": {"type": "object", "properties": {"method": {"type": "string", "enum": ["umap", "tsne", "validate"]}, "extra_systems": {"type": "array"}, "n_neighbors": {"type": "integer"}, "perplexity": {"type": "number"}, "random_state": {"type": "integer"}, "run_id": {"type": "string"}}}},
 ] + tool_registry.get_schemas()
 
-# --- Lazy discovery: indice liviano + meta-tools (evita mandar 332 schemas completos en tools/list) ---
+# --- Lazy discovery: indice liviano + meta-tools (evita mandar 350 schemas completos en tools/list) ---
 def _short_desc(desc, maxlen=100):
     if not desc:
         return ""

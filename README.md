@@ -1,21 +1,25 @@
 # octave-mcp
 
-Servidor MCP (JSON-RPC manual, sin FastMCP) que expone 326 herramientas matemáticas y de simulación científica sobre Octave/Python, pensadas para usarse desde Claude Desktop u otros clientes MCP.
+Servidor MCP (JSON-RPC manual, sin FastMCP) que expone 347 herramientas matemáticas y de simulación científica sobre Octave/Python (más 3 meta-tools de introspección, 350 en total), pensadas para usarse desde Claude Desktop u otros clientes MCP.
 
 > **Nota de unificación:** este repositorio es el único proyecto activo. El antiguo `mcp-octave-real` (FastMCP, 39 tools) fue absorbido por completo — todas sus herramientas, incluidas las de historia cuantitativa (`plague_sir`, `settlement_clusters`, `historical_extractor`, `braid_group`, Benford en `historian`), viven ahora acá. `mcp-octave-real` queda deprecado y no debe usarse ni documentarse como proyecto en paralelo.
 
 ## Arquitectura
 
-- `server.py`: dispatcher manual (sin FastMCP). Cada tool nuevo requiere tres ediciones coordinadas: línea de import, entrada en la lista `TOOLS`, y bloque `elif tool_name ==` en el dispatch.
+- `server.py`: dispatcher manual (sin FastMCP). Las tools heredadas en la lista `TOOLS` siguen el esquema de tres ediciones coordinadas (import, entrada en `TOOLS`, bloque `elif tool_name ==`); las tools nuevas se registran solas.
+- `tool_registry.py`: auto-registro de tools vía `register_tool(name=, schema=, handler=)`. `TOOLS` arma como `[lista legacy] + tool_registry.get_schemas()` y el dispatch consulta `tool_registry.REGISTRY` (340 tools auto-registradas) antes que los `elif` — esto resuelve el problema de las tres ediciones coordinadas (bug historico de sobreescritura: `fractional_fourier_tool`).
+- Meta-tools de introspección: `list_tools`, `get_tool_schema`, `call_tool` — son las únicas que expone `tools/list` (evita mandar 350 schemas completos de una); `tools/list_full` devuelve las 347 herramientas.
+- Submotores Rust/Cargo (`submotors/`): `bem_electromagnetic`, `cfd_cavity`, `fem_poisson2d` — binarios externos invocados por sus tools, no código Python.
+- `Dockerfile` + `.dockerignore` para despliegue contenedor.
 - Dependencias: numpy, sympy y scipy (`advanced_probability_tool`, `advanced_stochastic_tool` y `multivariate_bayes_tool` dependen de scipy.stats).
 - Dependencia opcional: paquete Octave `symbolic` (`pkg install -forge symbolic`) para el check simbolico de `statmech_partition_tool`; si no esta instalado, ese check se salta (`skipped`) sin afectar el resultado global de `validate`.
-- Test rápido: pipear `initialize`, `tools/list`, `tools/call` (3 líneas JSON-RPC) a `timeout 30 python3 server.py`.
+- Test rápido: pipear `initialize`, `tools/list_full`, `tools/call` (3 líneas JSON-RPC) a `timeout 30 python3 server.py`. Nota: `tools/list` devuelve solo las 3 meta-tools (`list_tools`, `get_tool_schema`, `call_tool`); `tools/list_full` devuelve las 347 herramientas.
 - Workspace persistente (`workspace_save` / `workspace_load` / `workspace_list` / `workspace_describe` / `workspace_delete`) para reutilizar resultados entre llamadas sin recomputar.
 
 ## Herramientas por área
 
 ### Orquestación y utilidades base
-`octave_run`, `octave_run_script`, `octave_eval_expr`, `octave_version`, `run_math_pipeline`, `math_interpreter`, `math_explainer`, `math_error_analyzer`, `math_benchmark`, `cross_validation`, `plot_workspace_run`, `math_visualization`
+`octave_run`, `octave_run_script`, `octave_eval_expr`, `octave_version`, `octave_codegen_tool`, `run_math_pipeline`, `math_interpreter`, `math_explainer`, `math_error_analyzer`, `math_benchmark`, `cross_validation`, `plot_workspace_run`, `math_visualization`
 
 ### Gestión de workspace
 `workspace_save`, `workspace_load`, `workspace_list`, `workspace_describe`, `workspace_delete`
@@ -27,7 +31,7 @@ Servidor MCP (JSON-RPC manual, sin FastMCP) que expone 326 herramientas matemát
 `compute_lyapunov_exponent`, `compute_lyapunov_v2`, `compute_bifurcation_diagram`, `population_dynamics`, `reaction_diffusion`, `reaction_diffusion_real`, `percolation_theory`, `stochastic_processes`, `control_theory`, `optimal_control`, `optimization`
 
 ### Estadística, datos y aprendizaje
-`statistics`, `machine_learning_math`, `information_theory`, `spatial_statistics`, `network_science`, `persistent_homology`, `wavelet`, `entropy_structure`, `text_analysis_math`, `chemometrics_tool`, `econometrics_tool`, `graph_algorithms`, `glm_tool`, `clustering_tool`, `mcdm`
+`statistics`, `machine_learning_math`, `information_theory`, `spatial_statistics`, `network_science`, `persistent_homology`, `wavelet`, `entropy_structure`, `text_analysis_math`, `chemometrics_tool`, `econometrics_tool`, `power_law_benford_tool`, `graph_algorithms`, `glm_tool`, `clustering_tool`, `mcdm`
 
 ### Probabilidad avanzada e inferencia bayesiana
 
@@ -53,14 +57,14 @@ Servidor MCP (JSON-RPC manual, sin FastMCP) que expone 326 herramientas matemát
   - `factor_analysis` — Factor Analysis vía EM (Rubin-Thayer).
 
 ### Física y química
-`quantum_information`, `qm_potential_well`, `nuclear_decay_chain`, `enzyme_kinetics`, `antibiotic_diffusion`, `population_genetics`, `braid_group`, `tritbraid`, `statistical_physics_tool`, `cfd_tool`, `statmech_partition_tool`
+`quantum_information`, `qm_potential_well`, `nuclear_decay_chain`, `enzyme_kinetics`, `antibiotic_diffusion`, `bio_extraction_tool`, `chemical_extraction_tool`, `drug_delivery_poiseuille_tool`, `ree_solvent_extraction_tool`, `electrowinning_faraday_tool`, `population_genetics`, `braid_group`, `tritbraid`, `statistical_physics_tool`, `cfd_tool`, `statmech_partition_tool`
 
 ### Matemática financiera y teoría de juegos
 `financial_math` (Black-Scholes, griegas, VaR, anualidades, bonos, riesgo catastrófico vía Monte Carlo Poisson compuesto/lognormal), `game_theory`
 
 ### Historia cuantitativa, arqueología y etnomatemática
 *(absorbidas de `mcp-octave-real`)*
-`historian`, `historical_extractor`, `archaeological_simulation`, `settlement_clusters`, `plague_sir`, `paleography`, `archaeoastronomy`, `numeral_systems_embedding`, `math_philosophy_history`, `ethnomath`, `ethnomath2`, `originarios`, `levant`, `ancestral_octave`, `ancient_calculator`, `music_math`
+`historian`, `historical_extractor`, `archaeological_simulation`, `settlement_clusters`, `plague_sir`, `paleography`, `archaeoastronomy`, `numeral_systems_embedding`, `math_philosophy_history`, `ethnomath`, `ethnomath2`, `ethnomath_comparative_tool`, `ethnomath_hybrid_tool`, `originarios`, `levant`, `ancestral_octave`, `ancient_calculator`, `music_math`
 
 ### Construcción y cubicaciones
 > ⚠️ Estimación preliminar / educativa. `structural_analysis` no reemplaza el cálculo y timbre de un ingeniero estructural para obra real.
@@ -81,7 +85,7 @@ Servidor MCP (JSON-RPC manual, sin FastMCP) que expone 326 herramientas matemát
 
 ---
 
-*Correr `tools/list` contra el servidor es la fuente de verdad para el conteo exacto de tools.*
+*Correr `tools/list_full` contra el servidor es la fuente de verdad para el conteo exacto de las 347 herramientas (`tools/list` devuelve solo las 3 meta-tools).*
 
 ## Física / simulación (bloque final del roadmap)
 
@@ -160,10 +164,10 @@ Pendiente: conectores externos (FreeCAD, BIM/IFC) — oCAS ya integrado.
 ---
 
 
-## Catalogo ampliado (326 tools totales -- seccion generada automaticamente desde `tools/list`, complementa las categorias curadas arriba)
+## Catalogo ampliado (347 herramientas + 3 meta-tools = 350 tools totales -- seccion generada automaticamente desde `tools/list_full`, complementa las categorias curadas arriba)
 
 
-*Las 122 tools de las secciones anteriores no se repiten aca. Esta seccion cubre las 202 tools agregadas despues de la ultima curacion manual del README.*
+*Las tools de las secciones anteriores no se repiten aca. Las secciones combinadas (curadas + catalogo) cubren las 347 herramientas + 3 meta-tools = 350 tools en total.*
 
 
 ### Desastres y riesgo natural
@@ -326,8 +330,11 @@ Pendiente: conectores externos (FreeCAD, BIM/IFC) — oCAS ya integrado.
 
 ### Ingenieria estructural y mecanica
 
+- `arm_prosthesis_biomech_tool` -- Analisis biomecanico para diseno de protesis de brazo transradial: cargas en codo/muneca, seleccion de material, presion de contacto socket-munon, cinematica de linkage de codo, y factor de seguridad.
 - `fem_advanced_tool` -- FEM avanzado sobre vigas Euler-Bernoulli/Timoshenko
+- `fatigue_analysis_tool` -- Fatiga ciclica de componentes mecanicos (ej. tibia/pylon o pie protesico bajo carga repetida de marcha): basquin_life calcula ciclos a falla via la ecuacion de Basquin (sigma_a = sigma_f' * (2N)^b, regimen de alto ciclo); goodman_equivalent aplica la correccion de tension media de Goodman modificado; miner_damage acumula dano lineal (regla de Miner, D=sum(n_i/N_i)) sobre un espectro de bloques de carga con distinta amplitud/tension media/ciclos aplicados, y predice si D>=1 (falla). No incluye base de datos de parametros por material -- sigma_f', b y sigma_u deben proveerse (dependen del proceso de fabricacion, no solo del material nominal).
 - `finite_element_advanced_tool` -- Análisis térmico FEM: conducción transitoria (1D/2D), transferencia con convección/radiación (3D), cambio de fase (Stefan), acoplamiento...
+- `femur_biomechanics_tool` -- Datos de referencia geometricos (Tabla 3.1: longitud, offset/diametro/posicion de cabeza femoral, anchos de canal medular, angulo cuello-vertical) y mecanicos (Tabla 3.2: resistencia maxima del hueso cortical a traccion/compresion/cortante por direccion, y modulo de Young 17 GPa axial / 11 GPa transversal) del femur humano, fuente TFG Losa Zapico UPM 2018. Incluye un chequeo de tension aplicada vs limite de resistencia osea (stress_check), y una comparacion de longitud de munon residual vs. la referencia poblacional (residual_limb_compare, ej. contra el BoundBox de un objeto FreeCAD). No reemplaza analisis FEM ni datos clinicos individualizados; valores poblacionales de referencia.
 - `forced_vibration_tool` -- Vibracion forzada de vigas Euler-Bernoulli con amortiguamiento de Rayleigh (C=a0*M+a1*K)
 - `gait_analysis_tool` -- Analisis de marcha en plano sagital 2D: angulos articulares de cadera/rodilla/tobillo a partir de trayectorias de marcadores...
 - `kinematics_simulator` -- Integra con RK4 la trayectoria de una particula bajo gravedad constante, con arrastre (drag) opcional proporcional a v^2
@@ -361,9 +368,13 @@ Pendiente: conectores externos (FreeCAD, BIM/IFC) — oCAS ya integrado.
 
 ### Ciencia de materiales y estado solido
 
+- `biomass_to_advanced_materials_tool` -- Cadenas de síntesis biomasa->materiales avanzados: ferrita (reemplazo NdFeB), grafeno 3D (laser). Balance masa/energía integrado.
 - `crystal_symmetry_tool` -- Clasificación de grupos puntuales, redes de Bravais y operaciones de simetría cristalina
 - `crystallography_tool` -- Geometria de red cristalina (volumen de celda, espaciado interplanar d(hkl) via formula general triclinica valida para los 7 sistemas...
 - `dft_tool` -- Quimica computacional: energia Hartree-Fock y DFT (funcionales LDA/GGA/hibridos como B3LYP/PBE) para moleculas pequenas, via PySCF en...
+- `fault_dislocation_tool` -- Deformacion elastica de un semi-espacio por deslizamiento en una falla rectangular (Okada 1985) via okada_wrapper. Modo forward_deformation: desplazamientos (este/norte/vertical) en puntos de observacion dados strike/dip/rake/slip/geometria de falla. Modo validate: autotest interno.
+- `ferrite_circular_economy_roadmap_tool` -- Análisis técnico + económico de cadena de valor ferrita reciclada (aceite viejo → Fe₃O₄) para industrialización descentralizada no-militar en zonas rurales Chile. 7 modos: transformadores, purificación agua, MRI portátil, telecomunicaciones, agricultura sensores, multiplicador empleo, validación.
+- `material_substitution_tool` -- Comparacion cuantitativa de sustitutos de materiales conductores e imanes permanentes
 - `spectroscopy_tool` -- Espectroscopía: Ley de Beer-Lambert (A=ε·b·c) para cálculo de concentraciones, detección de gases hasta 50 ppm, análisis de precisión,...
 - `statmech_tool` -- Mecanica estadistica de equilibrio: funcion de particion canonica y cantidades termodinamicas derivadas (F, U, S, Cv) por diferenciacion...
 - `unified_dark_sector_tool` -- Calcula H(z) y Omega_m(z)/Omega_de(z) bajo un formalismo Friedmann+continuidad unificado, para cuatro familias de sector oscuro...
@@ -389,21 +400,27 @@ Pendiente: conectores externos (FreeCAD, BIM/IFC) — oCAS ya integrado.
 
 ### Combinatoria y sistemas ternarios
 
+- `genetic_ternary_encoder_tool` -- Codifica genotipos multi-locus en base 3 (0=AA sano, 1=Aa portador, 2=aa afectado), calcula frecuencias esperadas via Hardy-Weinberg a partir de una incidencia real, y marca que codigos son candidatos de edicion CRISPR-Cas9 (locus objetivo con al menos un alelo mutado).
 - `landauer_ternary_tool` -- Limite de Landauer generalizado a logica de N valores (bit, trit, o base arbitraria): energia/entropia minima para borrar simbolos con N...
 - `ternary_arithmetic_tool` -- Aritmetica ternaria balanceada (trits -1,0,1) generica, mas verificacion cruzada de 4 motores (Python/scipy, Rust, C++, ternario) del...
 - `ternary_combinatorics_tool` -- Disenos Ternarios Balanceados (BTD): generate_cyclic construye un diseno por desarrollo ciclico de un bloque base modulo V y lo verifica;...
+- `ternary_hamming_tool` -- Código Hamming ternario (GF(3)) de corrección de 1 error de trit, con análisis de tasa y eficiencia energética (Landauer) vs. Hamming binario
 - `ternary_representation_tool` -- Aritmetica en base 3: ternario balanceado (digitos -1,0,1, algoritmo real de suma con acarreo tipo Setun) y ternario estandar (digitos...
 
 ### Datos externos y fuentes
 
 - `arxiv_tool` -- Cliente de la API publica de arXiv (export.arxiv.org, sin API key)
+- `custody_chain_tool` -- Cadena de custodia forense para pipelines de analisis: registra pasos con hashes encadenados (input/output/step/chain), permite verificar integridad de un reporte completo o de un paso individual contra los datos originales. No almacena datos crudos, solo sus hashes.
 - `data_file_reader_tool` -- Lectura de archivos de datos con formato mixto (texto y numeros): CSV/TSV con cabeceras o columnas de texto, deteccion automatica de...
 - `nasa_tool` -- Cliente de APIs publicas de NASA (api.nasa.gov)
 - `units_constants_tool` -- Conversion de unidades (longitud, masa, tiempo, energia, presion, fuerza, potencia, volumen, angulo, temperatura) y constantes fisicas...
 
 ### Modelado social y educativo
 
+- `bot_farm_pipeline_tool` -- Orquestador de investigacion de granjas de bots: corre los pasos del pipeline (filtro de procedencia -> deteccion de rafagas -> anomalia de Benford -> similitud de texto -> densidad de red opcional) sobre un conjunto de cuentas y devuelve un reporte consolidado con un score de convergencia de señales... herramienta de TRIAGE para priorizar revision humana, no un veredicto ni una atribucion. Modos: investigate, benchmark_false_positive_rate, validate.
+- `data_provenance_tool` -- Scoring de procedencia/confiabilidad de fuentes de datos para pipelines de deteccion de desinformacion/bots. Modos: score_source, cross_reference_check, flag_unverifiable, validate.
 - `decision_support_tool` -- Sistemas de apoyo a decisiones multicriterio para priorizacion de inversiones publicas: ahp (Proceso Analitico Jerarquico de Saaty, pesos...
+- `kleinberg_burst_tool` -- Detección de ráfagas de eventos con autómata jerárquico de Kleinberg (2002): identifica períodos de actividad anómalamente intensa.
 - `resource_assignment_tool` -- Asignacion optima de recursos a tareas (algoritmo hungaro, scipy.optimize.linear_sum_assignment) y ruteo heuristico tipo TSP (fuerza...
 - `social_impact_tool` -- Impacto social de desastres: affected_population (poblacion expuesta * fraccion de exposicion), displaced_population (poblacion afectada...
 - `teaching_strategies_simulator` -- Simula un aprendiz (red neuronal de juguete) cuya retencion por concepto esta modulada por una capa de repeticion espaciada (curva de...
