@@ -451,6 +451,50 @@ Pendiente: conectores externos (FreeCAD, BIM/IFC) — oCAS ya integrado.
 
 - `number_theory` -- Teoria de numeros con aplicacion criptografica: primality_test (Miller-Rabin, detecta incluso numeros de Carmichael como 561), rsa_toy...
 
+## Despliegue con Docker
+
+```bash
+docker build -t octave-mcp .
+docker run -p 8000:8000 octave-mcp
+```
+
+- Base: `python:3.12-slim`; instala Octave, gfortran, gcc, g++, make y cargo en tiempo de build.
+- El build compila los submotores Rust (ver abajo) y crea un usuario no-root (`app`).
+- Expone el puerto 8000 y arranca `http_gateway.py`.
+
+### Compilacion de submotores
+
+Durante `docker build` se compilan los submotores Rust:
+
+```bash
+for d in submotors/*/; do (cd "$d" && cargo build --release) || true; done
+```
+
+Aplica a `bem_electromagnetic`, `cfd_cavity` y `fem_poisson2d`. Sin Docker hay que compilarlos manualmente con `cargo build --release` en cada directorio.
+
+### Nota sobre los conteos: 340, 347 y 350
+
+| Cantidad | Que cuenta | Fuente |
+|---|---|---|
+| 340 | tools auto-registradas | `tool_registry.REGISTRY` |
+| 347 | 340 + 7 tools heredadas | `tools/list_full` = `TOOLS` (server.py:410) |
+| 350 | 347 + 3 meta-tools | `tools/list` expone `TOOLS` + `list_tools`, `get_tool_schema`, `call_tool` |
+
+Es decir: `TOOLS = [lista legacy] + tool_registry.get_schemas()` (server.py:410), y el endpoint `tools/list_full` devuelve las 347, mientras `tools/list` (el estandar) devuelve 347 + 3 meta-tools = 350.
+
+### Exclusiones de validate (9 tools, por diseño)
+
+255 tools con modo `validate` implementado pasan OK (commit `b943d27`). Las 9 restantes están documentadas en `VALIDATE_EXCLUSIONS.md`:
+
+- **Wrappers de I/O (7):** `workspace_list`, `workspace_describe`, `workspace_load`, `workspace_save`, `workspace_delete`, `workspace_link`, `run_octave` — son pass-through a disco; un self-test sin tocar disco no tiene sentido.
+- **`run_math_pipeline`:** `mode=validate` corre un pipeline real, no un autochequeo (comportamiento esperado).
+- **`health_check_tool`:** la tool *es* el healthcheck; autovalidarse es circular.
+
+Son exclusiones por diseño, **no** deuda técnica.
+
 ## Estado
 
-Todas las tools de probabilidad avanzada, procesos estocásticos y bayesiano multivariado están wireadas en `server.py`, probadas en vivo, y con `validation_passed: true` en sus auto-chequeos internos.
+- **350 tools** totales: 347 en `tools/list_full` (340 auto-registradas + 7 heredadas) + 3 meta-tools.
+- Cobertura del registro verificada: **350/350** (script de cobertura).
+- **255 tools** con `validate` pasan OK (`b943d27`); 9 exclusiones documentadas en `VALIDATE_EXCLUSIONS.md`.
+- Todas las tools de probabilidad avanzada, procesos estocásticos y bayesiano multivariado están wireadas en `server.py`, probadas en vivo, y con `validation_passed: true` en sus auto-chequeos internos.
