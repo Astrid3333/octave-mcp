@@ -38,7 +38,8 @@ def _extract_field(result, field_path):
 def dry_check_pipeline(steps):
     """
     Valida el pipeline SIN ejecutar nada. Devuelve (ok: bool, report: list[dict]).
-    Chequea: tool existe en tool_registry.REGISTRY, step_id unico y presente,
+    Chequea: tool existe en tool_registry (REGISTRY o alias deprecado),
+    step_id unico y presente,
     input_from_step con las claves requeridas.
     """
     report = []
@@ -56,8 +57,8 @@ def dry_check_pipeline(steps):
             issues.append(f"step_id duplicado: {step_id!r}")
         seen_ids.add(step_id)
 
-        if tool not in tool_registry.REGISTRY:
-            issues.append(f"tool no encontrada en tool_registry.REGISTRY: {tool!r}")
+        if tool_registry.get_handler(tool) is None:
+            issues.append(f"tool no encontrada en tool_registry (REGISTRY/alias): {tool!r}")
 
         ifs = step.get("input_from_step")
         if ifs is not None:
@@ -90,7 +91,7 @@ def run_pipeline(steps, verbose=True):
     Ejecuta un pipeline ya validado. steps: lista de dicts, cada uno:
       {
         "step_id": str,
-        "tool": str (debe existir en tool_registry.REGISTRY),
+        "tool": str (debe existir en tool_registry.REGISTRY o en ALIASES),
         "arguments": {"mode": ..., "params": {...}},   # como cualquier tools/call
         "input_from_step": {                            # opcional
             "source_step_id": str,
@@ -153,7 +154,7 @@ def run_pipeline(steps, verbose=True):
             params = args.setdefault("params", {})
             params[ifw["maps_to_param"]] = extracted_ws
 
-        handler = tool_registry.REGISTRY[tool_name]["handler"]
+        handler = tool_registry.get_handler(tool_name)
         try:
             result = handler(args)
         except Exception as e:

@@ -485,6 +485,14 @@ if __name__ == "__main__":
                 # Devuelve TOOLS completo (solo para validación pre-push interna)
                 resp = {"jsonrpc": "2.0", "id": req_id, "result": {"tools": TOOLS}}
 
+            elif method == "tools/list_deprecated":
+                # Nombres deprecados tras merges del catalogo: responden en
+                # tools/call pero ya no cuentan ni aparecen en tools/list.
+                # El harness de validacion los pide aparte para no perder
+                # cobertura durante el ciclo de deprecacion.
+                resp = {"jsonrpc": "2.0", "id": req_id,
+                        "result": {"tools": tool_registry.get_deprecated_schemas()}}
+
             elif method == "tools/call":
                 tool_name = req["params"]["name"]
                 args = req["params"].get("arguments", {})
@@ -501,7 +509,7 @@ if __name__ == "__main__":
                     }
                 elif tool_name == "get_tool_schema":
                     target = args.get("name")
-                    schema = _TOOLS_BY_NAME.get(target)
+                    schema = _TOOLS_BY_NAME.get(target) or tool_registry.get_schema(target)
                     if schema is None:
                         resp = {"jsonrpc": "2.0", "id": req_id, "error": {"code": -32602, "message": f"Tool '{target}' no encontrada"}}
                     else:
@@ -512,8 +520,9 @@ if __name__ == "__main__":
                 elif tool_name == "call_tool":
                     target = args.get("name")
                     target_args = args.get("arguments", {})
-                    if target in tool_registry.REGISTRY:
-                        result = tool_registry.REGISTRY[target]["handler"](target_args)
+                    _target_handler = tool_registry.get_handler(target)
+                    if _target_handler is not None:
+                        result = _target_handler(target_args)
                         resp = {
                             "jsonrpc": "2.0", "id": req_id,
                             "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
@@ -550,8 +559,8 @@ if __name__ == "__main__":
                         }
                     else:
                         resp = {"jsonrpc": "2.0", "id": req_id, "error": {"code": -32602, "message": f"Tool '{target}' no encontrada"}}
-                elif tool_name in tool_registry.REGISTRY:
-                    result = tool_registry.REGISTRY[tool_name]["handler"](args)
+                elif tool_registry.get_handler(tool_name) is not None:
+                    result = tool_registry.get_handler(tool_name)(args)
                     resp = {
                         "jsonrpc": "2.0", "id": req_id,
                         "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},

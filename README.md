@@ -1,19 +1,19 @@
 # octave-mcp
 
-Servidor MCP (JSON-RPC manual, sin FastMCP) que expone 347 herramientas matemáticas y de simulación científica sobre Octave/Python (más 3 meta-tools de introspección, 350 en total), pensadas para usarse desde Claude Desktop u otros clientes MCP.
+Servidor MCP (JSON-RPC manual, sin FastMCP) que expone 344 herramientas matemáticas y de simulación científica sobre Octave/Python (más 3 meta-tools de introspección, 347 en total), pensadas para usarse desde Claude Desktop u otros clientes MCP.
 
 > **Nota de unificación:** este repositorio es el único proyecto activo. El antiguo `mcp-octave-real` (FastMCP, 39 tools) fue absorbido por completo — todas sus herramientas, incluidas las de historia cuantitativa (`plague_sir`, `settlement_clusters`, `historical_extractor`, `braid_group`, Benford en `historian`), viven ahora acá. `mcp-octave-real` queda deprecado y no debe usarse ni documentarse como proyecto en paralelo.
 
 ## Arquitectura
 
 - `server.py`: dispatcher manual (sin FastMCP). Las tools heredadas en la lista `TOOLS` siguen el esquema de tres ediciones coordinadas (import, entrada en `TOOLS`, bloque `elif tool_name ==`); las tools nuevas se registran solas.
-- `tool_registry.py`: auto-registro de tools vía `register_tool(name=, schema=, handler=)`. `TOOLS` arma como `[lista legacy] + tool_registry.get_schemas()` y el dispatch consulta `tool_registry.REGISTRY` (340 tools auto-registradas) antes que los `elif` — esto resuelve el problema de las tres ediciones coordinadas (bug historico de sobreescritura: `fractional_fourier_tool`).
-- Meta-tools de introspección: `list_tools`, `get_tool_schema`, `call_tool` — son las únicas que expone `tools/list` (evita mandar 350 schemas completos de una); `tools/list_full` devuelve las 347 herramientas.
+- `tool_registry.py`: auto-registro de tools vía `register_tool(name=, schema=, handler=)`. `TOOLS` arma como `[lista legacy] + tool_registry.get_schemas()` y el dispatch consulta `tool_registry.REGISTRY` (337 tools auto-registradas) antes que los `elif` — esto resuelve el problema de las tres ediciones coordinadas (bug historico de sobreescritura: `fractional_fourier_tool`).
+- Meta-tools de introspección: `list_tools`, `get_tool_schema`, `call_tool` — son las únicas que expone `tools/list` (evita mandar 350 schemas completos de una); `tools/list_full` devuelve las 344 herramientas.
 - Submotores Rust/Cargo (`submotors/`): `bem_electromagnetic`, `cfd_cavity`, `fem_poisson2d` — binarios externos invocados por sus tools, no código Python.
 - `Dockerfile` + `.dockerignore` para despliegue contenedor.
 - Dependencias: numpy, sympy y scipy (`advanced_probability_tool`, `advanced_stochastic_tool` y `multivariate_bayes_tool` dependen de scipy.stats).
 - Dependencia opcional: paquete Octave `symbolic` (`pkg install -forge symbolic`) para el check simbolico de `statmech_partition_tool`; si no esta instalado, ese check se salta (`skipped`) sin afectar el resultado global de `validate`.
-- Test rápido: pipear `initialize`, `tools/list_full`, `tools/call` (3 líneas JSON-RPC) a `timeout 30 python3 server.py`. Nota: `tools/list` devuelve solo las 3 meta-tools (`list_tools`, `get_tool_schema`, `call_tool`); `tools/list_full` devuelve las 347 herramientas.
+- Test rápido: pipear `initialize`, `tools/list_full`, `tools/call` (3 líneas JSON-RPC) a `timeout 30 python3 server.py`. Nota: `tools/list` devuelve solo las 3 meta-tools (`list_tools`, `get_tool_schema`, `call_tool`); `tools/list_full` devuelve las 344 herramientas.
 - Workspace persistente (`workspace_save` / `workspace_load` / `workspace_list` / `workspace_describe` / `workspace_delete`) para reutilizar resultados entre llamadas sin recomputar.
 
 ## Herramientas por área
@@ -64,7 +64,7 @@ Servidor MCP (JSON-RPC manual, sin FastMCP) que expone 347 herramientas matemát
 
 ### Historia cuantitativa, arqueología y etnomatemática
 *(absorbidas de `mcp-octave-real`)*
-`historian`, `historical_extractor`, `archaeological_simulation`, `settlement_clusters`, `plague_sir`, `paleography`, `archaeoastronomy`, `numeral_systems_embedding`, `math_philosophy_history`, `ethnomath`, `ethnomath2`, `ethnomath_comparative_tool`, `ethnomath_hybrid_tool`, `originarios`, `levant`, `ancestral_octave`, `ancient_calculator`, `music_math`
+`historian`, `historical_extractor`, `archaeological_simulation`, `settlement_clusters`, `plague_sir`, `paleography`, `archaeoastronomy`, `numeral_systems_embedding`, `math_philosophy_history`, `ethnomath` (+ alias deprecados por un ciclo: `ethnomath2`, `ethnomath_comparative_tool`, `ethnomath_hybrid_tool`), `originarios`, `levant`, `ancestral_octave`, `ancient_calculator`, `music_math`
 
 ### Construcción y cubicaciones
 > ⚠️ Estimación preliminar / educativa. `structural_analysis` no reemplaza el cálculo y timbre de un ingeniero estructural para obra real.
@@ -85,7 +85,7 @@ Servidor MCP (JSON-RPC manual, sin FastMCP) que expone 347 herramientas matemát
 
 ---
 
-*Correr `tools/list_full` contra el servidor es la fuente de verdad para el conteo exacto de las 347 herramientas (`tools/list` devuelve solo las 3 meta-tools).*
+*Correr `tools/list_full` contra el servidor es la fuente de verdad para el conteo exacto de las 344 herramientas (`tools/list` devuelve solo las 3 meta-tools).*
 
 ## Física / simulación (bloque final del roadmap)
 
@@ -164,10 +164,10 @@ Pendiente: conectores externos (FreeCAD, BIM/IFC) — oCAS ya integrado.
 ---
 
 
-## Catalogo ampliado (347 herramientas + 3 meta-tools = 350 tools totales -- seccion generada automaticamente desde `tools/list_full`, complementa las categorias curadas arriba)
+## Catalogo ampliado (344 herramientas + 3 meta-tools = 347 tools totales -- seccion generada automaticamente desde `tools/list_full`, complementa las categorias curadas arriba)
 
 
-*Las tools de las secciones anteriores no se repiten aca. Las secciones combinadas (curadas + catalogo) cubren las 347 herramientas + 3 meta-tools = 350 tools en total.*
+*Las tools de las secciones anteriores no se repiten aca. Las secciones combinadas (curadas + catalogo) cubren las 344 herramientas + 3 meta-tools = 347 tools en total.*
 
 
 ### Desastres y riesgo natural

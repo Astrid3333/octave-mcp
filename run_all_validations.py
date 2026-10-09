@@ -293,6 +293,7 @@ def main():
     bootstrap = [
         {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}},
         {"jsonrpc": "2.0", "id": 2, "method": "tools/list_full", "params": {}},
+        {"jsonrpc": "2.0", "id": 3, "method": "tools/list_deprecated", "params": {}},
     ]
     input_data = "\n".join(json.dumps(r) for r in bootstrap) + "\n"
     proc = subprocess.run(
@@ -300,20 +301,30 @@ def main():
         capture_output=True, text=True, timeout=TIMEOUT_SECONDS,
     )
     tools = None
+    deprecated = []
     for line in proc.stdout.splitlines():
         if not line.strip():
             continue
         d = json.loads(line)
         if d.get("id") == 2:
             tools = d["result"]["tools"]
-            break
-
+        elif d.get("id") == 3:
+            # Nombres de deprecated de merges de catalogo: siguen siendo
+            # invocables via tools/call, asi que el harness las valida igual.
+            deprecated = d.get("result", {}).get("tools", []) or []
     if tools is None:
         print("ERROR FATAL: no se pudo obtener tools/list.")
         print("STDERR:", proc.stderr[-3000:])
         sys.exit(1)
 
-    print(f"Total de tools registradas: {len(tools)}\n")
+    if deprecated:
+        tools = list(tools) + [t for t in deprecated if t.get("name") not in {x.get("name") for x in tools}]
+
+    print(f"Total de tools registradas: {len(tools)}")
+    if deprecated:
+        print(f"(incluye {len(deprecated)} alias deprecados: "
+              f"{', '.join(t.get('name', '?') for t in deprecated)})")
+    print()
 
     # Camino secuencial (build_requests) se mantiene disponible via
     # PARALLEL_WORKERS=1 por si hace falta comparar o hay algun problema

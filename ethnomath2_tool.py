@@ -371,8 +371,8 @@ def compute_ethnomath2(preset, params=None):
         return {"error": f"preset desconocido: {preset}"}
 
 try:
-    from tool_registry import register_tool
-    register_tool(
+    from tool_registry import register_alias
+    register_alias(
         name="ethnomath2",
         schema={**ETHNOMATH2_SCHEMA, "name": "ethnomath2"},
         handler=lambda args: compute_ethnomath2(**args),

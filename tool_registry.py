@@ -51,6 +51,7 @@ falta migrar las ~150 tools de una vez ni tocar nada mas.
 """
 
 REGISTRY = {}
+ALIASES = {}
 
 
 def register_tool(name, schema, handler):
@@ -74,6 +75,53 @@ def register_tool(name, schema, handler):
             f"name='{schema.get('name')}'."
         )
     REGISTRY[name] = {"schema": schema, "handler": handler}
+
+
+def register_alias(name, schema, handler):
+    """Registra un nombre deprecado tras un merge de catalogo.
+
+    Comportamiento identico a register_tool en tools/call: la tool sigue
+    respondiendo con el mismo schema y el mismo handler. La diferencia es
+    que NO entra en get_names()/get_schemas(): no aparece en tools/list,
+    en tools/list_full ni en el catalogo del README. Eso es lo que hace
+    bajar el conteo del catalogo sin romper clientes que todavia llaman
+    al nombre viejo.
+
+    Los alias se publican por tools/list_deprecated para que el harness de
+    validacion siga cubriendolos durante el ciclo de deprecacion.
+    """
+    if name in REGISTRY:
+        raise ValueError(
+            f"Tool '{name}' ya esta registrada -- colision de nombre entre "
+            f"modulos. Revisar imports duplicados o nombres repetidos."
+        )
+    if name in ALIASES:
+        raise ValueError(
+            f"Alias '{name}' ya esta registrado -- colision de nombre."
+        )
+    if schema.get("name") != name:
+        raise ValueError(
+            f"Inconsistencia de nombre en '{name}': el schema declara "
+            f"name='{schema.get('name')}'."
+        )
+    ALIASES[name] = {"schema": schema, "handler": handler}
+
+
+def get_handler(name):
+    """Handler de `name`, resolviendo aliases deprecados. None si no existe."""
+    entry = REGISTRY.get(name) or ALIASES.get(name)
+    return entry["handler"] if entry else None
+
+
+def get_schema(name):
+    """Schema de `name`, resolviendo aliases deprecados. None si no existe."""
+    entry = REGISTRY.get(name) or ALIASES.get(name)
+    return entry["schema"] if entry else None
+
+
+def get_deprecated_schemas():
+    """Schemas de los alias deprecados (para tools/list_deprecated)."""
+    return [entry["schema"] for entry in ALIASES.values()]
 
 
 def get_schemas():

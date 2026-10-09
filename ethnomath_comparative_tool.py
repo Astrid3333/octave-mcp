@@ -317,8 +317,8 @@ def ethnomath_comparative_tool(args: Dict[str, Any]) -> Dict[str, Any]:
 
 
 try:
-    from tool_registry import register_tool
-    register_tool(
+    from tool_registry import register_alias
+    register_alias(
         name=TOOL_SCHEMA["name"],
         schema=TOOL_SCHEMA,
         handler=ethnomath_comparative_tool,

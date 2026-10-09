@@ -52,10 +52,11 @@ import traceback
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 try:
-    from tool_registry import register_tool, REGISTRY
+    from tool_registry import register_tool, REGISTRY, ALIASES
 except ImportError:
     register_tool = None
     REGISTRY = {}
+    ALIASES = {}
 
 
 PARALLEL_SCHEMA = {
@@ -88,9 +89,9 @@ PARALLEL_SCHEMA = {
 
 
 def _get_handler(tool_name):
-    entry = REGISTRY.get(tool_name)
+    entry = REGISTRY.get(tool_name) or ALIASES.get(tool_name)
     if entry is None:
-        return None, f"tool '{tool_name}' no encontrada en tool_registry.REGISTRY (puede estar en el dispatcher manual de server.py, fuera del alcance de esta tool)"
+        return None, f"tool '{tool_name}' no encontrada en tool_registry (REGISTRY/ALIASES; puede estar en el dispatcher manual de server.py, fuera del alcance de esta tool)"
     handler = entry.get("handler") if isinstance(entry, dict) else entry
     if not callable(handler):
         return None, f"tool '{tool_name}' esta registrada pero su handler no es invocable"
@@ -248,6 +249,7 @@ if register_tool is not None:
                 "(ThreadPoolExecutor, default 2 workers) en una sola "
                 "llamada MCP, en vez de una tools/call por vez. Solo "
                 "alcanza tools registradas via tool_registry.REGISTRY "
+                "(y sus alias deprecados) "
                 "(patron strangler-fig) -- las que cuelgan del dispatcher "
                 "manual de server.py no son invocables desde aca, se "
                 "devuelve error explicito por task en ese caso. Devuelve "
