@@ -13,6 +13,10 @@ import education_funding_tool  # auto-registra via tool_registry, no requiere ma
 import emergency_fund_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import rpa_kinetics_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import surface_geometry_tool  # auto-registra via tool_registry
+import statistics_extended_tool  # auto-registra via tool_registry
+import composite_homogenization  # auto-registra via tool_registry
+import polarization_mapping_stokes_tool  # auto-registra via tool_registry
+import optical_sequence_id_2d_tool  # auto-registra via tool_registry
 import gene_drive_population_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import crisprzip_energy_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import genetic_circuit_control_tool  # auto-registra via tool_registry, no requiere mas ediciones
