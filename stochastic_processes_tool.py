@@ -149,8 +149,123 @@ def _validate_stochastic_processes():
         "passed": r["converged_to_stationary"] is True,
     })
 
+    r_m = compute_mcmc({"type": "gaussian", "mean": [2.0], "cov": [[2.25]]}, n_samples=20000, n_burn=2000, proposal_scale=2.0, seed=7)
+    checks.append({"name": "mcmc_gaussian_1d_mean", "expected": 2.0, "got": r_m["posterior_mean"][0], "passed": abs(r_m["posterior_mean"][0] - 2.0) < 0.15})
+    checks.append({"name": "mcmc_gaussian_1d_std", "expected": 1.5, "got": r_m["posterior_std"][0], "passed": abs(r_m["posterior_std"][0] - 1.5) < 0.15})
     all_passed = all(c["passed"] for c in checks)
     return {"mode": "validate", "checks": checks, "all_passed": all_passed}
+
+
+def compute_mcmc(target, n_samples=5000, n_burn=1000, proposal_scale=0.5, x0=None, seed=None):
+    """
+    Metropolis-Hastings generico con propuesta random-walk gaussiana.
+
+    target: {"type": "gaussian", "mean": [...], "cov": [[...]]}
+         o  {"type": "custom", "log_density_expr": "expresion en x0,x1,...",
+             "variables": ["x0", "x1", ...]}
+    La expresion custom se parsea con sympy (no eval crudo), mismo criterio
+    que symbolic_tool/tensor_calculus_tool en el resto del repo.
+
+    Devuelve media/covarianza posterior, acceptance rate, effective sample
+    size (via tiempo de autocorrelacion integrado) y una traza sub-muestreada
+    apta para math_visualization_tool.
+    """
+    ttype = target.get("type")
+
+    if ttype == "gaussian":
+        mean = np.array(target["mean"], dtype=float)
+        cov = np.array(target["cov"], dtype=float)
+        cov_inv = np.linalg.inv(cov)
+        dim = len(mean)
+
+        def log_density(x):
+            d = x - mean
+            return -0.5 * float(d @ cov_inv @ d)
+
+    elif ttype == "custom":
+        import sympy as sp
+        variables = target["variables"]
+        syms = sp.symbols(variables)
+        if not isinstance(syms, (list, tuple)):
+            syms = (syms,)
+        expr = sp.sympify(target["log_density_expr"])
+        f = sp.lambdify(syms, expr, "numpy")
+        dim = len(variables)
+
+        def log_density(x):
+            return float(f(*x))
+
+    else:
+        raise ValueError(f"target.type desconocido: {ttype!r} (usar 'gaussian' o 'custom')")
+
+    rng = np.random.default_rng(seed)
+    x_curr = np.zeros(dim) if x0 is None else np.array(x0, dtype=float)
+
+    n_total = n_burn + n_samples
+    chain = np.zeros((n_total, dim))
+    chain[0] = x_curr
+    current_log_d = log_density(x_curr)
+    n_accept = 0
+
+    for i in range(1, n_total):
+        proposal = chain[i - 1] + rng.normal(0.0, proposal_scale, dim)
+        proposal_log_d = log_density(proposal)
+        log_alpha = proposal_log_d - current_log_d
+        if np.log(rng.uniform()) < log_alpha:
+            chain[i] = proposal
+            current_log_d = proposal_log_d
+            n_accept += 1
+        else:
+            chain[i] = chain[i - 1]
+
+    samples = chain[n_burn:]
+    acceptance_rate = n_accept / (n_total - 1)
+
+    posterior_mean = samples.mean(axis=0)
+    if dim > 1:
+        posterior_cov = np.cov(samples.T)
+        posterior_std = np.sqrt(np.diag(posterior_cov))
+    else:
+        posterior_cov = np.array([[samples.var()]])
+        posterior_std = np.array([samples.std()])
+
+    def integrated_autocorr_time(x, max_lag=None):
+        n = len(x)
+        if max_lag is None:
+            max_lag = min(n // 3, 1000)
+        xc = x - x.mean()
+        var = xc.var()
+        if var == 0:
+            return 1.0
+        acf = np.correlate(xc, xc, mode="full")[n - 1:] / (var * n)
+        tau = 1.0
+        for lag in range(1, max_lag):
+            if acf[lag] < 0.05:
+                break
+            tau += 2 * acf[lag]
+        return max(tau, 1.0)
+
+    taus = [integrated_autocorr_time(samples[:, d]) for d in range(dim)]
+    tau_mean = float(np.mean(taus))
+    ess = len(samples) / tau_mean
+
+    track_every = max(1, len(samples) // 500)
+    trace = samples[::track_every]
+
+    return {
+        "mode": "mcmc",
+        "target_type": ttype,
+        "dim": dim,
+        "n_samples": n_samples,
+        "n_burn": n_burn,
+        "acceptance_rate": round(float(acceptance_rate), 4),
+        "posterior_mean": [round(float(v), 6) for v in posterior_mean],
+        "posterior_std": [round(float(v), 6) for v in posterior_std],
+        "posterior_cov": [[round(float(v), 6) for v in row] for row in posterior_cov] if dim > 1 else None,
+        "integrated_autocorr_time": round(tau_mean, 4),
+        "effective_sample_size": round(float(ess), 2),
+        "trace": [[round(float(v), 6) for v in row] for row in trace],
+    }
 
 
 def compute_stochastic_processes(mode, **kwargs):
@@ -161,6 +276,7 @@ def compute_stochastic_processes(mode, **kwargs):
         "brownian_motion": compute_brownian_motion,
         "ornstein_uhlenbeck": compute_ornstein_uhlenbeck,
         "markov_chain": compute_markov_chain,
+        "mcmc": compute_mcmc,
     }
     if mode not in fns:
         raise ValueError(f"mode desconocido: {mode}")
@@ -169,13 +285,14 @@ def compute_stochastic_processes(mode, **kwargs):
 
 STOCHASTIC_PROCESSES_TOOL_SCHEMA = {
     "name": "stochastic_processes",
-    "description": "Procesos estocasticos: movimiento browniano (estandar/con drift/geometrico), proceso de Ornstein-Uhlenbeck (reversion a la media, util para variables ambientales con equilibrio), y cadenas de Markov discretas (distribucion estacionaria, tiempo de primer paso).",
+    "description": "Procesos estocasticos: movimiento browniano (estandar/con drift/geometrico), proceso de Ornstein-Uhlenbeck (reversion a la media, util para variables ambientales con equilibrio), cadenas de Markov discretas (distribucion estacionaria, tiempo de primer paso) y mcmc (Metropolis-Hastings generico sobre una gaussiana o una densidad custom via sympy).",
     "inputSchema": {
         "type": "object",
         "properties": {
-            "mode": {"type": "string", "enum": ["brownian_motion", "ornstein_uhlenbeck", "markov_chain", "validate"]},
+            "mode": {"type": "string", "enum": ["brownian_motion", "ornstein_uhlenbeck", "markov_chain", "mcmc", "validate"]},
             "T": {"type": "number"}, "n_steps": {"type": "integer"}, "n_paths": {"type": "integer"},
-            "mu": {"type": "number"}, "sigma": {"type": "number"}, "x0": {"type": "number"},
+            "mu": {"type": "number"}, "sigma": {"type": "number"}, "x0": {"type": ["number", "array"]},
+            "target": {"type": "object"}, "n_samples": {"type": "integer"}, "n_burn": {"type": "integer"}, "proposal_scale": {"type": "number"},
             "kind": {"type": "string", "enum": ["standard", "geometric"]}, "seed": {"type": "integer"},
             "theta": {"type": "number"},
             "transition_matrix": {"type": "array"}, "initial_state": {"type": "integer"},

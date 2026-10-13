@@ -13,6 +13,8 @@ Validado contra:
   - equilibrio de nodos (suma de fuerzas = 0 en nodos libres, libro de texto)
 """
 import numpy as np
+import thermal_analysis as _thermal
+import stress_analysis as _stress
 
 FINITE_ELEMENT_TOOL_SCHEMA = {
     "name": "finite_element_tool",
@@ -24,7 +26,7 @@ FINITE_ELEMENT_TOOL_SCHEMA = {
     "inputSchema": {
         "type": "object",
         "properties": {
-            "mode": {"type": "string", "enum": ["bar_1d", "beam_bending", "truss_2d", "validate"]},
+            "mode": {"type": "string", "enum": ["bar_1d", "beam_bending", "truss_2d", "thermal_steady_1d", "thermal_transient_1d", "thermal_steady_2d", "stress_plane", "validate"]},
             "params": {"type": "object", "description": "Parametros especificos de cada modo, ver docstrings."},
         },
         "required": ["mode"],
@@ -128,6 +130,53 @@ def _truss_2d(nodes, elements, E, A, loads, fixed_dofs):
     }
 
 
+def _thermal_steady_1d(length, n_nodes, k, T_left, T_right, q=None):
+    x, T = _thermal.steady_1d(length, n_nodes, k, T_left, T_right, q)
+    return {
+        "mode": "thermal_steady_1d",
+        "x": x.tolist(),
+        "temperature": T.tolist(),
+    }
+
+
+def _thermal_transient_1d(length, n_nodes, alpha, T_initial, T_left, T_right, t_end, n_steps):
+    x, T = _thermal.transient_1d(length, n_nodes, alpha, T_initial, T_left, T_right, t_end, n_steps)
+    return {
+        "mode": "thermal_transient_1d",
+        "x": x.tolist(),
+        "temperature_final": T.tolist(),
+        "t_end": t_end,
+    }
+
+
+def _thermal_steady_2d(Lx, Ly, nx, ny, T_top, T_bottom=0.0, T_left=0.0, T_right=0.0):
+    T = _thermal.steady_2d(Lx, Ly, nx, ny, T_top, T_bottom, T_left, T_right)
+    return {
+        "mode": "thermal_steady_2d",
+        "temperature_grid": T.tolist(),
+        "nx": nx, "ny": ny,
+    }
+
+
+def _stress_plane(Lx, Ly, nx, ny, E, nu, sigma_applied, mode_elasticity="plane_stress", thickness=1.0):
+    nodes, U, stresses = _stress.solve_plane_plate(
+        Lx, Ly, nx, ny, E, nu, mode_elasticity, sigma_applied, thickness
+    )
+    sxx_mean = float(stresses[:, 0].mean())
+    return {
+        "mode": "stress_plane",
+        "sigma_xx_mean": sxx_mean,
+        "sigma_yy_mean": float(stresses[:, 1].mean()),
+        "sigma_xy_mean": float(stresses[:, 2].mean()),
+        "sigma_xx_applied": sigma_applied,
+        "relative_error_pct": 100 * abs(sxx_mean - sigma_applied) / sigma_applied,
+        "note": (
+            "Malla rectangular estructurada (Q4). No incluye geometria "
+            "circular (caso de Kirsch) todavia."
+        ),
+    }
+
+
 def compute_finite_element(mode, params=None):
     params = params or {}
     if mode == "validate":
@@ -138,8 +187,16 @@ def compute_finite_element(mode, params=None):
         return _beam_bending(**params)
     elif mode == "truss_2d":
         return _truss_2d(**params)
+    elif mode == "thermal_steady_1d":
+        return _thermal_steady_1d(**params)
+    elif mode == "thermal_transient_1d":
+        return _thermal_transient_1d(**params)
+    elif mode == "thermal_steady_2d":
+        return _thermal_steady_2d(**params)
+    elif mode == "stress_plane":
+        return _stress_plane(**params)
     else:
-        raise ValueError(f"modo desconocido: {mode}. Use bar_1d | beam_bending | truss_2d")
+        raise ValueError(f"modo desconocido: {mode}. Use bar_1d | beam_bending | truss_2d | thermal_steady_1d | thermal_transient_1d | thermal_steady_2d | stress_plane")
 
 
 
