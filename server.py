@@ -121,6 +121,8 @@ import concrete_design_tool  # auto-registra via tool_registry
 import timber_design_tool  # auto-registra via tool_registry
 import fire_design_tool  # auto-registra via tool_registry
 import pdelta_tool  # auto-registra via tool_registry
+import materials_db_tool  # auto-registra via tool_registry
+import octave_math_tool  # auto-registra via tool_registry
 import finite_element_advanced_tool  # auto-registra via tool_registry
 import statistical_physics_tool_extended  # auto-registra via tool_registry
 from earthworks_tool import compute_earthworks, EARTHWORKS_TOOL_SCHEMA
