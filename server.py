@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import sys
 sys.modules.setdefault("server", sys.modules["__main__"])
-import subprocess, json, sys, os
+import subprocess, json, sys, os, shutil
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'tools'))
@@ -13,6 +13,12 @@ import education_funding_tool  # auto-registra via tool_registry, no requiere ma
 import emergency_fund_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import rpa_kinetics_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import surface_geometry_tool  # auto-registra via tool_registry
+import ultrasound_tool  # auto-registra via tool_registry
+import document_contract_tool  # auto-registra via tool_registry
+import predator_prey_chaos_tool  # auto-registra via tool_registry
+import attractor_trajectory_tool  # auto-registra via tool_registry
+import cooking_physics_tool  # auto-registra via tool_registry (tools/)
+import food_science_tool  # auto-registra via tool_registry (tools/)
 import statistics_extended_tool  # auto-registra via tool_registry
 import composite_homogenization  # auto-registra via tool_registry
 import polarization_mapping_stokes_tool  # auto-registra via tool_registry
@@ -109,6 +115,8 @@ from structural_analysis_tool import compute_structural_analysis, STRUCTURAL_ANA
 import rf_network_advanced_tool  # auto-registra via tool_registry
 import nonlinear_vibration_tool  # auto-registra via tool_registry
 import structural_analysis_advanced_tool  # auto-registra via tool_registry
+import frame_analysis_tool  # auto-registra via tool_registry
+import eurocode_steel_tool  # auto-registra via tool_registry
 import finite_element_advanced_tool  # auto-registra via tool_registry
 import statistical_physics_tool_extended  # auto-registra via tool_registry
 from earthworks_tool import compute_earthworks, EARTHWORKS_TOOL_SCHEMA
@@ -275,8 +283,12 @@ from numeral_systems_embedding_tool import compute_numeral_systems_embedding
 
 
 def run_octave(code):
+    # octave-cli evita el binario con GUI: en un servidor sin pantalla
+    # (Railway, CI, sandbox) `octave --no-gui` emite avisos de X11 por
+    # stderr y ensucian la salida que las tools parsean como JSON.
+    octave_bin = shutil.which("octave-cli") or shutil.which("octave") or "octave"
     result = subprocess.run(
-        ["octave", "--no-gui", "--eval", code],
+        [octave_bin, "--no-gui", "--eval", code],
         capture_output=True, text=True, timeout=30
     )
     return result.stdout + result.stderr
@@ -465,6 +477,7 @@ if __name__ == "__main__":
         if not line:
             continue
         req_id = None
+        method = None
         try:
             req = json.loads(line)
             req_id = req.get("id")
@@ -1235,4 +1248,10 @@ if __name__ == "__main__":
             print(json.dumps(resp), flush=True)
 
         except Exception as e:
-            print(json.dumps({"jsonrpc": "2.0", "id": req_id, "error": {"code": -32603, "message": str(e)}}), flush=True)
+            if method == "tools/call" and req_id is not None:
+                # Fallo de ejecucion de una tool: por convencion MCP va como resultado con isError,
+                # no como error de protocolo (el cliente pierde el mensaje real con -32603).
+                _msg = type(e).__name__ + ": " + str(e)
+                print(json.dumps({"jsonrpc": "2.0", "id": req_id, "result": {"content": [{"type": "text", "text": _msg}], "isError": True}}), flush=True)
+            else:
+                print(json.dumps({"jsonrpc": "2.0", "id": req_id, "error": {"code": -32603, "message": str(e)}}), flush=True)
