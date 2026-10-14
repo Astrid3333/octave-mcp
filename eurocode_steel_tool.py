@@ -21,8 +21,77 @@ Modos:
 α curvas pandeo: a0=0.13, a=0.21, b=0.34, c=0.49, d=0.76 (4.1.2 Tabla 3).
 """
 
+import json
+import os
 import struct_kernel_py as sk
 from tool_registry import register_tool
+
+_CATALOG_PATH = os.path.join(os.path.dirname(__file__), "steel_catalog.json")
+_CATALOG_CACHE = None
+
+
+def _load_catalog():
+    global _CATALOG_CACHE
+    if _CATALOG_CACHE is None:
+        with open(_CATALOG_PATH, "r", encoding="utf-8") as f:
+            _CATALOG_CACHE = json.load(f)
+    return _CATALOG_CACHE
+
+
+def _load_profile(name):
+    """Carga un perfil del catálogo FreeCAD (cm) y lo convierte a SI (m, m², m⁴, m³).
+    Devuelve dict con A_m2, Ix_m4, Iy_m4, Wx_m3, Wy_m3, h_m, b_m, tw_m, tf_m, peso_kg_m."""
+    cat = _load_catalog()
+    key = name.replace(" ", "").upper()
+    entry = None
+    for k in cat:
+        if k.upper() == key:
+            entry = cat[k]
+            break
+    if entry is None:
+        # búsqueda parcial
+        matches = [k for k in cat if key in k.upper()]
+        if len(matches) == 1:
+            entry = cat[matches[0]]
+            key = matches[0]
+        elif matches:
+            raise ValueError(f"perfil ambiguo '{name}': {matches[:8]}")
+        else:
+            raise ValueError(f"perfil no encontrado: {name}")
+    return {
+        "name": key,
+        "A_m2": entry["A"] * 1e-4,
+        "Ix_m4": entry["Ix"] * 1e-8,
+        "Iy_m4": entry["Iy"] * 1e-8,
+        "Wx_m3": entry["Wx"] * 1e-6,
+        "Wy_m3": entry["Wy"] * 1e-6,
+        "h_m": entry["h"] * 0.01,
+        "b_m": entry["b"] * 0.01,
+        "tw_m": entry["tw"] * 0.01,
+        "tf_m": entry["tf"] * 0.01,
+        "r_m": entry.get("r", 0) * 0.01,
+        "peso_kg_m": entry["peso"],
+    }
+
+
+def _inject_profile(params):
+    """Si params['profile'] existe, rellena A/I/W/h/b/tw/tf ausentes desde el catálogo."""
+    pname = params.get("profile")
+    if not pname:
+        return params
+    p = _load_profile(pname)
+    # no sobreescribir lo que el usuario ya puso
+    mapping = {
+        "A": "A_m2", "Iz": "Iy_m4", "Ix": "Ix_m4",
+        "Wz": "Wx_m3", "Wx_cat": "Wx_m3", "Wy": "Wy_m3",
+        "h": "h_m", "b": "b_m", "tw": "tw_m", "tf": "tf_m",
+    }
+    out = dict(params)
+    out["_profile"] = p
+    for target, src in mapping.items():
+        if target not in out and src in p:
+            out[target] = p[src]
+    return out
 
 EUROCODE_STEEL_TOOL_SCHEMA = {
     "name": "eurocode_steel_tool",
@@ -31,7 +100,9 @@ EUROCODE_STEEL_TOOL_SCHEMA = {
         "buckling (χ pandeo axial, N_b,Rd), bending (M_c,Rd elástico/"
         "plástico), combined (interacción N+M 6.6.1/6.6.2), sls "
         "(límites de flecha), ecb_combo (combinaciones EN 1990 ULS/SLS "
-        "con γ y ψ). Motor de χ/λ̄/N_cr en Rust (doble precisión)."
+        "con γ y ψ), profile (buscar perfil en catálogo FreeCAD 317 secciones). "
+        "Todos los modos aceptan 'profile': 'IPE300' para auto-llenar A/I/W/h/b. "
+        "Motor de χ/λ̄/N_cr en Rust (doble precisión)."
     ),
     "inputSchema": {
         "type": "object",
@@ -39,7 +110,7 @@ EUROCODE_STEEL_TOOL_SCHEMA = {
             "mode": {
                 "type": "string",
                 "enum": ["section_class", "buckling", "bending",
-                         "combined", "sls", "ecb_combo"],
+                         "combined", "sls", "ecb_combo", "profile"],
             },
             "params": {"type": "object"},
         },
@@ -311,6 +382,14 @@ def _ecb_combo(params):
 def _handler(args):
     mode = args.get("mode", "section_class")
     params = args.get("params") or {}
+    # inyectar propiedades del catálogo si se pasó 'profile'
+    if params.get("profile"):
+        params = _inject_profile(params)
+    if mode == "profile":
+        name = params.get("profile") or params.get("name")
+        if not name:
+            return {"error": "profile mode requiere 'profile' o 'name' (ej. 'IPE300')"}
+        return _load_profile(name)
     if mode == "section_class":
         shape = str(params.get("shape", "I"))
         if shape == "I":
