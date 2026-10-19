@@ -837,14 +837,16 @@ _EN = [0.0817, 0.0150, 0.0278, 0.0425, 0.1270, 0.0223, 0.0202,
        0.0098, 0.0236, 0.0015, 0.0197, 0.0007]
 
 
-def _chi2(counts: Dict[str, int], expected: List[float]) -> float:
-    """Chi-cuadrado de frecuencias; expected normalizado (suma 1) por letra."""
+def _chi2(counts: Dict[str, int], expected: List[float],
+          low: str) -> float:
+    """Chi-cuadrado de frecuencias; expected normalizado (suma 1) en el
+    orden de `low` (el alfabeto), no en orden de codepoint."""
     total = sum(counts.values())
     if total == 0:
         return float("inf")
     chi = 0.0
-    for c, exp in zip(sorted(counts), expected):
-        obs = counts[c]
+    for c, exp in zip(low, expected):
+        obs = counts.get(c, 0)
         e = exp * total
         if e > 0:
             chi += (obs - e) ** 2 / e
@@ -891,7 +893,7 @@ def _analyze(params: Dict[str, Any]) -> Dict[str, Any]:
             for ch in dec.lower():
                 if ch in counts:
                     counts[ch] += 1
-            chi = _chi2(counts, expected)
+            chi = _chi2(counts, expected, low)
             best.append({"shift": s, "chi2": chi,
                          "ic": _index_of_coincidence(counts),
                          "candidate": dec})
