@@ -113,6 +113,12 @@ Exit code 1 means failures. Always use `.venv/bin/python` (or
   Verify with `opencode debug skill` (look for `octave-mcp` and a
   `location` inside this repo). No restart needed to check; the running
   session only reloads skills after a restart.
+- `skill_content.py` (same directory) embeds this SKILL.md byte-for-byte as
+  the constant `SKILL_MD` for consumers that read `.py` instead of `.md`
+  (another AI reviewing the skill, scripts, CI): `python3 skill_content.py`
+  prints the full markdown, `--metadata` prints `name`/`description`, and
+  `check_sync()` asserts it still matches this file (returns `None` if the
+  `.md` was copied away). Stdlib only.
 - The GitHub remote is `git@github.com:Astrid3333/octave-mcp.git`; visibility
   is set on GitHub and does not affect local opencode usage (the MCP reads
   the local path only).
