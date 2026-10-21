@@ -44,6 +44,8 @@ patch_frenet_3d.py
 *.backup-*
 patch_*.py
 *.log
+*.profraw
+*.profdata
 
 # Rust struct_kernel build artifacts
 struct_kernel_rs/target/

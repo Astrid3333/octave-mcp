@@ -296,3 +296,19 @@ def run(mode, params):
         return _validate_cooking_physics()
     else:
         return cooking_physics_tool(mode, **params)
+
+
+# --- registro real en tool_registry (el decorador register_tool de arriba es solo un stub de testing) ---
+try:
+    from tool_registry import register_tool as _register_real
+    _register_real(
+        name="cooking_physics_tool",
+        schema={"name": "cooking_physics_tool", "description": "Fisica de la coccion: punto de ebullicion segun altitud, calentamiento de aceites de fritura, conduccion de calor (Fourier estacionario).",
+                "inputSchema": {"type": "object", "properties": {
+                    "mode": {"type": "string", "enum": ["boiling_point", "oil_heating", "heat_transfer", "validate"]},
+                    "params": {"type": "object", "description": "Parametros del modo elegido"}},
+                    "required": ["mode"]}},
+        handler=lambda args: run(args.get("mode"), args.get("params") or {}),
+    )
+except ImportError:
+    pass

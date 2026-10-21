@@ -147,7 +147,7 @@ def compute_attractor_trajectory(
     code = (
         rhs
         + f"tspan = linspace(0,{t_max},{n_points});\n"
-        + f"[t,S] = ode45(f, tspan, [{ic[0]};{ic[1]};{ic[2]}]);\n"
+        + f"[t,S] = ode45(f, tspan, [{ic[0]};{ic[1]};{ic[2]}], odeset('RelTol',1e-9,'AbsTol',1e-11));\n"
         + "printf(\"%.8f \", S');\n"
     )
     out, err = _run_octave(code)
@@ -234,7 +234,7 @@ try:
     from tool_registry import register_tool
     register_tool(
         name="attractor_trajectory",
-        schema={**ATTRACTOR_TRAJECTORY_SCHEMA, "name": "attractor_trajectory"},
+        schema={"name": "attractor_trajectory", "description": ATTRACTOR_TRAJECTORY_SCHEMA["description"], "inputSchema": ATTRACTOR_TRAJECTORY_SCHEMA["input_schema"]},
         handler=lambda args: compute_attractor_trajectory(**args),
     )
 except ImportError:

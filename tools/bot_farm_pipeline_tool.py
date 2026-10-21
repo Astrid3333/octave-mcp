@@ -578,9 +578,17 @@ def run(mode, params):
         )
 
 
+def _full_schema():
+    """Schema completo para tools/list: name + description + inputSchema."""
+    doc = [l.strip() for l in (__doc__ or "").strip().splitlines() if l.strip()]
+    desc = " ".join(doc[1:4]) if len(doc) > 1 else TOOL_NAME
+    return {"name": TOOL_NAME, "description": desc,
+            "inputSchema": {k: v for k, v in TOOL_SCHEMA.items() if k != "name"}}
+
+
 def register(reg):
     """Llamar desde server.py: from tools.bot_farm_pipeline_tool import register; register(tool_registry)"""
-    reg.register_tool(TOOL_NAME, TOOL_SCHEMA, lambda args: run(args.get("mode"), args.get("params") or {}))
+    reg.register_tool(TOOL_NAME, _full_schema(), lambda args: run(args.get("mode"), args.get("params") or {}))
 
 
 if __name__ == "__main__":

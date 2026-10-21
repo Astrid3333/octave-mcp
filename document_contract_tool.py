@@ -560,7 +560,8 @@ def _validate_self() -> Dict[str, Any]:
     record("contract_validate accepts a valid document", c2)
     record("grammar_compile produces GBNF referencing declared fields", c3)
 
-    return {"valid": all(c["ok"] for c in checks), "checks": checks}
+    _ok = all(c["ok"] for c in checks)
+    return {"valid": _ok, "validation_passed": _ok, "checks": checks}
 
 
 # ---------------------------------------------------------------------------

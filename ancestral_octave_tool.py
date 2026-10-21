@@ -121,6 +121,20 @@ def _oct_vec(pylist):
     return "[" + ", ".join(str(x) for x in pylist) + "]"
 
 
+def _extract_json(raw: str):
+    """Devuelve el primer objeto JSON parseable encontrado en la salida,
+    recorriendo las lineas de ultima a primera. run_octave concatena
+    stdout + stderr, asi que los avisos de Octave (X11/GUI en servidores
+    sin pantalla, warnings de paquetes) pueden caer DETRAS del JSON: tomar
+    'la ultima linea' a ciegas rompia el parseo en headless."""
+    for line in reversed([l for l in raw.splitlines() if l.strip()]):
+        try:
+            return json.loads(line)
+        except json.JSONDecodeError:
+            continue
+    return None
+
+
 def compute_ancestral_octave(preset: str = None, params: dict = None, extra_octave: str = None, run_octave_fn=None, mode: str = None) -> dict:
     """run_octave_fn: la funcion run_octave(code) real de server.py -- toma
     codigo Octave y devuelve stdout+stderr concatenados como UN SOLO STRING
@@ -138,11 +152,10 @@ def compute_ancestral_octave(preset: str = None, params: dict = None, extra_octa
     lines = [l for l in raw.splitlines() if l.strip()]
     if not lines:
         return {"error": "Octave no devolvio salida", "raw": raw, "script": script}
-    json_line = lines[-1]
-    try:
-        return json.loads(json_line)
-    except json.JSONDecodeError:
-        return {"error": "no se pudo parsear JSON de la ultima linea de salida", "raw_output": raw, "script": script}
+    parsed = _extract_json(raw)
+    if parsed is not None:
+        return parsed
+    return {"error": "no se pudo parsear JSON en la salida de Octave", "raw_output": raw, "script": script}
 
 
 def _validate_ancestral_octave(run_octave_fn) -> dict:
@@ -155,13 +168,9 @@ def _validate_ancestral_octave(run_octave_fn) -> dict:
     def _call(preset, params):
         script = build_octave_call(preset, params, "")
         raw = run_octave_fn(script)
-        lines = [l for l in raw.splitlines() if l.strip()]
-        if not lines:
+        if not [l for l in raw.splitlines() if l.strip()]:
             return None
-        try:
-            return json.loads(lines[-1])
-        except json.JSONDecodeError:
-            return None
+        return _extract_json(raw)
 
     checks = []
 

@@ -421,3 +421,19 @@ def run(mode, params):
         return _validate_food_science()
     else:
         return food_science_tool(mode, **params)
+
+
+# --- registro real en tool_registry (el decorador register_tool de arriba es solo un stub de testing) ---
+try:
+    from tool_registry import register_tool as _register_real
+    _register_real(
+        name="food_science_tool",
+        schema={"name": "food_science_tool", "description": "Ciencia de alimentos: actividad de agua (isoterma GAB) y procesamiento termico (pasteurizacion/esterilizacion).",
+                "inputSchema": {"type": "object", "properties": {
+                    "mode": {"type": "string", "enum": ["water_activity", "thermal_processing", "validate"]},
+                    "params": {"type": "object", "description": "Parametros del modo elegido"}},
+                    "required": ["mode"]}},
+        handler=lambda args: run(args.get("mode"), args.get("params") or {}),
+    )
+except ImportError:
+    pass
