@@ -104,7 +104,7 @@ from auto_differentiation_tool import compute_gradient_hessian, compute_jacobian
 from math_error_analyzer_tool import compute_math_error_analysis, MATH_ERROR_ANALYZER_TOOL_SCHEMA
 from math_benchmark_tool import compute_math_benchmark, MATH_BENCHMARK_TOOL_SCHEMA
 from math_interpolation_tool import compute_math_interpolation, MATH_INTERPOLATION_TOOL_SCHEMA
-from math_pipeline_builder_tool import run_math_pipeline, PIPELINE_BUILDER_TOOL_SCHEMA
+from math_pipeline_builder_tool import run_math_pipeline  # PIPELINE_BUILDER_TOOL_SCHEMA ya no: se auto-registra
 from math_interpreter_tool import interpret_math_query, MATH_INTERPRETER_TOOL_SCHEMA
 from math_visualization_tool import compute_math_visualization, MATH_VISUALIZATION_TOOL_SCHEMA
 from math_explainer_tool import interpret_and_explain, MATH_EXPLAINER_TOOL_SCHEMA
@@ -423,12 +423,14 @@ TOOLS = [
                 "required": ["code"],
             },
         },
-    PIPELINE_BUILDER_TOOL_SCHEMA,
+    # run_math_pipeline y numeral_systems_embedding NO van aqui: se
+    # auto-registran desde math_pipeline_builder_tool.py y
+    # numeral_systems_embedding_tool.py via tool_registry (tenerlos en el
+    # catalogo estatico duplicaba la entrada en TOOLS/TOOLS_INDEX).
     {"name": "octave_run", "description": "Ejecuta codigo Octave. timeout en segundos (default 60).", "inputSchema": {"type": "object", "properties": {"code": {"type": "string"}, "timeout": {"type": "integer"}, "mode": {"type": "string", "enum": ["validate"]}}, "required": ["code"]}},
     {"name": "octave_eval_expr", "description": "Evalua una expresion Octave con disp().", "inputSchema": {"type": "object", "properties": {"expression": {"type": "string"}, "timeout": {"type": "integer"}, "mode": {"type": "string", "enum": ["validate"]}}, "required": ["expression"]}},
     {"name": "octave_run_script", "description": "Ejecuta un script .m existente en disco.", "inputSchema": {"type": "object", "properties": {"script_path": {"type": "string"}, "timeout": {"type": "integer"}, "mode": {"type": "string", "enum": ["validate"]}}, "required": ["script_path"]}},
     {"name": "octave_version", "description": "Devuelve la version de Octave instalada.", "inputSchema": {"type": "object", "properties": {"mode": {"type": "string", "enum": ["validate"]}}}},
-    {"name": "numeral_systems_embedding", "description": "Vectoriza sistemas numericos antiguos (base, tipo posicional/aditivo/ fisico, presencia de cero, redundancia representacional, soporte fisico) y proyecta a 2D via UMAP o t-SNE, para explorar agrupamientos estructurales entre culturas. Dataset base: maya_long_count, suanpan, soroban, roman_hand_abacus, yupana_depasquale, quipu, ifa_binary. Extensible via extra_systems (lista de dicts con el mismo s", "inputSchema": {"type": "object", "properties": {"method": {"type": "string", "enum": ["umap", "tsne", "validate"]}, "extra_systems": {"type": "array"}, "n_neighbors": {"type": "integer"}, "perplexity": {"type": "number"}, "random_state": {"type": "integer"}, "run_id": {"type": "string"}}}},
 ] + tool_registry.get_schemas()
 
 # --- Lazy discovery: indice liviano + meta-tools (evita mandar 350 schemas completos en tools/list) ---
@@ -556,6 +558,15 @@ if __name__ == "__main__":
                             "jsonrpc": "2.0", "id": req_id,
                             "result": {"content": [{"type": "text", "text": output or "(sin salida)"}]},
                         }
+                    elif target == "run_octave":
+                        # Alias legacy de octave_run: mismo dispatch que en la
+                        # cadena de abajo, pero alcanzable via call_tool (el
+                        # meta-dispatch no cae a esa cadena).
+                        output = run_octave(target_args.get("code", ""))
+                        resp = {
+                            "jsonrpc": "2.0", "id": req_id,
+                            "result": {"content": [{"type": "text", "text": output or "(sin salida)"}]},
+                        }
                     elif target == "octave_eval_expr":
                         output = run_octave(f"disp({target_args.get('expression', '')})")
                         resp = {
@@ -581,7 +592,10 @@ if __name__ == "__main__":
                             "result": {"content": [{"type": "text", "text": output or "(sin versión)"}]},
                         }
                     else:
-                        resp = {"jsonrpc": "2.0", "id": req_id, "error": {"code": -32602, "message": f"Tool '{target}' no encontrada"}}
+                        resp = {
+                            "jsonrpc": "2.0", "id": req_id,
+                            "error": {"code": -32602, "message": f"Tool '{target}' no encontrada en tool_registry (el meta call_tool no cae a la cadena legacy de server.py -- registrar via tool_registry.register_tool en el modulo de la tool)"},
+                        }
                 elif tool_registry.get_handler(tool_name) is not None:
                     result = tool_registry.get_handler(tool_name)(args)
                     resp = {

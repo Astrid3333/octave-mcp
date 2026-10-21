@@ -239,7 +239,7 @@ def _run_chunk(chunk_tools, id_offset):
     input_data = "\n".join(json.dumps(r) for r in requests) + "\n"
     t0 = time.time()
     proc = subprocess.run(
-        ["python3", SERVER_PATH], input=input_data,
+        [sys.executable, SERVER_PATH], input=input_data,
         capture_output=True, text=True, timeout=TIMEOUT_SECONDS,
     )
     elapsed = time.time() - t0
@@ -297,7 +297,7 @@ def main():
     ]
     input_data = "\n".join(json.dumps(r) for r in bootstrap) + "\n"
     proc = subprocess.run(
-        ["python3", SERVER_PATH], input=input_data,
+        [sys.executable, SERVER_PATH], input=input_data,
         capture_output=True, text=True, timeout=TIMEOUT_SECONDS,
     )
     tools = None
@@ -337,7 +337,7 @@ def main():
         t0 = time.time()
         input_data = "\n".join(json.dumps(r) for r in requests) + "\n"
         proc = subprocess.run(
-            ["python3", SERVER_PATH], input=input_data,
+            [sys.executable, SERVER_PATH], input=input_data,
             capture_output=True, text=True, timeout=TIMEOUT_SECONDS,
         )
         elapsed = time.time() - t0

@@ -30,28 +30,22 @@ sin beneficio real. Por eso queda afuera del barrido automatico y se
 invoca siempre a proposito.
 
 Nota de costo: cada llamada spawnea un subprocess COMPLETO de server.py
-(dos veces: uno para tools/list, otro para correr los tools/call de
-validate). Con las ~60-65 tools que declaran validate hoy, tarda
-~90-150s en la maquina donde se corrio la ultima vez (ver
+(dos veces: uno para tools/list_full, otro para correr los tools/call de
+validate). Con las ~347 tools que declaran validate hoy, tarda
+~150s en la maquina donde se corrio la ultima vez (ver
 COMPRESSION_BENCHMARK.md / logs del hook de pre-push). No pensada para
 llamarse en un loop ni con alta frecuencia.
 """
 import json
 import os
 import subprocess
+import sys
 import time
+
+import run_all_validations  # constructor canonico de requests (single source of truth)
 
 SERVER_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "server.py")
 TIMEOUT_SECONDS = 300
-
-# Igual que en run_all_validations.py: tools que declaran "validate" en su
-# enum de mode pero mode=validate significa otra cosa para ellas (no un
-# autochequeo con validation_passed/all_passed). Mantener esta lista en
-# sync manual con la de run_all_validations.py -- son la misma excepcion,
-# vista desde dos lugares distintos (ver nota al final del archivo).
-KNOWN_NON_STANDARD_VALIDATE = {
-    "run_math_pipeline": "mode=validate ejecuta un pipeline default, no un autochequeo",
-}
 
 HEALTH_CHECK_TOOL_SCHEMA = {
     "name": "health_check_tool",
@@ -81,47 +75,44 @@ HEALTH_CHECK_TOOL_SCHEMA = {
 
 
 def _build_requests(tools):
-    requests = []
-    tool_id_map = {}
-    next_id = 3
-    skipped = []
-    for t in tools:
-        name = t["name"]
-        mode_prop = t.get("inputSchema", {}).get("properties", {}).get("mode", {})
-        enum = mode_prop.get("enum")
-        if enum is None or "validate" not in enum:
-            skipped.append({"tool": name, "reason": "sin modo validate en el schema"})
-            continue
-        if name in KNOWN_NON_STANDARD_VALIDATE:
-            skipped.append({"tool": name, "reason": KNOWN_NON_STANDARD_VALIDATE[name]})
-            continue
-        requests.append({
-            "jsonrpc": "2.0",
-            "id": next_id,
-            "method": "tools/call",
-            "params": {"name": name, "arguments": {"mode": "validate", "params": {}}},
-        })
-        tool_id_map[next_id] = name
-        next_id += 1
-    return requests, tool_id_map, skipped
+    """Delega en run_all_validations.build_requests: ese es el constructor
+    canonico (ALTERNATE_VALIDATE_MODE, ALTERNATE_VALIDATE_PARAM_NAME,
+    FLAT_SIGNATURE_TOOLS, KNOWN_NON_STANDARD_VALIDATE). Una copia local de
+    ahi mismo hacia este check enviar payloads distintos a los de la suite
+    oficial y reportaba tools en ERROR que la suite oficial aprueba.
+
+    build_requests ya incluye initialize + tools/list_full; se recortan para
+    que _run_suite pueda prepender su propio bootstrap."""
+    all_requests, tool_id_map, skipped = run_all_validations.build_requests(tools)
+    bootstrap = all_requests[:2]
+    requests = all_requests[2:]
+    skipped = [{"tool": name, "reason": reason} for name, reason in skipped]
+    return bootstrap, requests, tool_id_map, skipped
 
 
 def _run_suite():
+    # tools/list solo devuelve las 3 meta-tools (list_tools/get_tool_schema/
+    # call_tool); el catalogo completo esta en tools/list_full. Usar
+    # tools/list hacia el check reportar "healthy" validando 0 tools.
     bootstrap = [
         {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}},
-        {"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}},
+        {"jsonrpc": "2.0", "id": 2, "method": "tools/list_full", "params": {}},
+        # id fuera del rango de tools/call (arrancan en 3): sin esto la
+        # respuesta de list_deprecated pisaria en responses[] a la primera tool.
+        {"jsonrpc": "2.0", "id": 900001, "method": "tools/list_deprecated", "params": {}},
     ]
 
     input_data = "\n".join(json.dumps(r) for r in bootstrap) + "\n"
     try:
         proc = subprocess.run(
-            ["python3", SERVER_PATH], input=input_data,
+            [sys.executable, SERVER_PATH], input=input_data,
             capture_output=True, text=True, timeout=TIMEOUT_SECONDS,
         )
     except subprocess.TimeoutExpired:
-        return {"status": "fatal_error", "detail": f"timeout ({TIMEOUT_SECONDS}s) obteniendo tools/list"}
+        return {"status": "fatal_error", "detail": f"timeout ({TIMEOUT_SECONDS}s) obteniendo tools/list_full"}
 
     tools = None
+    deprecated = []
     for line in proc.stdout.splitlines():
         if not line.strip():
             continue
@@ -131,23 +122,35 @@ def _run_suite():
             continue
         if d.get("id") == 2:
             tools = d.get("result", {}).get("tools")
-            break
+        elif d.get("id") == 900001:
+            # alias de merges de catalogo: siguen siendo invocables, el harness
+            # de run_all_validations.py las valida igual (365 = 362 + 3).
+            deprecated = d.get("result", {}).get("tools", []) or []
 
     if tools is None:
         return {
             "status": "fatal_error",
-            "detail": "no se pudo obtener tools/list del subprocess",
+            "detail": "no se pudo obtener tools/list_full del subprocess",
             "stderr_tail": proc.stderr[-2000:],
         }
+    if deprecated:
+        seen = {t.get("name") for t in tools}
+        tools = list(tools) + [t for t in deprecated if t.get("name") not in seen]
 
-    call_requests, tool_id_map, skipped = _build_requests(tools)
+    builder_bootstrap, call_requests, tool_id_map, skipped = _build_requests(tools)
+    if [r["method"] for r in builder_bootstrap] != [r["method"] for r in bootstrap[:2]]:
+        return {
+            "status": "fatal_error",
+            "detail": "el bootstrap de run_all_validations.build_requests difiere del "
+                      "este archivo: " + str([r["method"] for r in builder_bootstrap]),
+        }
     full_requests = bootstrap + call_requests
 
     t0 = time.time()
     input_data = "\n".join(json.dumps(r) for r in full_requests) + "\n"
     try:
         proc = subprocess.run(
-            ["python3", SERVER_PATH], input=input_data,
+            [sys.executable, SERVER_PATH], input=input_data,
             capture_output=True, text=True, timeout=TIMEOUT_SECONDS,
         )
     except subprocess.TimeoutExpired:
@@ -182,10 +185,19 @@ def _run_suite():
             errored.append({"tool": name, "reason": f"formato de respuesta inesperado: {e}"})
             continue
 
-        # algunas tools usan "validation_passed", otras "all_passed" -- se aceptan ambos.
-        vp = parsed.get("validation_passed")
-        if vp is None:
-            vp = parsed.get("all_passed")
+        # mismo criterio que run_all_validations.main(): varios nombres de
+        # campo cuentan como veredicto (VALIDATION_FIELD_ALIASES). Mirar solo
+        # validation_passed/all_passed marcaba en ERROR tools que la suite
+        # oficial aprueba (all_pass, ok, todos_correctos, ...).
+        if not isinstance(parsed, dict):
+            errored.append({"tool": name, "reason": f"validate no estructurado (devolvio {type(parsed).__name__}, no dict)"})
+            continue
+
+        vp = None
+        for _field in run_all_validations.VALIDATION_FIELD_ALIASES:
+            if _field in parsed:
+                vp = parsed.get(_field)
+                break
         if vp is True:
             passed.append({"tool": name, "checks": parsed.get("checks")})
         elif vp is False:
@@ -195,7 +207,7 @@ def _run_suite():
             ]
             failed.append({"tool": name, "failing_checks": failing_checks, "all_checks": parsed.get("checks")})
         else:
-            errored.append({"tool": name, "reason": "respuesta valida pero sin campo 'validation_passed'"})
+            errored.append({"tool": name, "reason": f"respuesta valida pero sin campo de veredicto (probado: {', '.join(run_all_validations.VALIDATION_FIELD_ALIASES)})"})
 
     return {
         "status": "ok",

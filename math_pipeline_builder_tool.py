@@ -273,6 +273,23 @@ def _validate() -> dict:
     }
 
 
+try:
+    from tool_registry import register_tool
+
+    register_tool(
+        name="run_math_pipeline",
+        schema=PIPELINE_BUILDER_TOOL_SCHEMA,
+        # Igual que la cadena legacy de server.py: solo steps/mode, sin
+        # pasar **args a ciegas (el cliente puede mandar 'params' de mas).
+        handler=lambda args: run_math_pipeline(
+            steps=args.get("steps"),
+            mode=args.get("mode", "validate"),
+        ),
+    )
+except ImportError:
+    pass
+
+
 if __name__ == "__main__":
     import json
 

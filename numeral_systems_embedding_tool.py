@@ -425,6 +425,18 @@ NUMERAL_EMBEDDING_SCHEMA = {
 }
 
 
+try:
+    from tool_registry import register_tool
+
+    register_tool(
+        name="numeral_systems_embedding",
+        schema=NUMERAL_EMBEDDING_SCHEMA,
+        handler=lambda args: compute_numeral_systems_embedding(**args),
+    )
+except ImportError:
+    pass
+
+
 if __name__ == "__main__":
     import json
     r = compute_numeral_systems_embedding(method="umap", run_id="_numeral_selftest")
