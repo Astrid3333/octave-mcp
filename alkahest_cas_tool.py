@@ -49,7 +49,10 @@ ALKAHEST_CAS_TOOL_SCHEMA = {
         "CAS simbólico Alkahest (núcleo Rust+FLINT): diff, integrate, "
         "simplify, limit, series, solve (Gröbner), sum_definite/"
         "sum_indefinite (telescoping creativo), factorint/isprime/"
-        "totient/nextprime (teoría de números). Cada operación simbólica "
+        "totient/nextprime (teoría de números), matrix (eigenvals/"
+        "eigenvects/inverse/det/rank/trace/rref/jordan_form), jacobian, "
+        "diophantine (lineal + Pell), real_roots (aislamiento CAD de "
+        "raíces reales). Cada operación simbólica "
         "devuelve DerivedResult: value, steps (log de reglas de reescritura "
         "JSON-safe), verification (certificate_available/exactly_verified/"
         "...) y certificate (Lean 4, truncado a 4 KB). Modos: compute (una "
@@ -80,10 +83,16 @@ ALKAHEST_CAS_TOOL_SCHEMA = {
                     "isprime",
                     "totient",
                     "nextprime",
+                    "matrix",
+                    "jacobian",
+                    "diophantine",
+                    "real_roots",
                 ],
                 "description": (
                     "Operación a ejecutar en mode=compute. factorint/"
-                    "isprime/totient/nextprime usan n; solve usa equations."
+                    "isprime/totient/nextprime usan n; solve usa equations; "
+                    "matrix usa matrix+action; jacobian usa exprs+vars; "
+                    "diophantine/real_roots usan expr (+vars/var)."
                 ),
             },
             "expr": {
@@ -135,7 +144,10 @@ ALKAHEST_CAS_TOOL_SCHEMA = {
             "vars": {
                 "type": "array",
                 "items": {"type": "string"},
-                "description": "Incógnitas de solve (default [var]).",
+                "description": (
+                    "Incógnitas de solve/jacobian/diophantine "
+                    "(default [var])."
+                ),
             },
             "n": {
                 "type": "integer",
@@ -145,6 +157,39 @@ ALKAHEST_CAS_TOOL_SCHEMA = {
                 "type": "string",
                 "enum": ["+", "-"],
                 "description": "limit: dirección de aproximación (opcional).",
+            },
+            "matrix": {
+                "type": "array",
+                "items": {"type": "array"},
+                "description": (
+                    "operation=matrix: matriz rectangular "
+                    "[[fila1],[fila2],...] con números o expresiones como "
+                    "cadenas (ej [[2,1],[1,2]] o [[\"x\",1],[0,\"x\"]])."
+                ),
+            },
+            "action": {
+                "type": "string",
+                "enum": [
+                    "eigenvals",
+                    "eigenvects",
+                    "inverse",
+                    "det",
+                    "rank",
+                    "trace",
+                    "rref",
+                    "jordan_form",
+                ],
+                "description": (
+                    "operation=matrix: qué computar (default eigenvals)."
+                ),
+            },
+            "exprs": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": (
+                    "operation=jacobian: componentes del vector f, "
+                    "ej [\"x*y\", \"y^2 - x\"], con vars=[x,y]."
+                ),
             },
         },
         "required": ["mode"],
@@ -259,6 +304,34 @@ def _eval_at(expr, pairs):
     return float(fn([v for _, v in pairs]))
 
 
+def _cells(matrix_like):
+    """Matriz/lista anidada -> filas de strings JSON-safe.
+
+    Las columnas de eigenvects vienen como Matrix embebidas: se
+    desempaqueta cualquier fila que tenga to_list().
+    """
+    rows = matrix_like.to_list() if hasattr(matrix_like, "to_list") else matrix_like
+    out = []
+    for row in rows:
+        if hasattr(row, "to_list"):
+            row = row.to_list()
+        out.append([str(c) for c in row])
+    return out
+
+
+def _bound(value):
+    """Cota de RootInterval: float si es numérico, string si es simbólica."""
+    if isinstance(value, (int, float)):
+        return float(value)
+    return str(value)
+
+
+def _column(vec):
+    """Autovector (lista de Matrix-columna o lista de filas) -> [str, ...]."""
+    rows = vec.to_list() if hasattr(vec, "to_list") else vec
+    return [str(row[0] if isinstance(row, (list, tuple)) else row) for row in rows]
+
+
 def _compute(args):
     _require_ak()
     op = args.get("operation")
@@ -297,12 +370,126 @@ def _compute(args):
             "method": "groebner",
         }
 
+    if op == "matrix":
+        rows = args.get("matrix")
+        if not isinstance(rows, list) or not rows:
+            raise ValueError("operation=matrix requiere matrix=[[...],[...]]")
+        if not all(isinstance(r, list) and r for r in rows):
+            raise ValueError("matrix debe ser una lista de filas no vacías")
+        width = len(rows[0])
+        if any(len(r) != width for r in rows):
+            raise ValueError("matrix debe ser rectangular")
+        mat = ak.Matrix.from_rows(
+            [[_to_expr(pool, c) for c in row] for row in rows]
+        )
+        action = args.get("action") or "eigenvals"
+        out = {
+            "operation": op,
+            "action": action,
+            "ok": True,
+            "shape": [int(d) for d in mat.shape()],
+        }
+        if action == "eigenvals":
+            out["eigenvals"] = {
+                str(k): int(v) for k, v in mat.eigenvals().items()
+            }
+        elif action == "eigenvects":
+            out["eigenvects"] = [
+                {
+                    "value": str(val),
+                    "mult": int(mult),
+                    "basis": [_column(vec) for vec in basis],
+                }
+                for val, mult, basis in mat.eigenvects()
+            ]
+        elif action == "inverse":
+            out["inverse"] = _cells(mat.inverse())
+        elif action == "det":
+            out["det"] = str(mat.det())
+        elif action == "rank":
+            out["rank"] = str(mat.rank())
+        elif action == "trace":
+            out["trace"] = str(mat.trace())
+        elif action == "rref":
+            out["rref"] = _cells(mat.rref())
+        elif action == "jordan_form":
+            p_mat, j_mat = mat.jordan_form()
+            out["jordan"] = {"P": _cells(p_mat), "J": _cells(j_mat)}
+        else:
+            raise ValueError(f"action desconocida: {action}")
+        return out
+
+    if op == "jacobian":
+        exprs = args.get("exprs")
+        if not isinstance(exprs, list) or not exprs:
+            raise ValueError("operation=jacobian requiere exprs=[...]")
+        names = args.get("vars")
+        if not isinstance(names, list) or not names:
+            raise ValueError("operation=jacobian requiere vars=[...]")
+        f_objs = [ak.parse(str(s), pool, {}) for s in exprs]
+        var_objs = [pool.symbol(str(n)) for n in names]
+        jac = ak.jacobian(f_objs, var_objs)
+        return {
+            "operation": op,
+            "ok": True,
+            "vars": [str(n) for n in names],
+            "shape": [int(d) for d in jac.shape()],
+            "jacobian": _cells(jac),
+        }
+
     expr_str = args.get("expr")
     if not isinstance(expr_str, str) or not expr_str.strip():
         raise ValueError(f"operation={op} requiere expr")
 
     expr = ak.parse(expr_str, pool, {})
     sym = pool.symbol(var)
+
+    if op == "diophantine":
+        names = args.get("vars") or [var]
+        sol = ak.diophantine(expr, [pool.symbol(str(n)) for n in names])
+        out = {
+            "operation": op,
+            "ok": True,
+            "vars": [str(n) for n in names],
+            "kind": str(sol.kind),
+            "solution": str(sol),
+        }
+        if sol.parameter is not None:
+            out["parameter"] = str(sol.parameter)
+        if sol.parametric is not None:
+            out["parametric"] = [str(e) for e in sol.parametric]
+        if sol.fundamental is not None:
+            out["fundamental"] = [str(c) for c in sol.fundamental]
+        if sol.pell_d is not None:
+            out["pell_d"] = str(sol.pell_d)
+        if sol.points is not None:
+            out["points"] = [[str(c) for c in pt] for pt in sol.points]
+        return out
+
+    if op == "real_roots":
+        roots = ak.real_roots(expr, sym)
+
+        def _exact_rational(pair):
+            if isinstance(pair, tuple) and len(pair) == 2:
+                return f"{pair[0]}/{pair[1]}"
+            return str(pair)
+
+        intervals = [
+            {
+                "lo": _bound(iv.lo),
+                "hi": _bound(iv.hi),
+                "lo_exact": _exact_rational(iv.lo_exact()),
+                "hi_exact": _exact_rational(iv.hi_exact()),
+            }
+            for iv in roots
+        ]
+        return {
+            "operation": op,
+            "ok": True,
+            "var": var,
+            "count": len(intervals),
+            "intervals": intervals,
+        }
 
     if op == "diff":
         result = ak.diff(expr, sym)
@@ -613,6 +800,133 @@ def _validate():
             "certificado Lean 4 con verificación certificate_available",
         )
 
+    def check_matrix_eigenvals_2x2():
+        pool = _fresh_pool()
+        mat = ak.Matrix.from_rows(
+            [
+                [pool.integer(2), pool.integer(1)],
+                [pool.integer(1), pool.integer(2)],
+            ]
+        )
+        ev = {str(k): int(v) for k, v in mat.eigenvals().items()}
+        ok = ev == {"1": 1, "3": 1}
+        return (
+            ok,
+            f"eigenvals={ev}",
+            "eigenvals exactos de [[2,1],[1,2]] = {1:1, 3:1} (A=I+2J)",
+        )
+
+    def check_matrix_inverse_residual():
+        pool = _fresh_pool()
+        a = ak.Matrix.from_rows(
+            [
+                [pool.integer(2), pool.integer(1)],
+                [pool.integer(1), pool.integer(2)],
+            ]
+        )
+        det = str(a.det())
+        inv = _cells(a.inverse())
+        prod = [
+            [str(ak.simplify(c).value) for c in row]
+            for row in a.multiply(a.inverse()).to_list()
+        ]
+        expected_inv = [["2/3", "-1/3"], ["-1/3", "2/3"]]
+        expected_id = [["1", "0"], ["0", "1"]]
+        ok = det == "3" and inv == expected_inv and prod == expected_id
+        return (
+            ok,
+            f"det={det}, inv={inv}, A*A^-1={prod}",
+            "det=3, A·A⁻¹=I y A⁻¹=[[2/3,-1/3],[-1/3,2/3]]",
+        )
+
+    def check_jacobian_analytic():
+        pool = _fresh_pool()
+        x, y = pool.symbol("x"), pool.symbol("y")
+        jac = ak.jacobian(
+            [ak.parse("x*y", pool, {}), ak.parse("y^2 - x", pool, {})], [x, y]
+        )
+        cells = jac.to_list()
+        at_34 = [[_eval_at(c, [(x, 3.0), (y, 4.0)]) for c in row] for row in cells]
+        expected = [[4.0, 3.0], [-1.0, 8.0]]
+        ok = len(at_34) == 2 and all(
+            abs(a - b) < 1e-9 for ra, rb in zip(at_34, expected) for a, b in zip(ra, rb)
+        )
+        return (
+            ok,
+            f"J(3,4)={at_34}",
+            "jacobian de (x·y, y²−x) en (3,4) = [[4,3],[-1,8]]",
+        )
+
+    def check_diophantine_linear():
+        pool = _fresh_pool()
+        x, y = pool.symbol("x"), pool.symbol("y")
+        sol = ak.diophantine(ak.parse("3*x + 5*y - 1", pool, {}), [x, y])
+        residuals = []
+        for t in (0.0, 1.0, -2.0):
+            xt = _eval_at(sol.parametric[0], [(sol.parameter, t)])
+            yt = _eval_at(sol.parametric[1], [(sol.parameter, t)])
+            residuals.append(3 * xt + 5 * yt - 1.0)
+        ok = sol.kind == "parametric_linear" and all(
+            abs(r) < 1e-9 for r in residuals
+        )
+        return (
+            ok,
+            f"kind={sol.kind}, parametric=[{sol.parametric}], residuals={residuals}",
+            "3x+5y=1 con solución paramétrica que satisface la ecuación",
+        )
+
+    def check_diophantine_pell():
+        pool = _fresh_pool()
+        x, y = pool.symbol("x"), pool.symbol("y")
+        sol = ak.diophantine(
+            ak.parse("x^2 - 2*y^2 - 1", pool, {}), [x, y]
+        )
+        fund = [str(c) for c in sol.fundamental]
+        residual = (
+            _eval_at(sol.fundamental[0], []) ** 2
+            - 2 * _eval_at(sol.fundamental[1], []) ** 2
+            - 1
+        )
+        ok = (
+            sol.kind == "pell_fundamental"
+            and fund == ["3", "2"]
+            and abs(residual) < 1e-9
+            and str(sol.pell_d) == "2"
+        )
+        return (
+            ok,
+            f"kind={sol.kind}, fundamental={fund}, residual={residual}, "
+            f"pell_d={sol.pell_d}",
+            "x²−2y²=1: fundamental (3,2) (16−2·4=1) y D=2",
+        )
+
+    def check_real_roots_intervals():
+        pool = _fresh_pool()
+        x = pool.symbol("x")
+        poly = ak.parse("x^2 - 2", pool, {})
+        roots = ak.real_roots(poly, x)
+        sign_ok = all(
+            _eval_at(poly, [(x, iv.lo)]) * _eval_at(poly, [(x, iv.hi)]) < 0
+            for iv in roots
+        )
+        pos = [iv for iv in roots if iv.lo > 0][0]
+        exact_lo = pos.lo_exact()
+        none_roots = ak.real_roots(ak.parse("x^2 + 1", pool, {}), x)
+        ok = (
+            len(roots) == 2
+            and sign_ok
+            and pos.lo <= 1.0 <= 2.0 <= pos.hi
+            and len(none_roots) == 0
+        )
+        return (
+            ok,
+            f"n_intervals={len(roots)}, sign_change={sign_ok}, "
+            f"positive_iv=({pos.lo}, {pos.hi}), lo_exact={exact_lo}, "
+            f"x^2+1-> {len(none_roots)} raíces",
+            "x²−2: 2 intervalos aislados con cambio de signo que contienen ±√2; "
+            "x²+1: sin raíces reales",
+        )
+
     chk("diff_analytic_vs_numeric", check_diff)
     chk("integrate_definite_x2", check_integrate_definite)
     chk("integrate_definite_cos", check_integrate_cos)
@@ -629,6 +943,12 @@ def _validate():
     chk("nt_isolated_fence", check_nt_isolated_fence)
     chk("derived_result_contract", check_derived_contract)
     chk("certificate_lean_export", check_certificate_lean)
+    chk("matrix_eigenvals_2x2", check_matrix_eigenvals_2x2)
+    chk("matrix_inverse_residual", check_matrix_inverse_residual)
+    chk("jacobian_analytic", check_jacobian_analytic)
+    chk("diophantine_linear", check_diophantine_linear)
+    chk("diophantine_pell", check_diophantine_pell)
+    chk("real_roots_intervals", check_real_roots_intervals)
 
     return {
         "mode": "validate",

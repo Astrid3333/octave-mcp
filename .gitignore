@@ -51,3 +51,6 @@ patch_*.py
 # Rust struct_kernel build artifacts
 struct_kernel_rs/target/
 skills/octave-mcp/skill_content.py.*.tmp
+
+# PNGs generados por los ejemplos
+examples/*.png
