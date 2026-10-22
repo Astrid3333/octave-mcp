@@ -1,6 +1,6 @@
 ---
 name: octave-mcp
-description: Use when the user wants scientific/numeric computation served by their local GNU Octave MCP server — linear algebra, ODEs/PDEs, symbolic math, curve fitting, physics/chemistry/biology simulations, plotting data, or "run this in Octave". Talks to the `octave` MCP (meta-tools only), so it covers all 365+ registered tools. Also use when debugging why an octave-mcp tool fails or validating the whole tool suite.
+description: Use when the user wants scientific/numeric computation served by their local GNU Octave MCP server — linear algebra, ODEs/PDEs, symbolic math, curve fitting, physics/chemistry/biology simulations, plotting data, or "run this in Octave". Talks to the `octave` MCP (meta-tools only), so it covers all 367+ registered tools. Also use when debugging why an octave-mcp tool fails or validating the whole tool suite.
 ---
 
 # Octave MCP (local)
@@ -23,7 +23,7 @@ as the MCP `octave` (global opencode config, `mcp.octave`, command
 Never invent a tool name from memory. Always:
 `octave_list_tools` → `octave_get_tool_schema` → `octave_call_tool`.
 
-`tools/list_full` (362 entries) is a private endpoint for the validation
+`tools/list_full` (364 entries) is a private endpoint for the validation
 harness, not for clients.
 
 ## 1 · Calling convention
@@ -49,7 +49,7 @@ harness, not for clients.
 
 ## 2 · Known gaps in this environment (verified 2026-10-22)
 
-**None open.** The full validation suite is green (348/348 evaluated tools
+**None open.** The full validation suite is green (349/349 evaluated tools
 pass). If something breaks after a machine change, check the fixed list
 below first — those are the things that used to fail:
 
@@ -75,6 +75,13 @@ below first — those are the things that used to fail:
   runs all four NT ops in an isolated subprocess and falls back to sympy
   on crash, reporting `engine`/`fallback_reason`. If the octave MCP ever
   dies mid-call, suspect a native crash like this one.
+- Maxima 5.46.0 (system package `maxima`, invoked via
+  `maxima --very-quiet --batch-string=...` with `display2d:false` and
+  `<<R>>`/`<<E>>` markers + `errcatch`/`first()` unwrapping) →
+  `maxima_eval_tool` passes its 8 validate checks (integrate/diff/
+  solve/factor/limit/taylor + error fence). Syntax errors abort the
+  batch (no markers, rc=0) — detect via `incorrect syntax`/`Lisp error`
+  in stdout; unknown functions stay unevaluated (no error, Maxima idiom).
 - `attractor_trajectory` butterfly check now measures at t=40 (empirical
   `d(t)`: the `d>1` crossing is at t≈30.5, max 47 at t≈33.7, d(40)=8.2 —
   a t=30 horizon was just short of the crossing, tool math was fine).
@@ -116,7 +123,7 @@ cd /home/astrid/octave-mcp
 ```
 
 Both must agree (expected as of 2026-10-22:
-366 registered / 348 evaluated / 348 PASSED / 0 FAILED / 0 ERROR / 18 SKIPPED).
+367 registered / 349 evaluated / 349 PASSED / 0 FAILED / 0 ERROR / 18 SKIPPED).
 These counts drift over time: refresh them from `health_check_tool.py` (JSON
 report) before regenerating this skill, instead of trusting the numbers above.
 Exit code 1 means failures. Always use `.venv/bin/python` (or
