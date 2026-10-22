@@ -1,22 +1,28 @@
 # -*- coding: utf-8 -*-
-"""Contenido completo de la skill de opencode ``octave-mcp`` empaquetado como
-Python, para que otra IA pueda consumirlo/revisarlo sin leer el .md del repo.
+"""Copia de la skill de opencode ``octave-mcp`` empaquetada como Python, para
+que otra IA pueda consumirla/revisarla sin leer el .md del repo.
 
 Uso:
-    python3 skill_content.py               # imprime el SKILL.md completo
+    python3 skill_content.py               # imprime el SKILL.md vigente
     python3 skill_content.py --metadata    # imprime solo nombre/descripcion
     import skill_content as sc; sc.SKILL_MD; sc.check_sync()
 
-Generado de SKILL.md (mismo directorio). Si editas SKILL.md, regenera este
-archivo: check_sync() lo comprueba byte a byte.
+Fuente de verdad: SKILL.md (mismo directorio). Al importar, SKILL_MD se lee
+de ese archivo si existe; si el .py esta solo (copiado a otra maquina), usa
+la copia embebida ``_SKILL_MD_EMBEDDED``, que se regenera desde SKILL.md y
+esta en r-string para que ningun backslash futuro del markdown se interprete.
+SKILL_NAME/SKILL_DESCRIPTION se derivan del frontmatter de SKILL_MD: no hay
+ningun valor duplicado a mano. Solo stdlib.
 """
 
-SKILL_NAME = """octave-mcp"""
-SKILL_DESCRIPTION = """Use when the user wants scientific/numeric computation served by their local GNU Octave MCP server — linear algebra, ODEs/PDEs, symbolic math, curve fitting, physics/chemistry/biology simulations, plotting data, or "run this in Octave". Talks to the `octave` MCP (meta-tools only), so it covers all 360+ registered tools. Also use when debugging why an octave-mcp tool fails or validating the whole tool suite."""
+import os
+import re
+
 SKILL_PATH = "skills/octave-mcp/SKILL.md"
 
-# SKILL.md completo (frontmatter incluido), byte a byte igual que el original.
-SKILL_MD = """---
+# Copia byte a byte de SKILL.md (ver check_sync()). No editar a mano:
+# regenerar el archivo desde SKILL.md.
+_SKILL_MD_EMBEDDED = r"""---
 name: octave-mcp
 description: Use when the user wants scientific/numeric computation served by their local GNU Octave MCP server — linear algebra, ODEs/PDEs, symbolic math, curve fitting, physics/chemistry/biology simulations, plotting data, or "run this in Octave". Talks to the `octave` MCP (meta-tools only), so it covers all 360+ registered tools. Also use when debugging why an octave-mcp tool fails or validating the whole tool suite.
 ---
@@ -116,6 +122,8 @@ cd /home/astrid/octave-mcp
 
 Both must agree (expected as of 2026-10-21:
 365 registered / 347 evaluated / 339 PASSED / 2 FAILED / 6 ERROR / 18 SKIPPED).
+These counts drift over time: refresh them from `health_check_tool.py` (JSON
+report) before regenerating this skill, instead of trusting the numbers above.
 Exit code 1 means failures. Always use `.venv/bin/python` (or
 `sys.executable` from a venv script) — never system `python3`, which lacks the
 `ocas` dependency and makes the server die at import.
@@ -131,28 +139,81 @@ Exit code 1 means failures. Always use `.venv/bin/python` (or
   Verify with `opencode debug skill` (look for `octave-mcp` and a
   `location` inside this repo). No restart needed to check; the running
   session only reloads skills after a restart.
-- `skill_content.py` (same directory) embeds this SKILL.md byte-for-byte as
-  the constant `SKILL_MD` for consumers that read `.py` instead of `.md`
-  (another AI reviewing the skill, scripts, CI): `python3 skill_content.py`
-  prints the full markdown, `--metadata` prints `name`/`description`, and
-  `check_sync()` asserts it still matches this file (returns `None` if the
-  `.md` was copied away). Stdlib only.
+- `skill_content.py` (same directory) is the copy of this skill for consumers
+  that read `.py` instead of `.md`. On import it reads this SKILL.md from disk
+  when present and otherwise falls back to `_SKILL_MD_EMBEDDED` (a raw
+  triple-quoted literal regenerated from this file — so backslashes in future
+  markdown cannot corrupt it). `SKILL_NAME`/`SKILL_DESCRIPTION` are parsed from the
+  frontmatter of `SKILL_MD`, never duplicated. `python3 skill_content.py
+  [--metadata]` prints them; `check_sync()` compares the embedded literal
+  against the `.md` in binary (`"rb"` vs UTF-8 bytes): `True` when identical,
+  `None` when the `.md` was copied away, `AssertionError` when they diverge
+  (CRLF changes count as divergence).
 - The GitHub remote is `git@github.com:Astrid3333/octave-mcp.git`; visibility
   is set on GitHub and does not affect local opencode usage (the MCP reads
   the local path only).
 """
 
 
-def check_sync():
-    """True si SKILL.md (junto al .py) es identico; None si no existe."""
-    import os
-    md = os.path.join(os.path.dirname(os.path.abspath(__file__)), "SKILL.md")
-    if not os.path.exists(md):
+def _md_path():
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "SKILL.md")
+
+
+def _read_disk():
+    """Contenido del .md vecino como str (bytes exactos, utf-8), o None."""
+    path = _md_path()
+    if not os.path.exists(path):
         return None
-    with open(md, encoding="utf-8") as fh:
-        same = fh.read() == SKILL_MD
-    if not same:
-        raise AssertionError("skill_content.py esta desincronizado de SKILL.md")
+    with open(path, "rb") as fh:
+        return fh.read().decode("utf-8")
+
+
+SKILL_MD = _read_disk()
+if SKILL_MD is None:
+    SKILL_MD = _SKILL_MD_EMBEDDED
+
+
+def _frontmatter(text):
+    """Extrae {name, description, ...} del frontmatter de un SKILL.md."""
+    m = re.match(r"^---\n(.*?)\n---", text, re.S)
+    if not m:
+        return {}
+    fm = {}
+    for line in m.group(1).splitlines():
+        if ":" in line and not line.startswith((" ", "\t")):
+            k, v = line.split(":", 1)
+            fm[k.strip()] = v.strip()
+    return fm
+
+
+_fm = _frontmatter(SKILL_MD)
+SKILL_NAME = _fm.get("name", "")
+SKILL_DESCRIPTION = _fm.get("description", "")
+
+
+def check_sync():
+    """Comprueba la copia embebida contra el SKILL.md vecino, en binario.
+
+    Returns:
+        True: el .md existe y es byte a byte igual a _SKILL_MD_EMBEDDED.
+        None: no hay .md al lado del .py (copia suelta; nada que comprobar).
+
+    Raises:
+        AssertionError: el .md existe pero difiere de la copia embebida
+        (incluye cambios CRLF/LF: se comparan bytes, no texto normalizado).
+        En ese caso SKILL_MD sigue leyendo el .md vigente del disco; hay que
+        regenerar skill_content.py desde el .md.
+    """
+    path = _md_path()
+    if not os.path.exists(path):
+        return None
+    with open(path, "rb") as fh:
+        raw = fh.read()
+    if raw != _SKILL_MD_EMBEDDED.encode("utf-8"):
+        raise AssertionError(
+            "skill_content.py esta desincronizado de SKILL.md "
+            "(regenera _SKILL_MD_EMBEDDED desde el .md)"
+        )
     return True
 
 
