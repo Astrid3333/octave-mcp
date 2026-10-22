@@ -102,6 +102,10 @@ def main():
     # Frontmatter validado sobre el literal embebido (el artefacto que
     # consumira quien lleve el .py solo), parseado con la propia funcion
     # _frontmatter del .py emitido: una sola logica de parseo, en un sitio.
+    # Nota: en runtime, skill_content.py deriva SKILL_NAME/SKILL_DESCRIPTION
+    # de SKILL_MD (el disco si existe); si disco y literal divergen, aqui se
+    # valido el literal y el importado leera el disco — esa divergencia es
+    # exactamente lo que detecta check_sync().
     fm = ns["_frontmatter"](ns["_SKILL_MD_EMBEDDED"])
     if fm.get("name") != "octave-mcp":
         fail(
