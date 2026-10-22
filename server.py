@@ -61,6 +61,7 @@ import molecular_dynamics_tool  # auto-registra via tool_registry, no requiere m
 import dft_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import alkahest_cas_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import maxima_eval_tool  # auto-registra via tool_registry, no requiere mas ediciones
+import sagebrush_math_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import savings_goal_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import investment_portfolio_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import tax_estimation_tool  # auto-registra via tool_registry, no requiere mas ediciones
