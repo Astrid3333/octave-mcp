@@ -20,7 +20,6 @@ Solo stdlib.
 """
 
 import os
-import re
 import sys
 import tempfile
 from pathlib import Path
@@ -69,29 +68,51 @@ def main():
             "'comillas triple seguidas' sin escribirlas)."
         )
 
-    m = re.match(r"^---\n(.*?)\n---\n", text, re.S)
-    if not m:
-        fail(f"{MD.name} no tiene frontmatter (--- ... ---) al principio.")
-    fm = {}
-    for line in m.group(1).splitlines():
-        if ":" in line and not line.startswith((" ", "\t")):
-            k, v = line.split(":", 1)
-            fm[k.strip()] = v.strip()
-    if fm.get("name") != "octave-mcp":
-        fail(f"frontmatter name es {fm.get('name')!r}, se esperaba 'octave-mcp'.")
-    if not fm.get("description", "").startswith("Use when"):
+    out = _TEMPLATE.replace("__MD__", text)
+    # Red de seguridad: compilar y ejecutar lo generado comprueba que el
+    # literal r-string reproduce SKILL.md exactamente. Cubre ademas los
+    # bordes que los chequeos de patrones de arriba no imaginan (p. ej. un
+    # .md que termine en comillas sueltas y se coma el cierre del literal).
+    # _read_disk() apunta al .py de destino, que aun no existe, asi que
+    # SKILL_MD en este exec es el literal embebido y la comparacion es pura.
+    try:
+        ns = {"__file__": str(OUT), "__name__": "__gen_check__"}
+        exec(compile(out, str(OUT), "exec"), ns)
+    except SyntaxError as e:
+        fail(
+            f"el codigo generado no compila ({e}); el literal r-string quedo "
+            f"roto (revisa el final de {MD.name}, p. ej. comillas sueltas). "
+            f"No se escribe {OUT.name}."
+        )
+    if ns.get("_SKILL_MD_EMBEDDED") != text:
+        fail(
+            f"el literal generado no reproduce {MD.name}; no se reemplaza "
+            f"{OUT.name}."
+        )
+    # El frontmatter se valida con el parser real del .py emitido (ns),
+    # no con una copia: una sola logica de parseo, en un solo sitio.
+    if ns.get("SKILL_NAME") != "octave-mcp":
+        fail(
+            f"frontmatter name es {ns.get('SKILL_NAME')!r}, se esperaba "
+            "'octave-mcp'."
+        )
+    if not ns.get("SKILL_DESCRIPTION", "").startswith("Use when"):
         fail("frontmatter description vacia o sin el prefijo esperado 'Use when'.")
 
-    out = _TEMPLATE.replace("__MD__", text)
     # Escritura atomica: temporal en el mismo directorio y os.replace.
     # Un crash a mitad deja el skill_content.py anterior intacto (nunca
-    # truncado) y solo queda un .tmp huérfano, que se limpia abajo.
+    # truncado); el temporal solo se limpia si la excepcion se captura aqui
+    # (un SIGKILL lo dejaria: el patron *.tmp esta en .gitignore).
+    # newline="\n" fija LF en cualquier plataforma (check_sync es binario);
+    # el modo se hereda del archivo existente (mkstemp crea 0600).
+    mode = OUT.stat().st_mode & 0o777 if OUT.exists() else 0o644
     fd, tmp = tempfile.mkstemp(dir=str(HERE), prefix=OUT.name + ".", suffix=".tmp")
     try:
-        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as fh:
             fh.write(out)
             fh.flush()
             os.fsync(fh.fileno())
+        os.chmod(tmp, mode)
         os.replace(tmp, str(OUT))
     except BaseException:
         try:
