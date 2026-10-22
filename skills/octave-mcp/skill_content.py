@@ -29,7 +29,7 @@ SKILL_PATH = "skills/octave-mcp/SKILL.md"
 # regenerar con regenerate_skill_content.py.
 _SKILL_MD_EMBEDDED = r"""---
 name: octave-mcp
-description: Use when the user wants scientific/numeric computation served by their local GNU Octave MCP server — linear algebra, ODEs/PDEs, symbolic math, curve fitting, physics/chemistry/biology simulations, plotting data, or "run this in Octave". Talks to the `octave` MCP (meta-tools only), so it covers all 360+ registered tools. Also use when debugging why an octave-mcp tool fails or validating the whole tool suite.
+description: Use when the user wants scientific/numeric computation served by their local GNU Octave MCP server — linear algebra, ODEs/PDEs, symbolic math, curve fitting, physics/chemistry/biology simulations, plotting data, or "run this in Octave". Talks to the `octave` MCP (meta-tools only), so it covers all 365+ registered tools. Also use when debugging why an octave-mcp tool fails or validating the whole tool suite.
 ---
 
 # Octave MCP (local)
@@ -78,7 +78,7 @@ harness, not for clients.
 
 ## 2 · Known gaps in this environment (verified 2026-10-22)
 
-**None open.** The full validation suite is green (347/347 evaluated tools
+**None open.** The full validation suite is green (348/348 evaluated tools
 pass). If something breaks after a machine change, check the fixed list
 below first — those are the things that used to fail:
 
@@ -91,6 +91,10 @@ below first — those are the things that used to fail:
   which provides `octave-dev 11.3`; then `pkg install -forge control` +
   `signal`) → `compute_hilbert_transform` passes.
 - `.venv-pyscf` exists (PySCF 2.14.0, own numpy) → `dft_tool` passes.
+- `alkahest` 3.12.0 (Rust CAS: Gröbner, derivation logs, Lean 4
+  certificates) is installed in the venv → `alkahest_cas_tool` passes its
+  15 validate checks (diff/integrate/simplify/limit/series/solve/sums +
+  number theory).
 - `attractor_trajectory` butterfly check now measures at t=40 (empirical
   `d(t)`: the `d>1` crossing is at t≈30.5, max 47 at t≈33.7, d(40)=8.2 —
   a t=30 horizon was just short of the crossing, tool math was fine).
@@ -132,7 +136,7 @@ cd /home/astrid/octave-mcp
 ```
 
 Both must agree (expected as of 2026-10-22:
-365 registered / 347 evaluated / 347 PASSED / 0 FAILED / 0 ERROR / 18 SKIPPED).
+366 registered / 348 evaluated / 348 PASSED / 0 FAILED / 0 ERROR / 18 SKIPPED).
 These counts drift over time: refresh them from `health_check_tool.py` (JSON
 report) before regenerating this skill, instead of trusting the numbers above.
 Exit code 1 means failures. Always use `.venv/bin/python` (or

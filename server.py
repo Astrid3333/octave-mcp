@@ -59,6 +59,7 @@ import bem_electromagnetic_tool  # auto-registra via tool_registry, no requiere 
 import statmech_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import molecular_dynamics_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import dft_tool  # auto-registra via tool_registry, no requiere mas ediciones
+import alkahest_cas_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import savings_goal_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import investment_portfolio_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import tax_estimation_tool  # auto-registra via tool_registry, no requiere mas ediciones
