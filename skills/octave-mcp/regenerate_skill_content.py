@@ -14,11 +14,15 @@ contiene algo que romperia o falsaria el literal o su comprobacion:
 - CR (CRLF)          -> check_sync() es binario; el .md debe ser LF
 
 Despues de regenerar, check_sync() debe dar True en el directorio del repo.
+La escritura es atomica (temporal en el mismo directorio + os.replace): un
+fallo a mitad nunca deja un skill_content.py truncado o a medias.
 Solo stdlib.
 """
 
+import os
 import re
 import sys
+import tempfile
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -49,9 +53,12 @@ def main():
         fail(
             f"{MD.name} contiene un backslash en la posicion {i} "
             f"(contexto: {text[max(0, i - 30):i + 30]!r}). El literal embebido "
-            "es r-string: un backslash futuro del markdown no puede "
-            "representarse sin duplicarlo a mano. Elimina ese backslash del "
-            ".md (escapalo como texto plano) o cambia el esquema del generador."
+            "es r-string: un backslash del markdown no puede representarse "
+            "sin duplicarlo a mano. Salidas: (a) evita el backslash en el "
+            ".md (reescribelo como texto plano, p. ej. 'comillas simples' "
+            "en vez de una ruta o regex con escapes), o (b) si el skill "
+            "realmente lo necesita, cambia el esquema: que los consumidores "
+            "lean SKILL.md siempre desde disco y elimina la copia embebida."
         )
     if '"""' in text:
         i = text.index('"""')
@@ -76,7 +83,22 @@ def main():
         fail("frontmatter description vacia o sin el prefijo esperado 'Use when'.")
 
     out = _TEMPLATE.replace("__MD__", text)
-    OUT.write_text(out, encoding="utf-8")
+    # Escritura atomica: temporal en el mismo directorio y os.replace.
+    # Un crash a mitad deja el skill_content.py anterior intacto (nunca
+    # truncado) y solo queda un .tmp huérfano, que se limpia abajo.
+    fd, tmp = tempfile.mkstemp(dir=str(HERE), prefix=OUT.name + ".", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(out)
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(tmp, str(OUT))
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
     print(f"regenerado {OUT} ({len(out)} bytes) desde {MD.name}")
     return 0
 
