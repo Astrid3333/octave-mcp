@@ -51,10 +51,6 @@ harness, not for clients.
 
 Do not burn turns rediscovering these; expect these failures and say so:
 
-- Octave has NO forge packages yet: `signal` needs `control`, and both need
-  `mkoctfile` (Debian package `octave-dev`, requires sudo) before
-  `pkg install -forge control` and then `-forge signal` →
-  `compute_hilbert_transform` keeps erroring until that is done.
 - `.venv-pyscf` is missing → `dft_tool` errors.
 - `attractor_trajectory` fails a real numeric check (`d_final=0.1795` < 1.0
   on the butterfly-effect test) — a genuine tool bug, not an environment issue.
@@ -68,6 +64,9 @@ Already fixed here (do not redo unless the machine changes):
 - Rust sub-motors are compiled (`cargo build --release` in each of
   `submotors/{cfd_cavity,bem_electromagnetic,fem_poisson2d}/`) → `cfd_tool`,
   `bem_electromagnetic_tool` and `fem_electromagnetic_tool` pass.
+- Octave forge packages are installed (via `ppa:ubuntuhandbook1/octave`
+  which provides `octave-dev 11.3`; then `pkg install -forge control` +
+  `signal`) → `compute_hilbert_transform` passes.
 
 ## 3 · Debugging a failing tool
 
@@ -102,7 +101,7 @@ cd /home/astrid/octave-mcp
 ```
 
 Both must agree (expected as of 2026-10-22:
-365 registered / 347 evaluated / 343 PASSED / 1 FAILED / 3 ERROR / 18 SKIPPED).
+365 registered / 347 evaluated / 344 PASSED / 1 FAILED / 2 ERROR / 18 SKIPPED).
 These counts drift over time: refresh them from `health_check_tool.py` (JSON
 report) before regenerating this skill, instead of trusting the numbers above.
 Exit code 1 means failures. Always use `.venv/bin/python` (or
