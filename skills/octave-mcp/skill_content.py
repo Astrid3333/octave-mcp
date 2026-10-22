@@ -76,22 +76,27 @@ harness, not for clients.
   (`ALTERNATE_VALIDATE_MODE`, `ALTERNATE_VALIDATE_PARAM_NAME`,
   `FLAT_SIGNATURE_TOOLS`).
 
-## 2 · Known gaps in this environment (verified 2026-10-21)
+## 2 · Known gaps in this environment (verified 2026-10-22)
 
 Do not burn turns rediscovering these; expect these failures and say so:
 
-- `umap` is NOT installed in the venv → `numeral_systems_embedding` errors
-  (`sklearn`/`TSNE` are installed, so `method: "tsne"` is the workaround).
-- Rust sub-motors are NOT compiled → `cfd_tool`, `bem_electromagnetic_tool`,
-  `fem_electromagnetic_tool` fail until you run
-  `cargo build --release` in each of `submotors/{cfd_cavity,bem_electromagnetic,fem_poisson2d}/`.
+- Octave has NO forge packages yet: `signal` needs `control`, and both need
+  `mkoctfile` (Debian package `octave-dev`, requires sudo) before
+  `pkg install -forge control` and then `-forge signal` →
+  `compute_hilbert_transform` keeps erroring until that is done.
 - `.venv-pyscf` is missing → `dft_tool` errors.
-- Octave has no packages installed → `compute_hilbert_transform` fails
-  (`pkg install -forge signal` would fix it).
 - `attractor_trajectory` fails a real numeric check (`d_final=0.1795` < 1.0
   on the butterfly-effect test) — a genuine tool bug, not an environment issue.
 - `frame_analysis_tool` returns checks with no verdict field — numeric OK,
   contract non-compliant.
+
+Already fixed here (do not redo unless the machine changes):
+
+- `umap-learn` 0.5.12 is installed in the venv → `numeral_systems_embedding`
+  passes (`sklearn.manifold.TSNE` also works as the alternative).
+- Rust sub-motors are compiled (`cargo build --release` in each of
+  `submotors/{cfd_cavity,bem_electromagnetic,fem_poisson2d}/`) → `cfd_tool`,
+  `bem_electromagnetic_tool` and `fem_electromagnetic_tool` pass.
 
 ## 3 · Debugging a failing tool
 
@@ -125,8 +130,8 @@ cd /home/astrid/octave-mcp
 .venv/bin/python health_check_tool.py               # same engine, JSON report
 ```
 
-Both must agree (expected as of 2026-10-21:
-365 registered / 347 evaluated / 339 PASSED / 2 FAILED / 6 ERROR / 18 SKIPPED).
+Both must agree (expected as of 2026-10-22:
+365 registered / 347 evaluated / 343 PASSED / 1 FAILED / 3 ERROR / 18 SKIPPED).
 These counts drift over time: refresh them from `health_check_tool.py` (JSON
 report) before regenerating this skill, instead of trusting the numbers above.
 Exit code 1 means failures. Always use `.venv/bin/python` (or
