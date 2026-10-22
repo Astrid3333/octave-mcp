@@ -186,8 +186,10 @@ def compute_attractor_trajectory(
 def _validate_attractor_trajectory() -> dict:
     """3 checks: 1) Lorenz con params default no diverge (bounded, sin NaN/Inf)
     en t_max=40. 2) Efecto mariposa: dos corridas de Lorenz con IC separadas
-    por 1e-8 divergen (distancia final >> distancia inicial) -- umbral a t=30
-    (no t=20, que todavia esta en regimen lineal segun lo encontrado hoy).
+    por 1e-8 divergen (distancia final >> distancia inicial) -- umbral a t=40
+    (medido 2026-10-22 con ode45/RelTol 1e-9 y confirmado con scipy: el cruce
+    d>1 es t~30.5, el max es 47 en t~33.7, y d(40)=8.2; con t=30 el check
+    quedaba justo antes del cruce en d=0.1795).
     3) Rossler con params default produce una orbita con z siempre >= 0 en el
     grueso de la trayectoria (propiedad conocida del atractor de Rossler:
     z se mantiene cerca de 0 salvo picos esporadicos)."""
@@ -202,14 +204,14 @@ def _validate_attractor_trajectory() -> dict:
         checks.append({"name": "lorenz no diverge (bounded |x|,|y|,|z| < 100)",
                         "passed": bool(bounded), "got": b})
 
-    r_a = compute_attractor_trajectory(system="lorenz", t_max=30.0, n_points=3000, initial_condition=[1, 1, 1])
-    r_b = compute_attractor_trajectory(system="lorenz", t_max=30.0, n_points=3000, initial_condition=[1 + 1e-8, 1, 1])
+    r_a = compute_attractor_trajectory(system="lorenz", t_max=40.0, n_points=4000, initial_condition=[1, 1, 1])
+    r_b = compute_attractor_trajectory(system="lorenz", t_max=40.0, n_points=4000, initial_condition=[1 + 1e-8, 1, 1])
     if "error" in r_a or "error" in r_b:
         checks.append({"name": "efecto mariposa: sin error", "passed": False, "got": {"a": r_a, "b": r_b}})
     else:
         fa, fb = r_a["final_state"], r_b["final_state"]
         d_final = ((fa["x"] - fb["x"]) ** 2 + (fa["y"] - fb["y"]) ** 2 + (fa["z"] - fb["z"]) ** 2) ** 0.5
-        checks.append({"name": "efecto mariposa: distancia final (t=30) >> 1e-8 inicial (umbral d > 1.0)",
+        checks.append({"name": "efecto mariposa: distancia final (t=40) >> 1e-8 inicial (umbral d > 1.0)",
                         "passed": bool(d_final > 1.0), "got": {"d_final": round(d_final, 4)}})
 
     r_ross = compute_attractor_trajectory(system="rossler", t_max=100.0, n_points=5000, initial_condition=[1, 1, 1])

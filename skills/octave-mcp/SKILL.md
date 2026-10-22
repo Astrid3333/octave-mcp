@@ -49,15 +49,9 @@ harness, not for clients.
 
 ## 2 · Known gaps in this environment (verified 2026-10-22)
 
-Do not burn turns rediscovering these; expect these failures and say so:
-
-- `.venv-pyscf` is missing → `dft_tool` errors.
-- `attractor_trajectory` fails a real numeric check (`d_final=0.1795` < 1.0
-  on the butterfly-effect test) — a genuine tool bug, not an environment issue.
-- `frame_analysis_tool` returns checks with no verdict field — numeric OK,
-  contract non-compliant.
-
-Already fixed here (do not redo unless the machine changes):
+**None open.** The full validation suite is green (347/347 evaluated tools
+pass). If something breaks after a machine change, check the fixed list
+below first — those are the things that used to fail:
 
 - `umap-learn` 0.5.12 is installed in the venv → `numeral_systems_embedding`
   passes (`sklearn.manifold.TSNE` also works as the alternative).
@@ -67,6 +61,13 @@ Already fixed here (do not redo unless the machine changes):
 - Octave forge packages are installed (via `ppa:ubuntuhandbook1/octave`
   which provides `octave-dev 11.3`; then `pkg install -forge control` +
   `signal`) → `compute_hilbert_transform` passes.
+- `.venv-pyscf` exists (PySCF 2.14.0, own numpy) → `dft_tool` passes.
+- `attractor_trajectory` butterfly check now measures at t=40 (empirical
+  `d(t)`: the `d>1` crossing is at t≈30.5, max 47 at t≈33.7, d(40)=8.2 —
+  a t=30 horizon was just short of the crossing, tool math was fine).
+- `frame_analysis_tool` validate now returns `validation_passed` with
+  per-check `passed`, and its equilibrium sum deduplicates `bc` nodes
+  (multi-DOF constraints used to double-count reactions, e.g. 3×10000).
 
 ## 3 · Debugging a failing tool
 
@@ -97,11 +98,12 @@ would then be duplicated (`TOOLS = static_list + tool_registry.get_schemas()`).
 ```bash
 cd /home/astrid/octave-mcp
 .venv/bin/python run_all_validations.py --verbose   # ~2.5 min, 4 workers
-.venv/bin/python health_check_tool.py               # same engine, JSON report
+.venv/bin/python health_check_tool.py               # same engine, JSON report;
+                                                    # serial: ~5.2 min (cap 900s)
 ```
 
 Both must agree (expected as of 2026-10-22:
-365 registered / 347 evaluated / 344 PASSED / 1 FAILED / 2 ERROR / 18 SKIPPED).
+365 registered / 347 evaluated / 347 PASSED / 0 FAILED / 0 ERROR / 18 SKIPPED).
 These counts drift over time: refresh them from `health_check_tool.py` (JSON
 report) before regenerating this skill, instead of trusting the numbers above.
 Exit code 1 means failures. Always use `.venv/bin/python` (or

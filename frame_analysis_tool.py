@@ -218,9 +218,12 @@ def _solve_frame(params):
         )
         engine = "numpy-fallback"
 
-    # equilibrio global: suma de reacciones + cargas nodales = 0
-    sum_fx = float(sum(reac[3 * n] for n, _ in bc))
-    sum_fy = float(sum(reac[3 * n + 1] for n, _ in bc))
+    # equilibrio global: suma de reacciones + cargas nodales = 0.
+    # Nodos UNICOS: bc puede listar varios DOF del mismo nodo (empotramientos),
+    # y sumar por entrada de bc contaria la reaccion de ese nodo 2-3 veces.
+    uniq_nodes = {n for n, _ in bc}
+    sum_fx = float(sum(reac[3 * n] for n in uniq_nodes))
+    sum_fy = float(sum(reac[3 * n + 1] for n in uniq_nodes))
     applied_fx = sum(v for _, d, v in nl if d == 0)
     applied_fy = sum(v for _, d, v in nl if d == 1)
     # incluye cortantes de cargas distribuidas transformadas
@@ -252,8 +255,10 @@ def _solve_frame(params):
         "applied_fy": applied_fy,
         "residual_fx": sum_fx + applied_fx,
         "residual_fy": sum_fy + applied_fy,
-        "ok": abs(sum_fx + applied_fx) < 1e-6 * max(1.0, abs(applied_fy))
-        and abs(sum_fy + applied_fy) < 1e-6 * max(1.0, abs(applied_fy)),
+        "ok": bool(
+            abs(sum_fx + applied_fx) < 1e-6 * max(1.0, abs(applied_fy))
+            and abs(sum_fy + applied_fy) < 1e-6 * max(1.0, abs(applied_fy))
+        ),
     }
 
     node_disp = [
@@ -290,7 +295,13 @@ def _solve_frame(params):
 
 
 def _validate():
-    """Cruza el solver contra 3 analíticas clásicas."""
+    """Cruza el solver contra 3 analiticas clasicas.
+
+    Umbrales: rel_err < 1e-6 y residual de equilibrio ok. Calibrado
+    2026-10-22 con mediciones reales: los errores relativos observados
+    son 5e-15..4e-14 (precision de maquina), asi que 1e-6 deja 8 ordenes
+    de margen y aun asi falla ante errores de ensamblado/modelado reales.
+    """
     checks = []
 
     # 1. Viga SS con UDL: R = wL/2, M_mid ≈ wL²/8 (malla fina)
@@ -301,24 +312,29 @@ def _validate():
         {"i": k, "j": k + 1, "A": 5.38e-3, "E": 210e9, "Iz": 8.356e-5, "w": w}
         for k in range(16)
     ]
-    r = _solve_frame({
+    r_ss = _solve_frame({
         "nodes": nodes, "members": members,
         "bc": [[0, 0], [0, 1], [16, 1]],
     })
-    ra = next(x["value"] for x in r["reactions"] if x["node"] == 0 and x["dof"] == 1)
-    m_mid = max(abs(mf["M_max"]) for mf in r["member_forces"] if mf["i"] in (7, 8))
+    ra = next(x["value"] for x in r_ss["reactions"] if x["node"] == 0 and x["dof"] == 1)
+    m_mid = max(abs(mf["M_max"]) for mf in r_ss["member_forces"] if mf["i"] in (7, 8))
     m_ex = abs(w) * L * L / 8
+    r_err = abs(ra - abs(w) * L / 2) / (abs(w) * L / 2)
+    m_err = abs(m_mid - m_ex) / m_ex
     checks.append({
-        "case": "SS UDL (16 elems)",
-        "R_num": ra, "R_ex": abs(w) * L / 2,
-        "M_num": m_mid, "M_ex": m_ex,
-        "R_rel_err": abs(ra - abs(w) * L / 2) / (abs(w) * L / 2),
-        "M_rel_err": abs(m_mid - m_ex) / m_ex,
+        "name": "SS UDL (16 elems): R y M_mid vs analiticos (rel_err < 1e-6)",
+        "passed": bool(r_err < 1e-6 and m_err < 1e-6),
+        "got": {
+            "case": "SS UDL (16 elems)",
+            "R_num": ra, "R_ex": abs(w) * L / 2,
+            "M_num": m_mid, "M_ex": m_ex,
+            "R_rel_err": r_err, "M_rel_err": m_err,
+        },
     })
 
     # 2. Pórtico en C biapoyado + voladizo: P en voladizo
     # nodos: 0=(0,0) empotrado, 1=(0,3) nudo, 2=(4,3) libre
-    r = _solve_frame({
+    r_cf = _solve_frame({
         "nodes": [[0, 0], [0, 3], [4, 3]],
         "members": [
             {"i": 0, "j": 1, "A": 5.38e-3, "E": 210e9, "Iz": 8.356e-5},
@@ -328,19 +344,33 @@ def _validate():
         "nodal_loads": [[2, 1, -10000.0]],  # P=10 kN hacia abajo en voladizo
     })
     # M en base ≈ P·L_vola = 10000·4 = 40000 (N·m) por equilibrio global
-    m_base = abs(r["member_forces"][0]["M1"])
+    m_base = abs(r_cf["member_forces"][0]["M1"])
+    mc_err = abs(m_base - 40000.0) / 40000.0
     checks.append({
-        "case": "C-frame cantilever P=10kN",
-        "M_base_num": m_base, "M_base_ex": 40000.0,
-        "M_rel_err": abs(m_base - 40000.0) / 40000.0,
+        "name": "C-frame cantilever P=10kN: M_base vs P·L (rel_err < 1e-6)",
+        "passed": bool(mc_err < 1e-6),
+        "got": {
+            "case": "C-frame cantilever P=10kN",
+            "M_base_num": m_base, "M_base_ex": 40000.0,
+            "M_rel_err": mc_err,
+        },
     })
 
     # 3. Equilibrio residual en ambos casos
+    eq_ss, eq_cf = r_ss["equilibrium"], r_cf["equilibrium"]
     checks.append({
-        "case": "equilibrium residual (both)",
-        "ok_ss": r is not None,
+        "name": "equilibrium residual ok en ambos casos",
+        "passed": bool(eq_ss["ok"] and eq_cf["ok"]),
+        "got": {
+            "case": "equilibrium residual (both)",
+            "ss": eq_ss, "cf": eq_cf,
+        },
     })
-    return {"checks": checks, "engine": r["engine"]}
+    return {
+        "validation_passed": all(c["passed"] for c in checks),
+        "checks": checks,
+        "engine": r_cf["engine"],
+    }
 
 
 def _frame_analysis_handler(args):

@@ -45,7 +45,10 @@ import time
 import run_all_validations  # constructor canonico de requests (single source of truth)
 
 SERVER_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "server.py")
-TIMEOUT_SECONDS = 300
+# 900s: las validaciones corren en serie por UN subprocess del server; las
+# tools que antes fallaban al instante (dft, cfd, bem, fem) ahora computan
+# de verdad y 300s ya no alcanzaba (medido 2026-10-22, suite 347 verde).
+TIMEOUT_SECONDS = 900
 
 HEALTH_CHECK_TOOL_SCHEMA = {
     "name": "health_check_tool",
