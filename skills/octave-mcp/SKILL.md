@@ -124,7 +124,11 @@ Exit code 1 means failures. Always use `.venv/bin/python` (or
   [--metadata]` prints them; `check_sync()` compares the embedded literal
   against the `.md` in binary (`"rb"` vs UTF-8 bytes): `True` when identical,
   `None` when the `.md` was copied away, `AssertionError` when they diverge
-  (CRLF changes count as divergence).
+  (CRLF changes count as divergence). Regenerate the embedded copy with
+  `python3 regenerate_skill_content.py` (same directory): it refuses with a
+  clear error if the `.md` contains a backslash, three consecutive double
+  quotes, or CR line endings — each of those would break or silently falsify
+  the raw literal or the binary check.
 - The GitHub remote is `git@github.com:Astrid3333/octave-mcp.git`; visibility
   is set on GitHub and does not affect local opencode usage (the MCP reads
   the local path only).

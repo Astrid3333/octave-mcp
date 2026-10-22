@@ -13,6 +13,11 @@ la copia embebida ``_SKILL_MD_EMBEDDED``, que se regenera desde SKILL.md y
 esta en r-string para que ningun backslash futuro del markdown se interprete.
 SKILL_NAME/SKILL_DESCRIPTION se derivan del frontmatter de SKILL_MD: no hay
 ningun valor duplicado a mano. Solo stdlib.
+
+Nota: SKILL_MD en si nunca esta desincronizado (siempre refleja el disco o,
+en su defecto, el embebido); lo que puede envejecer es el fallback
+``_SKILL_MD_EMBEDDED``, y eso es lo que vigila check_sync(). Regenerar con
+``regenerate_skill_content.py`` (mismo directorio).
 """
 
 import os
@@ -21,7 +26,7 @@ import re
 SKILL_PATH = "skills/octave-mcp/SKILL.md"
 
 # Copia byte a byte de SKILL.md (ver check_sync()). No editar a mano:
-# regenerar el archivo desde SKILL.md.
+# regenerar con regenerate_skill_content.py.
 _SKILL_MD_EMBEDDED = r"""---
 name: octave-mcp
 description: Use when the user wants scientific/numeric computation served by their local GNU Octave MCP server — linear algebra, ODEs/PDEs, symbolic math, curve fitting, physics/chemistry/biology simulations, plotting data, or "run this in Octave". Talks to the `octave` MCP (meta-tools only), so it covers all 360+ registered tools. Also use when debugging why an octave-mcp tool fails or validating the whole tool suite.
@@ -148,7 +153,11 @@ Exit code 1 means failures. Always use `.venv/bin/python` (or
   [--metadata]` prints them; `check_sync()` compares the embedded literal
   against the `.md` in binary (`"rb"` vs UTF-8 bytes): `True` when identical,
   `None` when the `.md` was copied away, `AssertionError` when they diverge
-  (CRLF changes count as divergence).
+  (CRLF changes count as divergence). Regenerate the embedded copy with
+  `python3 regenerate_skill_content.py` (same directory): it refuses with a
+  clear error if the `.md` contains a backslash, three consecutive double
+  quotes, or CR line endings — each of those would break or silently falsify
+  the raw literal or the binary check.
 - The GitHub remote is `git@github.com:Astrid3333/octave-mcp.git`; visibility
   is set on GitHub and does not affect local opencode usage (the MCP reads
   the local path only).
@@ -174,8 +183,14 @@ if SKILL_MD is None:
 
 
 def _frontmatter(text):
-    """Extrae {name, description, ...} del frontmatter de un SKILL.md."""
-    m = re.match(r"^---\n(.*?)\n---", text, re.S)
+    """Extrae {name, description, ...} del frontmatter de un SKILL.md.
+
+    Limitacion: solo claves de una linea en formato ``clave: valor``; no
+    entiende YAML multilineo (``>``/``|``) ni valores entre comillas (se
+    los devolveria tal cual). Vale para el frontmatter de este skill; si
+    alguna vez crece, parsear con PyYAML en vez de ampliar esto.
+    """
+    m = re.match(r"^---\n(.*?)\n---", text.replace("\r\n", "\n"), re.S)
     if not m:
         return {}
     fm = {}
@@ -202,7 +217,7 @@ def check_sync():
         AssertionError: el .md existe pero difiere de la copia embebida
         (incluye cambios CRLF/LF: se comparan bytes, no texto normalizado).
         En ese caso SKILL_MD sigue leyendo el .md vigente del disco; hay que
-        regenerar skill_content.py desde el .md.
+        regenerar skill_content.py con regenerate_skill_content.py.
     """
     path = _md_path()
     if not os.path.exists(path):
@@ -212,7 +227,7 @@ def check_sync():
     if raw != _SKILL_MD_EMBEDDED.encode("utf-8"):
         raise AssertionError(
             "skill_content.py esta desincronizado de SKILL.md "
-            "(regenera _SKILL_MD_EMBEDDED desde el .md)"
+            "(regenera con regenerate_skill_content.py)"
         )
     return True
 
