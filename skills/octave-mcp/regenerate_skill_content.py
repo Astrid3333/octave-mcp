@@ -13,10 +13,13 @@ contiene algo que romperia o falsaria el literal o su comprobacion:
 - tres comillas dobles seguidas -> cerrarian el literal r-string por medio
 - CR (CRLF)          -> check_sync() es binario; el .md debe ser LF
 
-Despues de regenerar, check_sync() debe dar True en el directorio del repo.
-La escritura es atomica (temporal en el mismo directorio + os.replace): un
-fallo a mitad nunca deja un skill_content.py truncado o a medias.
-Solo stdlib.
+La garantia principal es la verificacion final: se compila y ejecuta lo
+generado y se exige que el literal embebido reproduzca SKILL.md byte a
+byte (cubre ademas los bordes que no se imaginan, p. ej. un .md que
+termine en comillas sueltas). Despues de regenerar, check_sync() debe dar
+True en el directorio del repo. La escritura es atomica (temporal en el
+mismo directorio + os.replace): un fallo a mitad nunca deja un
+skill_content.py truncado o a medias. Solo stdlib.
 """
 
 import os
@@ -68,13 +71,20 @@ def main():
             "'comillas triple seguidas' sin escribirlas)."
         )
 
+    # NO REORDENAR: los chequeos de patrones de arriba (backslash y comillas
+    # triple) DEBEN ir antes de este exec. Se ejecuta codigo generado a
+    # partir del .md; sin esos rechazos previos, un .md podria cerrar el
+    # literal r-string e inyectar codigo que este exec se tragara aqui mismo.
     out = _TEMPLATE.replace("__MD__", text)
     # Red de seguridad: compilar y ejecutar lo generado comprueba que el
     # literal r-string reproduce SKILL.md exactamente. Cubre ademas los
     # bordes que los chequeos de patrones de arriba no imaginan (p. ej. un
     # .md que termine en comillas sueltas y se coma el cierre del literal).
-    # _read_disk() apunta al .py de destino, que aun no existe, asi que
-    # SKILL_MD en este exec es el literal embebido y la comparacion es pura.
+    # _md_path() busca SKILL.md junto al __file__ dado, y aqui ese
+    # directorio es HERE (el .md existe), asi que SKILL_MD del exec es el
+    # contenido del disco; por eso la comparacion clave usa el literal
+    # directamente (ns["_SKILL_MD_EMBEDDED"]) y el frontmatter se valida
+    # sobre el literal embebido, con el parser real del .py emitido.
     try:
         ns = {"__file__": str(OUT), "__name__": "__gen_check__"}
         exec(compile(out, str(OUT), "exec"), ns)
@@ -89,14 +99,16 @@ def main():
             f"el literal generado no reproduce {MD.name}; no se reemplaza "
             f"{OUT.name}."
         )
-    # El frontmatter se valida con el parser real del .py emitido (ns),
-    # no con una copia: una sola logica de parseo, en un solo sitio.
-    if ns.get("SKILL_NAME") != "octave-mcp":
+    # Frontmatter validado sobre el literal embebido (el artefacto que
+    # consumira quien lleve el .py solo), parseado con la propia funcion
+    # _frontmatter del .py emitido: una sola logica de parseo, en un sitio.
+    fm = ns["_frontmatter"](ns["_SKILL_MD_EMBEDDED"])
+    if fm.get("name") != "octave-mcp":
         fail(
-            f"frontmatter name es {ns.get('SKILL_NAME')!r}, se esperaba "
+            f"frontmatter name es {fm.get('name')!r}, se esperaba "
             "'octave-mcp'."
         )
-    if not ns.get("SKILL_DESCRIPTION", "").startswith("Use when"):
+    if not fm.get("description", "").startswith("Use when"):
         fail("frontmatter description vacia o sin el prefijo esperado 'Use when'.")
 
     # Escritura atomica: temporal en el mismo directorio y os.replace.
