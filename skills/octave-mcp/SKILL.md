@@ -64,8 +64,13 @@ below first — those are the things that used to fail:
 - `.venv-pyscf` exists (PySCF 2.14.0, own numpy) → `dft_tool` passes.
 - `alkahest` 3.12.0 (Rust CAS: Gröbner, derivation logs, Lean 4
   certificates) is installed in the venv → `alkahest_cas_tool` passes its
-  15 validate checks (diff/integrate/simplify/limit/series/solve/sums +
-  number theory).
+  16 validate checks (diff/integrate/simplify/limit/series/solve/sums +
+  number theory). Upstream beta bug: its Rust kernel aborts (SIGILL,
+  uncatchable) on some `number_theory` inputs (e.g. `factorint(2^64+1)`,
+  `totient(2^64+1)`, `nextprime(2^120)`) — the tool runs all four NT ops
+  in an isolated subprocess and falls back to sympy on crash, reporting
+  `engine`/`fallback_reason`. If the octave MCP ever dies mid-call,
+  suspect a native crash like this one.
 - `attractor_trajectory` butterfly check now measures at t=40 (empirical
   `d(t)`: the `d>1` crossing is at t≈30.5, max 47 at t≈33.7, d(40)=8.2 —
   a t=30 horizon was just short of the crossing, tool math was fine).

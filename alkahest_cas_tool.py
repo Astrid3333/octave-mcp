@@ -18,10 +18,21 @@ Diseño:
   2^32-1, ...) — no depende de otro CAS como oráculo.
 - La serie con order=N trunca ANTES de x^N (término O(x^N)); para
   verificar hasta x^5 se pide order=6.
+
+Nota de robustez (bug upstream 2026-10-22): las operaciones de teoría de
+números de alkahest (factorint/totient/nextprime con entradas grandes o
+difíciles) abortan el proceso con SIGILL dentro del kernel Rust — un
+panic con abort que NO se puede capturar con try/except. Por eso las
+cuatro NT ops corren en un subprocess aislado: si el hijo alkahest muere
+(señal/timeout), el padre reintenta con sympy (motores verificados
+instantáneos para F6 y 2^71-1) y reporta el motor en el campo `engine`.
 """
 
 import json
 import math
+import signal
+import subprocess
+import sys
 
 from tool_registry import register_tool
 
@@ -43,7 +54,9 @@ ALKAHEST_CAS_TOOL_SCHEMA = {
         "JSON-safe), verification (certificate_available/exactly_verified/"
         "...) y certificate (Lean 4, truncado a 4 KB). Modos: compute (una "
         "operación con expr/var/point/order/bounds/equations/n) y validate "
-        "(autochequeos contra soluciones analíticas conocidas)."
+        "(autochequeos contra soluciones analíticas conocidas). Las NT ops "
+        "corren aisladas en subprocess con fallback a sympy si el núcleo "
+        "Rust aborta (campo engine = alkahest | sympy_fallback)."
     ),
     "inputSchema": {
         "type": "object",
@@ -147,6 +160,75 @@ def _require_ak():
         )
 
 
+# Hijo aislado para NT: el kernel Rust de alkahest aborta con SIGILL en
+# ciertas entradas (factorint/totient/nextprime grandes o difíciles) y una
+# señal así mata al MCP entero si corre in-process. RLIMIT_CORE=0 evita
+# core dumps; el padre detecta rc<0 y reintenta con sympy.
+_NT_CHILD_SRC = """
+import json, resource, sys
+resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
+op, engine, n = sys.argv[1], sys.argv[2], int(sys.argv[3])
+if engine == "alkahest":
+    import alkahest.number_theory as mod
+    fn = getattr(mod, op)
+else:
+    import sympy
+    fn = {"factorint": sympy.factorint, "totient": sympy.totient,
+          "isprime": sympy.isprime, "nextprime": sympy.nextprime}[op]
+r = fn(n)
+if isinstance(r, dict):
+    out = {str(k): int(v) for k, v in r.items()}
+elif isinstance(r, bool):
+    out = bool(r)
+else:
+    out = int(r)
+sys.stdout.write(json.dumps(out))
+"""
+
+_NT_TIMEOUT_SECONDS = 45
+
+
+def _nt_isolated(op, n):
+    """Corre NT op en hijo aislado: alkahest primero, sympy si muere."""
+    last = None
+    for engine, label in (("alkahest", "alkahest"), ("sympy", "sympy_fallback")):
+        try:
+            proc = subprocess.run(
+                [sys.executable, "-c", _NT_CHILD_SRC, op, engine, str(n)],
+                capture_output=True,
+                text=True,
+                timeout=_NT_TIMEOUT_SECONDS,
+            )
+        except subprocess.TimeoutExpired:
+            last = f"{engine}: timeout {_NT_TIMEOUT_SECONDS}s"
+            continue
+        if proc.returncode == 0 and proc.stdout.strip():
+            payload = json.loads(proc.stdout)
+            result = {"operation": op, "ok": True, "n": n, "engine": label}
+            if engine != "alkahest":
+                result["fallback_reason"] = last
+            if isinstance(payload, dict):
+                result["factors"] = payload
+            elif op == "isprime":
+                result["isprime"] = payload
+            elif op == "totient":
+                result["totient"] = payload
+            else:
+                result["nextprime"] = payload
+            return result
+        if proc.returncode < 0:
+            sig = -proc.returncode
+            try:
+                name = signal.Signals(sig).name
+            except ValueError:
+                name = str(sig)
+            last = f"{engine}: crash signal {sig} ({name})"
+        else:
+            err = (proc.stderr or "").strip()[-200:]
+            last = f"{engine}: rc={proc.returncode} {err}"
+    raise ValueError(f"NT operation={op} fallo en ambos motores: {last}")
+
+
 def _fresh_pool():
     """Pool nuevo por llamada: ExprPool es write-only y no se libera."""
     return ak.ExprPool()
@@ -187,20 +269,10 @@ def _compute(args):
     var = args.get("var") or "x"
 
     if op in ("factorint", "isprime", "totient", "nextprime"):
-        if _ant is None:
-            raise ValueError("alkahest.number_theory no disponible")
         n = args.get("n")
         if not isinstance(n, int) or isinstance(n, bool):
             raise ValueError(f"operation={op} requiere n entero")
-        if op == "factorint":
-            payload = {str(p): int(e) for p, e in _ant.factorint(n).items()}
-        elif op == "isprime":
-            payload = {"n": n, "isprime": bool(_ant.isprime(n))}
-        elif op == "totient":
-            payload = {"n": n, "totient": int(_ant.totient(n))}
-        else:
-            payload = {"n": n, "nextprime": int(_ant.nextprime(n))}
-        return {"operation": op, "ok": True, **payload}
+        return _nt_isolated(op, n)
 
     if op == "solve":
         equations = args.get("equations")
@@ -483,6 +555,22 @@ def _validate():
         expected = {"totient(97)": 96, "nextprime(100)": 101}
         return got == expected, got, expected
 
+    def check_nt_isolated_fence():
+        # Repro del crash upstream: factorint(2^64+1) aborta alkahest con
+        # SIGILL in-process; el fence lo contiene y sympy lo resuelve.
+        result = _nt_isolated("factorint", 2**64 + 1)
+        expected = {"274177": 1, "67280421310721": 1}
+        ok = (
+            result.get("factors") == expected
+            and result.get("engine") in ("alkahest", "sympy_fallback")
+        )
+        return (
+            ok,
+            f"engine={result.get('engine')}, factors={result.get('factors')}, "
+            f"reason={result.get('fallback_reason', '-')}",
+            "F6 = 274177 x 67280421310721 con motor declarado, sin crash",
+        )
+
     def check_derived_contract():
         pool = _fresh_pool()
         expr = ak.parse("sin(x^2)*exp(x)", pool, {})
@@ -538,6 +626,7 @@ def _validate():
     chk("nt_isprime", check_nt_isprime)
     chk("nt_factorint", check_nt_factorint)
     chk("nt_totient_nextprime", check_nt_totient_nextprime)
+    chk("nt_isolated_fence", check_nt_isolated_fence)
     chk("derived_result_contract", check_derived_contract)
     chk("certificate_lean_export", check_certificate_lean)
 
