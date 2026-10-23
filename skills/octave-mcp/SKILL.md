@@ -1,6 +1,6 @@
 ---
 name: octave-mcp
-description: Use when the user wants scientific/numeric computation served by their local GNU Octave MCP server — linear algebra, ODEs/PDEs, symbolic math, curve fitting, physics/chemistry/biology simulations, plotting data, or "run this in Octave". Talks to the `octave` MCP (meta-tools only), so it covers all 369+ registered tools. Also use when debugging why an octave-mcp tool fails or validating the whole tool suite.
+description: Use when the user wants scientific/numeric computation served by their local GNU Octave MCP server — linear algebra, ODEs/PDEs, symbolic math, curve fitting, physics/chemistry/biology simulations, plotting data, or "run this in Octave". Talks to the `octave` MCP (meta-tools only), so it covers all 370+ registered tools. Also use when debugging why an octave-mcp tool fails or validating the whole tool suite.
 ---
 
 # Octave MCP (local)
@@ -23,7 +23,7 @@ as the MCP `octave` (global opencode config, `mcp.octave`, command
 Never invent a tool name from memory. Always:
 `octave_list_tools` → `octave_get_tool_schema` → `octave_call_tool`.
 
-`tools/list_full` (366 entries) is a private endpoint for the validation
+`tools/list_full` (367 entries) is a private endpoint for the validation
 harness, not for clients.
 
 ## 1 · Calling convention
@@ -109,6 +109,22 @@ below first — those are the things that used to fail:
   bug: M61=2^61-1 answers 0 while sagebrush/sympy say prime). Reach for
   it as an INDEPENDENT cross-check engine — it does NOT factor integers
   (use sagebrush/maxima) and has no Laplace/ilt (use maxima_eval_tool).
+- Cadabra2 2.6.0 (PyPI `cadabra2`, Kasper Peeters, C++ module + Python
+  API, LaTeX input) → `cadabra2_math_tool` passes its 18 validate
+  checks (antisymmetric canonicalise, metric elimination, Grassmann
+  fermion ordering → 0, substitute pins, evaluate vs raw numerals,
+  simplify, distribute, sympy-bridge quirks, silent Ex truncation,
+  list-property comma rule, non-contracting delta, python error
+  fence). Fresh subprocess per call (properties Indices/Metric/... are
+  process-global — declare everything in the same call). Reach for it
+  for tensor-index algebra, fermion reordering (`sort_product`, NOT
+  `canonicalise`) and CAS cross-checks of sympy. Limits pinned by
+  validate: `expand` does not expand powers (use `simplify`);
+  `substitute` does not descend into power bases (use full patterns
+  `x^2 = a`); `Ex()` never raises on malformed input (truncates
+  silently); Kronecker delta does not contract (`eliminate_metric`
+  does); sympy bridge with `^` is broken — write `x**2`; no CLI, no
+  `__version__`.
 - `attractor_trajectory` butterfly check now measures at t=40 (empirical
   `d(t)`: the `d>1` crossing is at t≈30.5, max 47 at t≈33.7, d(40)=8.2 —
   a t=30 horizon was just short of the crossing, tool math was fine).
@@ -149,8 +165,8 @@ cd /home/astrid/octave-mcp
                                                     # serial: ~5.2 min (cap 900s)
 ```
 
-Both must agree (expected as of 2026-10-22:
-369 registered / 351 evaluated / 351 PASSED / 0 FAILED / 0 ERROR / 18 SKIPPED).
+Both must agree (expected as of 2026-10-23:
+370 registered / 352 evaluated / 352 PASSED / 0 FAILED / 0 ERROR / 18 SKIPPED).
 These counts drift over time: refresh them from `health_check_tool.py` (JSON
 report) before regenerating this skill, instead of trusting the numbers above.
 Exit code 1 means failures. Always use `.venv/bin/python` (or

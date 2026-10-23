@@ -63,6 +63,7 @@ import alkahest_cas_tool  # auto-registra via tool_registry, no requiere mas edi
 import maxima_eval_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import sagebrush_math_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import lispium_math_tool  # auto-registra via tool_registry, no requiere mas ediciones
+import cadabra2_math_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import savings_goal_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import investment_portfolio_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import tax_estimation_tool  # auto-registra via tool_registry, no requiere mas ediciones
