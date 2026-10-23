@@ -90,9 +90,13 @@ below first — those are the things that used to fail:
   in stdout; unknown functions stay unevaluated (no error, Maxima idiom).
   For ODEs the derivative must be QUOTED: `ode2('diff(y,x)+y=0,y,x)`
   works, while unquoted `ode2(diff(y,x)+y=0,y,x)` returns ok=True with
-  the literal `false` (ok is not success); `ic1(sol, x=0, y=1)` is the
-  three-arg form this Maxima accepts. `laplace(f,t,s)` works and agrees
-  with sympy.
+   the literal `false` (ok is not success); `ic1(sol, x=0, y=1)` is the
+   three-arg form this Maxima accepts (no derivative argument — for a
+   second-order ODE with `y'(0)` use `ic2(sol, x=0, y=1, 'diff(y,x)=0')`).
+   `laplace(f,t,s)` works and agrees with sympy; `ilt` is the inverse
+   transform but its argument order is `(f, s, t)` — the reverse of
+   `laplace` (passing `(f,t,s)` yields ok=True with a garbage `delta`
+   expression; ok is not success).
 - Sagebrush 0.7.2 (PyPI `sagebrush` / `sagebrush-mcp`, Rust engines,
   Sage-compatible syntax, no Sage/PARI/FLINT needed) →
   `sagebrush_math_tool` passes its 11 validate checks (ECM factor of
@@ -108,9 +112,12 @@ below first — those are the things that used to fail:
    coefficients, `ics=[x0,y0]`, verified by residual in the
    cross-check battery and agreeing with maxima `ode2`) but the
    dependent variable must be an APPLIED function: `y = function('y')(t)`
-   — the raw form `function('y', t)` returns an unapplied Python closure
-   and `diff(y,t)+y` then dies with TypeError (usage error, pinned).
-   There is no `laplace` (use `maxima_eval_tool`).
+    — the raw form `function('y', t)` returns an unapplied Python closure
+    and `diff(y,t)+y` then dies with TypeError (usage error, pinned).
+    `desolve_rk4(f, y, ics=[x0,y0], end_points=, step=)` runs the RK4
+    integrator and returns the step table `[[x,y],...]`; with
+    `y = var('y')` (a symbol, not a function). There is no `laplace`
+    (use `maxima_eval_tool`).
 - Lispium 0.16.0 (PyPI `lispium`, self-contained Zig binary via
   `lispium.cli.get_binary_path()`, Lisp syntax, no Python deps) →
   `lispium_math_tool` passes its 17 validate checks (factorial 100 exact
@@ -145,19 +152,23 @@ below first — those are the things that used to fail:
   `__version__`.
 - CAS cross-check battery: `examples/multi_cas_crosscheck.py` runs the
   same problems across five engines (maxima, sagebrush, lispium,
-  cadabra2, alkahest) plus an ODE/Laplace section (`ode2`/`ic1`/
-  `laplace` from maxima and `desolve` from sagebrush vs sympy
-  `dsolve`/`laplace_transform`, ODE solutions checked
-  by residual, not by constant matching) against a live sympy oracle —
-  55/55 PASS as of 2026-10-23, ruff clean. Nine PINS document the known
-  quirks (maxima noun-forms with ok=True, lispium float degradation,
-  eco of unevaluated forms, sage `var()` non-injection, alkahest Basel
-  term form, sagebrush applied-function requirement, maxima ode2
-  quoting). Run it
-  after touching any CAS tool: `.venv/bin/python
+  cadabra2, alkahest) plus an ODE/Laplace section (`ode2`/`ic1`/`ic2`/
+  `laplace`/`ilt` from maxima, `desolve` + `desolve_rk4` from sagebrush,
+  router field hints laplace/ode — all vs sympy
+  `dsolve`/`laplace_transform`/`inverse_laplace_transform`, ODE
+  solutions checked by residual (or numeric error vs the analytic
+  solution for RK4), not by constant matching) against a live sympy
+  oracle — 63/63 PASS as of 2026-10-23, ruff clean. Ten PINS document
+  the known quirks (maxima noun-forms with ok=True, lispium float
+  degradation, eco of unevaluated forms, sage `var()` non-injection,
+  alkahest Basel term form, sagebrush applied-function requirement,
+  maxima ode2 quoting, maxima `ilt` argument order). It is the second
+  gate of `run_validations_guarded.py` (suite first, then battery).
+  Run it after touching any CAS tool: `.venv/bin/python
   examples/multi_cas_crosscheck.py`.
 - CAS router: `cas_router_math_tool` unifies the four CAS tools
-  (maxima/sagebrush/lispium/cadabra2) with 10 validate checks.
+  (maxima/sagebrush/lispium/cadabra2) with 12 validate checks
+  (including field-laplace and field-ode routed to maxima).
   mode=compute operation=eval takes a `query` written in the TARGET
   engine's dialect (the router does NOT translate): route = explicit
   `engine` > `field` hint (tensor→cadabra2, numero/prime→sagebrush,
@@ -206,6 +217,8 @@ would then be duplicated (`TOOLS = static_list + tool_registry.get_schemas()`).
 ```bash
 cd /home/astrid/octave-mcp
 .venv/bin/python run_all_validations.py --verbose   # ~2.5 min, 4 workers
+.venv/bin/python run_validations_guarded.py         # suite + battery (63/63),
+                                                    # exit 0 solo si ambas OK
 .venv/bin/python health_check_tool.py               # same engine, JSON report;
                                                     # serial: ~5.2 min (cap 900s)
 ```

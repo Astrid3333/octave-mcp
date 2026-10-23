@@ -78,7 +78,7 @@ CAS_ROUTER_TOOL_SCHEMA = {
         "entre maxima/sagebrush/lispium/cadabra2 (sniffing + hint `field` "
         "+ `engine` explicito) con cadena de fallback y log de intentos. "
         "Sin traduccion de sintaxis. mode=compute (operation=eval, "
-        "operation=guia) o mode=validate (10 checks)."
+            "operation=guia) o mode=validate (12 checks)."
     ),
     "inputSchema": {
         "type": "object",
@@ -355,6 +355,23 @@ def _c_field_hint():
     return "field=tensor -> cadabra2 (%s)" % r["routed_by"], ok
 
 
+def _c_field_laplace():
+    r = _r({"query": "laplace(sin(t),t,s)", "field": "laplace"})
+    ok = r["ok"] and r["engine_used"] == "maxima" and \
+        r["routed_by"] == "field-laplace" and \
+        (r["result"] or "").strip() == "1/(s^2+1)"
+    return "field=laplace -> %s (%s) %r" % (
+        r["engine_used"], r["routed_by"], r["result"]), ok
+
+
+def _c_field_ode():
+    r = _r({"query": "ode2('diff(y,x)+y=0,y,x)", "field": "ode"})
+    ok = r["ok"] and r["engine_used"] == "maxima" and \
+        r["routed_by"] == "field-ode" and "y =" in (r["result"] or "")
+    return "field=ode -> %s (%s) %r" % (
+        r["engine_used"], r["routed_by"], r["result"]), ok
+
+
 def _c_fallback_chain():
     # Fuerza maxima (no entiende `^` prefix) con una query lisp que
     # lispium evalua: la cadena debe caer a sagebrush (falla) y luego
@@ -397,6 +414,8 @@ def _validate():
         _check("route_sagebrush_number", _c_route_number),
         _check("route_lisp_sniff", _c_route_lisp),
         _check("field_hint_tensor", _c_field_hint),
+        _check("field_hint_laplace", _c_field_laplace),
+        _check("field_hint_ode", _c_field_ode),
         _check("fallback_chain", _c_fallback_chain),
         _check("all_fail_report", _c_all_fail),
         _check("result_normalizado", _c_result_normalizado),

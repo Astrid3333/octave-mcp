@@ -3,16 +3,19 @@
 Ejemplo de verificación cruzada: cada problema se resuelve en los
 motores que lo soportan (maxima, sagebrush, lispium, cadabra2,
 alkahest) y el resultado de cada uno se compara contra un oráculo
-sympy calculado en vivo. Incluye sección ODE/Laplace (ode2/ic1/laplace
-de maxima y desolve de sagebrush vs dsolve/laplace_transform de sympy,
-soluciones ODE verificadas por residuo) y PINS de quirks
-conocidos (noun-forms de maxima que salen con ok=True, degradación a
-float de lispium en enteros grandes, eco de formas sin evaluar,
-function sin aplicar en sagebrush, forma de término Basel en alkahest).
+sympy calculado en vivo. Incluye sección ODE/Laplace (ode2/ic1/ic2/
+laplace/ilt de maxima, desolve + desolve_rk4 de sagebrush, router con
+hints laplace/ode — todo vs dsolve/laplace_transform/
+inverse_laplace_transform o residuo numérico) y PINS de quirks
+conocidos (noun-forms de maxima que salen con ok=True, orden de ilt,
+degradación a float de lispium en enteros grandes, eco de formas sin
+evaluar, function sin aplicar en sagebrush, forma de término Basel en
+alkahest, quoting de ode2).
 
 Uso:  .venv/bin/python examples/multi_cas_crosscheck.py
 """
 
+import ast
 import json
 import re
 import subprocess
@@ -399,12 +402,17 @@ def main():
         check("factorint-alkahest", v == oracle,
               "factorint(462) = %s" % v)
 
-        # --- 15. ODE y Laplace: maxima ode2/ic1/laplace vs sympy
-        def mx_rhs(expr):
-            out = mx(w, expr)
+        # --- 15. ODE y Laplace: maxima ode2/ic1/ic2/laplace/ilt,
+        #     desolve + desolve_rk4 de sagebrush, router con hints
+        #     de campo, todos vs sympy (residuo / mismo simbólico).
+        def mx_parse(out):
             rhs = out.split("=", 1)[1].strip()
             return sympy.sympify(rhs.replace("%c", "C1")
+                                 .replace("%k1", "K1").replace("%k2", "K2")
                                  .replace("%e", "E").replace("^", "**"))
+
+        def mx_rhs(expr):
+            return mx_parse(mx(w, expr))
 
         yv = sympy.Function("y")
         oracle = sympy.dsolve(sympy.diff(yv(x), x) + yv(x), yv(x)).rhs
@@ -424,6 +432,22 @@ def main():
         check("ode2-forzada-maxima", residual == 0,
               "y'-2y=e^x -> %s (residuo %s)" % (v, residual))
 
+        # ODE 2º orden: ic1 SOLO admite (soln, x=0, y=0); para la
+        # condición sobre la derivada va ic2.
+        v = mx_rhs("ode2('diff(y,x,2)+y=0,y,x)")
+        residual = sympy.simplify(sympy.diff(v, x, 2) + v)
+        check("ode2-2o-maxima", residual == 0,
+              "y''+y=0 -> %s (residuo %s)" % (v, residual))
+
+        v = mx_rhs("ic2(ode2('diff(y,x,2)+y=0,y,x),"
+                   "x=0,y=1,'diff(y,x)=0)")
+        residual = sympy.simplify(sympy.diff(v, x, 2) + v)
+        check("ode2-2o-ic-maxima",
+              residual == 0 and v.subs(x, 0) == 1
+              and sympy.diff(v, x).subs(x, 0) == 0,
+              "y(0)=1, y'(0)=0 -> %s (residuo %s, y(0)=%s, y'(0)=%s)"
+              % (v, residual, v.subs(x, 0), sympy.diff(v, x).subs(x, 0)))
+
         oracle = sympy.laplace_transform(sympy.sin(t), t, s)[0]
         v = mx_sympy(mx(w, "laplace(sin(t),t,s)"))
         check("laplace-sin-maxima", same_symbolic(v, oracle),
@@ -433,6 +457,20 @@ def main():
         v = mx_sympy(mx(w, "laplace(exp(a*t)*t,t,s)"))
         check("laplace-te-at-maxima", same_symbolic(v, oracle),
               "L{t e^{at}} = %s" % v)
+
+        # Laplace inversa: ilt va (f, s, t) — orden contrario a laplace.
+        # El oráculo sympy trae Heaviside(t); trabajamos en t>0.
+        oracle = sympy.inverse_laplace_transform(
+            1 / (s ** 2 + 1), s, t).subs(sympy.Heaviside(t), 1)
+        v = mx_sympy(mx(w, "ilt(1/(s^2+1),s,t)"))
+        check("ilt-sin-maxima", same_symbolic(v, oracle),
+              "L^-1{1/(s^2+1)} = %s" % v)
+
+        oracle = sympy.inverse_laplace_transform(
+            s / (s ** 2 + 1), s, t).subs(sympy.Heaviside(t), 1)
+        v = mx_sympy(mx(w, "ilt(s/(s^2+1),s,t)"))
+        check("ilt-cos-maxima", same_symbolic(v, oracle),
+              "L^-1{s/(s^2+1)} = %s" % v)
 
         # ODEs en sagebrush: desolve funciona con function APLICADA
         # 'y'(t); la solución trae _C/_Kn y se valida por residuo.
@@ -463,6 +501,46 @@ def main():
         residual = sympy.simplify(sympy.diff(v, t, 2) + v)
         check("desolve-2o-sagebrush", residual == 0,
               "y''+y=0 -> %s (residuo %s)" % (v, residual))
+
+        # RK4 numérico: y' = x+y, y(0)=1 -> y = 2e^x - x - 1.
+        # Se compara el camino completo contra la solución analítica.
+        raw = sg(w, "y = var('y')\n"
+                "print(desolve_rk4(x + y, y, ics=[0, 1],"
+                " end_points=1, step=0.5))")
+        pts = ast.literal_eval(raw)
+        exact = 2 * sympy.exp(sympy.Symbol("xr")) - sympy.Symbol("xr") - 1
+        err = max(abs(float(exact.subs("xr", px) - py))
+                  for px, py in pts)
+        check("rk4-sagebrush", pts[0] == [0, 1] and err < 0.01,
+              "y'=x+y, h=0.5 -> %d puntos, err máx %.5f vs 2e^x-x-1"
+              % (len(pts), err))
+
+        # Router con hints de campo: laplace/ode -> maxima.
+        r = w.call_tool("cas_router_math_tool",
+                        {"mode": "compute", "operation": "eval",
+                         "field": "laplace", "query": "laplace(sin(t),t,s)"})
+        v = mx_sympy((r.get("result") or "").strip()) if r.get("ok") \
+            else None
+        oracle = sympy.laplace_transform(sympy.sin(t), t, s)[0]
+        check("router-laplace",
+              r.get("ok") and r.get("engine_used") == "maxima"
+              and r.get("routed_by") == "field-laplace"
+              and v is not None and same_symbolic(v, oracle),
+              "field=laplace -> %s/%s, L{sin t} = %s"
+              % (r.get("engine_used"), r.get("routed_by"), v))
+
+        r = w.call_tool("cas_router_math_tool",
+                        {"mode": "compute", "operation": "eval",
+                         "field": "ode",
+                         "query": "ode2('diff(y,x)+y=0,y,x)"})
+        v = mx_parse(r.get("result") or "") if r.get("ok") else None
+        residual = sympy.simplify(sympy.diff(v, x) + v) if v is not None \
+            else None
+        check("router-ode",
+              r.get("ok") and r.get("engine_used") == "maxima"
+              and r.get("routed_by") == "field-ode" and residual == 0,
+              "field=ode -> %s/%s, y'+y=0 -> %s (residuo %s)"
+              % (r.get("engine_used"), r.get("routed_by"), v, residual))
 
         # ---------------- PINS: quirks documentados (no son acuerdos)
 
@@ -527,6 +605,12 @@ def main():
         check("pin-maxima-ode2-false", pin,
               "ode2 sin ' en diff -> ok=True con 'false': la derivada "
               "debe ir cotada ('diff(...)), y ok True no es exito")
+
+        r = mx_raw(w, "ilt(1/(s^2+1),t,s)")
+        pin = r.get("ok") and "delta" in (r.get("result") or "")
+        check("pin-maxima-ilt-orden", pin,
+              "ilt con el orden de laplace (f,t,s) -> ok=True con "
+              "delta(s)/(s^2+1): ilt va (f,s,t), y ok True no es exito")
     finally:
         w.close()
 
