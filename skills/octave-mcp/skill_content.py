@@ -132,10 +132,14 @@ below first — those are the things that used to fail:
   process (variables persist across calls; `operation=reiniciar` restarts);
    `factor`/`number_field`/`newforms` run isolated. This is the tool to
    reach for ECM, number fields/class groups, modular forms or elliptic
-    curves — nothing else in the server covers those. Do NOT use it for
-   ODEs: the shim's `desolve` raises `TypeError` on arithmetic with
-   `function` objects (pinned by the cross-check battery); use
-   `maxima_eval_tool` `ode2` instead.
+    curves — nothing else in the server covers those. `desolve` DOES
+   work for ODEs (1st order linear/separable + 2nd order constant
+   coefficients, `ics=[x0,y0]`, verified by residual in the
+   cross-check battery and agreeing with maxima `ode2`) but the
+   dependent variable must be an APPLIED function: `y = function('y')(t)`
+   — the raw form `function('y', t)` returns an unapplied Python closure
+   and `diff(y,t)+y` then dies with TypeError (usage error, pinned).
+   There is no `laplace` (use `maxima_eval_tool`).
 - Lispium 0.16.0 (PyPI `lispium`, self-contained Zig binary via
   `lispium.cli.get_binary_path()`, Lisp syntax, no Python deps) →
   `lispium_math_tool` passes its 17 validate checks (factorial 100 exact
@@ -171,12 +175,14 @@ below first — those are the things that used to fail:
 - CAS cross-check battery: `examples/multi_cas_crosscheck.py` runs the
   same problems across five engines (maxima, sagebrush, lispium,
   cadabra2, alkahest) plus an ODE/Laplace section (`ode2`/`ic1`/
-  `laplace` vs sympy `dsolve`/`laplace_transform`, ODE solutions checked
+  `laplace` from maxima and `desolve` from sagebrush vs sympy
+  `dsolve`/`laplace_transform`, ODE solutions checked
   by residual, not by constant matching) against a live sympy oracle —
-  51/51 PASS as of 2026-10-23, ruff clean. Nine PINS document the known
+  55/55 PASS as of 2026-10-23, ruff clean. Nine PINS document the known
   quirks (maxima noun-forms with ok=True, lispium float degradation,
   eco of unevaluated forms, sage `var()` non-injection, alkahest Basel
-  term form, sagebrush `desolve` broken, maxima ode2 quoting). Run it
+  term form, sagebrush applied-function requirement, maxima ode2
+  quoting). Run it
   after touching any CAS tool: `.venv/bin/python
   examples/multi_cas_crosscheck.py`.
 - CAS router: `cas_router_math_tool` unifies the four CAS tools

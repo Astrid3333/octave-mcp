@@ -4,10 +4,11 @@ Ejemplo de verificación cruzada: cada problema se resuelve en los
 motores que lo soportan (maxima, sagebrush, lispium, cadabra2,
 alkahest) y el resultado de cada uno se compara contra un oráculo
 sympy calculado en vivo. Incluye sección ODE/Laplace (ode2/ic1/laplace
-de maxima vs dsolve/laplace_transform de sympy) y PINS de quirks
+de maxima y desolve de sagebrush vs dsolve/laplace_transform de sympy,
+soluciones ODE verificadas por residuo) y PINS de quirks
 conocidos (noun-forms de maxima que salen con ok=True, degradación a
 float de lispium en enteros grandes, eco de formas sin evaluar,
-desolve del shim sagebrush, forma de término Basel en alkahest).
+function sin aplicar en sagebrush, forma de término Basel en alkahest).
 
 Uso:  .venv/bin/python examples/multi_cas_crosscheck.py
 """
@@ -433,6 +434,36 @@ def main():
         check("laplace-te-at-maxima", same_symbolic(v, oracle),
               "L{t e^{at}} = %s" % v)
 
+        # ODEs en sagebrush: desolve funciona con function APLICADA
+        # 'y'(t); la solución trae _C/_Kn y se valida por residuo.
+        def sg_ode(code):
+            return sg_sympy(sg(w, code))
+
+        v = sg_ode("t = var('t')\ny = function('y')(t)\n"
+                   "print(desolve(diff(y,t) == -y, y))")
+        residual = sympy.simplify(sympy.diff(v, t) + v)
+        check("desolve-sagebrush", residual == 0,
+              "y'=-y -> %s (residuo %s)" % (v, residual))
+
+        v = sg_ode("t = var('t')\ny = function('y')(t)\n"
+                   "print(desolve(diff(y,t) == -y, y, ics=[0, 1]))")
+        residual = sympy.simplify(sympy.diff(v, t) + v)
+        check("desolve-ic-sagebrush", residual == 0 and v.subs(t, 0) == 1,
+              "y(0)=1 -> %s (residuo %s, y(0)=%s)"
+              % (v, residual, v.subs(t, 0)))
+
+        v = sg_ode("t = var('t')\ny = function('y')(t)\n"
+                   "print(desolve(diff(y,t) - 2*y == exp(t), y))")
+        residual = sympy.simplify(sympy.diff(v, t) - 2 * v - sympy.exp(t))
+        check("desolve-forzada-sagebrush", residual == 0,
+              "y'-2y=e^t -> %s (residuo %s)" % (v, residual))
+
+        v = sg_ode("t = var('t')\ny = function('y')(t)\n"
+                   "print(desolve(diff(y,t,2) + y == 0, y))")
+        residual = sympy.simplify(sympy.diff(v, t, 2) + v)
+        check("desolve-2o-sagebrush", residual == 0,
+              "y''+y=0 -> %s (residuo %s)" % (v, residual))
+
         # ---------------- PINS: quirks documentados (no son acuerdos)
 
         r = mx_raw(w, "eulerphi(100)")
@@ -487,9 +518,9 @@ def main():
                                  "print(desolve(diff(y,t)+y, y))"})
         pin = (isinstance(r, dict) and r.get("ok") is False
                and "TypeError" in (r.get("error") or ""))
-        check("pin-sage-desolve-roto", pin,
-              "desolve del shim falla con TypeError en aritmética de "
-              "function: no usable para ODE")
+        check("pin-sage-function-aplica", pin,
+              "function('y', t) devuelve el closure SIN aplicar "
+              "(TypeError al sumar): usar function('y')(t)")
 
         r = mx_raw(w, "ode2(diff(y,x)+y=0,y,x)")
         pin = r.get("ok") and (r.get("result") or "").strip() == "false"
