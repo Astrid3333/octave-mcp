@@ -93,12 +93,18 @@ below first — those are the things that used to fail:
 - `.venv-pyscf` exists (PySCF 2.14.0, own numpy) → `dft_tool` passes.
 - `alkahest` 3.12.0 (Rust CAS: Gröbner, derivation logs, Lean 4
   certificates) is installed in the venv → `alkahest_cas_tool` passes its
-  22 validate checks (diff/integrate/simplify/limit/series/solve/sums +
-  number theory + matrix/jacobian/diophantine/real_roots). Besides the
+  24 validate checks (diff/integrate/simplify/limit/series/solve/sums
+  incl. Bernoulli limit and Basel sum at infinity + number theory +
+  matrix/jacobian/diophantine/real_roots). Besides the
   classical ops, the tool exposes linear algebra (`matrix` with actions
   eigenvals/eigenvects/inverse/det/rank/trace/rref/jordan_form),
   `jacobian`, `diophantine` (parametric linear + Pell) and `real_roots`
-  (CAD-style real-root isolation). Upstream beta bug: its Rust kernel
+  (CAD-style real-root isolation). `bounds`/`point` accept `"oo"` (the
+  tool maps it to `pool.pos_infinity()`); the Basel special case only
+  matches the term form `k^(-2)` — `1/k^2` parses as `1/(k^2)` and
+  raises `PySumError` E-SUM-002, which the server returns as PLAIN TEXT
+  (no JSON envelope; pinned by the cross-check battery). Upstream beta
+  bug: its Rust kernel
   aborts (SIGILL, uncatchable) on some `number_theory` inputs (e.g.
   `factorint(2^64+1)`, `totient(2^64+1)`, `nextprime(2^120)`) — the tool
   runs all four NT ops in an isolated subprocess and falls back to sympy
@@ -111,6 +117,11 @@ below first — those are the things that used to fail:
   solve/factor/limit/taylor + error fence). Syntax errors abort the
   batch (no markers, rc=0) — detect via `incorrect syntax`/`Lisp error`
   in stdout; unknown functions stay unevaluated (no error, Maxima idiom).
+  For ODEs the derivative must be QUOTED: `ode2('diff(y,x)+y=0,y,x)`
+  works, while unquoted `ode2(diff(y,x)+y=0,y,x)` returns ok=True with
+  the literal `false` (ok is not success); `ic1(sol, x=0, y=1)` is the
+  three-arg form this Maxima accepts. `laplace(f,t,s)` works and agrees
+  with sympy.
 - Sagebrush 0.7.2 (PyPI `sagebrush` / `sagebrush-mcp`, Rust engines,
   Sage-compatible syntax, no Sage/PARI/FLINT needed) →
   `sagebrush_math_tool` passes its 11 validate checks (ECM factor of
@@ -121,7 +132,10 @@ below first — those are the things that used to fail:
   process (variables persist across calls; `operation=reiniciar` restarts);
    `factor`/`number_field`/`newforms` run isolated. This is the tool to
    reach for ECM, number fields/class groups, modular forms or elliptic
-   curves — nothing else in the server covers those.
+    curves — nothing else in the server covers those. Do NOT use it for
+   ODEs: the shim's `desolve` raises `TypeError` on arithmetic with
+   `function` objects (pinned by the cross-check battery); use
+   `maxima_eval_tool` `ode2` instead.
 - Lispium 0.16.0 (PyPI `lispium`, self-contained Zig binary via
   `lispium.cli.get_binary_path()`, Lisp syntax, no Python deps) →
   `lispium_math_tool` passes its 17 validate checks (factorial 100 exact
@@ -154,6 +168,17 @@ below first — those are the things that used to fail:
   silently); Kronecker delta does not contract (`eliminate_metric`
   does); sympy bridge with `^` is broken — write `x**2`; no CLI, no
   `__version__`.
+- CAS cross-check battery: `examples/multi_cas_crosscheck.py` runs the
+  same problems across five engines (maxima, sagebrush, lispium,
+  cadabra2, alkahest) plus an ODE/Laplace section (`ode2`/`ic1`/
+  `laplace` vs sympy `dsolve`/`laplace_transform`, ODE solutions checked
+  by residual, not by constant matching) against a live sympy oracle —
+  51/51 PASS as of 2026-10-23, ruff clean. Nine PINS document the known
+  quirks (maxima noun-forms with ok=True, lispium float degradation,
+  eco of unevaluated forms, sage `var()` non-injection, alkahest Basel
+  term form, sagebrush `desolve` broken, maxima ode2 quoting). Run it
+  after touching any CAS tool: `.venv/bin/python
+  examples/multi_cas_crosscheck.py`.
 - CAS router: `cas_router_math_tool` unifies the four CAS tools
   (maxima/sagebrush/lispium/cadabra2) with 10 validate checks.
   mode=compute operation=eval takes a `query` written in the TARGET

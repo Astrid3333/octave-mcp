@@ -1,11 +1,13 @@
-"""Cross-check multi-motor: la misma batería de problemas en 4 CAS.
+"""Cross-check multi-motor: la misma batería de problemas en 5 CAS.
 
 Ejemplo de verificación cruzada: cada problema se resuelve en los
-motores que lo soportan (maxima, sagebrush, lispium, cadabra2) y el
-resultado de cada uno se compara contra un oráculo sympy calculado en
-vivo. Incluye PINS de quirks conocidos (noun-forms de maxima que
-salen con ok=True, degradación a float de lispium en enteros grandes,
-eco de formas sin evaluar).
+motores que lo soportan (maxima, sagebrush, lispium, cadabra2,
+alkahest) y el resultado de cada uno se compara contra un oráculo
+sympy calculado en vivo. Incluye sección ODE/Laplace (ode2/ic1/laplace
+de maxima vs dsolve/laplace_transform de sympy) y PINS de quirks
+conocidos (noun-forms de maxima que salen con ok=True, degradación a
+float de lispium en enteros grandes, eco de formas sin evaluar,
+desolve del shim sagebrush, forma de término Basel en alkahest).
 
 Uso:  .venv/bin/python examples/multi_cas_crosscheck.py
 """
@@ -20,7 +22,7 @@ import sympy
 SERVER = "/home/astrid/octave-mcp/server.py"
 PYTHON = "/home/astrid/octave-mcp/.venv/bin/python"
 
-x, n, k = sympy.symbols("x n k")
+x, n, k, t, s, a, C1 = sympy.symbols("x n k t s a C1")
 
 
 class Wire:
@@ -121,6 +123,11 @@ def cd(w, code):
     return (_ok(r, "cadabra2").get("stdout") or "").strip()
 
 
+def ak(w, **args):
+    r = w.call_tool("alkahest_cas_tool", {"mode": "compute", **args})
+    return _ok(r, "alkahest")
+
+
 # ------------------------------------------------- dialect -> sympy
 
 def mx_sympy(text):
@@ -205,8 +212,8 @@ def check(label, ok, detail):
 # ------------------------------------------------------------- battery
 
 def main():
-    print("Cross-check multi-motor (maxima/sagebrush/lispium/cadabra2 "
-          "vs sympy)")
+    print("Cross-check multi-motor (maxima/sagebrush/lispium/cadabra2/"
+          "alkahest vs sympy)")
     w = Wire()
     try:
         # --- 1. derivada de un producto: 3 motores + sympy
@@ -333,6 +340,99 @@ def main():
         check("basel-sagebrush", same_symbolic(v, oracle),
               "sum = %s" % v)
 
+        # --- 14. alkahest: 5to motor (value en dialecto con ^)
+        oracle = sympy.diff(sympy.sin(x ** 2) * sympy.exp(x), x)
+        v = mx_sympy(ak(w, operation="diff", expr="sin(x^2)*exp(x)",
+                        var="x").get("value") or "")
+        check("deriv-alkahest", same_symbolic(v, oracle),
+              "d/dx sin(x^2)e^x = %s" % v)
+
+        oracle = sympy.integrate(x ** 2 * sympy.exp(-x), (x, 0, sympy.oo))
+        v = mx_sympy(ak(w, operation="integrate", expr="x^2*exp(-x)",
+                        var="x", bounds=[0, "oo"]).get("value") or "")
+        check("int-alkahest", same_symbolic(v, oracle),
+              "int_0^inf x^2 e^-x = %s" % v)
+
+        oracle = sympy.limit((1 + 1 / n) ** n, n, sympy.oo)
+        v = mx_sympy(ak(w, operation="limit", expr="(1+1/n)^n", var="n",
+                        point="oo").get("value") or "")
+        check("limit-alkahest", same_symbolic(v, oracle),
+              "limit = %s" % v)
+
+        oracle = sympy.summation(1 / k ** 2, (k, 1, sympy.oo))
+        v = mx_sympy(ak(w, operation="sum_definite", expr="k^(-2)", var="k",
+                        bounds=[1, "oo"]).get("value") or "")
+        check("basel-alkahest", same_symbolic(v, oracle),
+              "sum k^-2 = %s" % v)
+
+        oracle = dict(zip(sympy.solve([x + sympy.Symbol("y") - 3,
+                                       x - sympy.Symbol("y") - 1],
+                                      [x, sympy.Symbol("y")]),
+                          [sympy.Integer(2), sympy.Integer(1)]))
+        sols = ak(w, operation="solve",
+                  equations=["x+y-3", "x-y-1"], vars=["x", "y"]).get(
+                      "solutions") or []
+        got = {sympy.Symbol(name): sympy.Integer(int(val))
+               for d in sols for name, val in d.items()}
+        check("sistema-alkahest", got == oracle, "x=2, y=1 -> %s" % sols)
+
+        oracle = sympy.Matrix([[1, 2], [3, 4]]).det()
+        v = sympy.Integer(int(ak(w, operation="matrix",
+                                 matrix=[[1, 2], [3, 4]],
+                                 action="det").get("det")))
+        check("det-alkahest", v == oracle, "det = %d" % v)
+
+        oracle = sympy.totient(100)
+        v = sympy.Integer(int(ak(w, operation="totient", n=100).get(
+            "totient")))
+        check("totient-alkahest", v == oracle, "totient(100) = %d" % v)
+
+        oracle = sympy.isprime(2 ** 61 - 1)
+        v = bool(ak(w, operation="isprime", n=2 ** 61 - 1).get("isprime"))
+        check("primo-alkahest", v == oracle,
+              "isprime(2^61-1) = %s (oracle %s)" % (v, oracle))
+
+        oracle = sympy.factorint(462)
+        v = {int(p): int(e) for p, e in
+             (ak(w, operation="factorint", n=462).get("factors") or {}).items()}
+        check("factorint-alkahest", v == oracle,
+              "factorint(462) = %s" % v)
+
+        # --- 15. ODE y Laplace: maxima ode2/ic1/laplace vs sympy
+        def mx_rhs(expr):
+            out = mx(w, expr)
+            rhs = out.split("=", 1)[1].strip()
+            return sympy.sympify(rhs.replace("%c", "C1")
+                                 .replace("%e", "E").replace("^", "**"))
+
+        yv = sympy.Function("y")
+        oracle = sympy.dsolve(sympy.diff(yv(x), x) + yv(x), yv(x)).rhs
+        v = mx_rhs("ode2('diff(y,x)+y=0,y,x)")
+        residual = sympy.simplify(sympy.diff(v, x) + v)
+        check("ode2-maxima", residual == 0,
+              "y'+y=0 -> %s (residuo %s; oráculo %s)" % (v, residual, oracle))
+
+        v = mx_rhs("ic1(ode2('diff(y,x)+y=0,y,x),x=0,y=1)")
+        residual = sympy.simplify(sympy.diff(v, x) + v)
+        check("ode2-ic-maxima", residual == 0 and v.subs(x, 0) == 1,
+              "y(0)=1 -> %s (residuo %s, y(0)=%s)"
+              % (v, residual, v.subs(x, 0)))
+
+        v = mx_rhs("ode2('diff(y,x)-2*y=exp(x),y,x)")
+        residual = sympy.simplify(sympy.diff(v, x) - 2 * v - sympy.exp(x))
+        check("ode2-forzada-maxima", residual == 0,
+              "y'-2y=e^x -> %s (residuo %s)" % (v, residual))
+
+        oracle = sympy.laplace_transform(sympy.sin(t), t, s)[0]
+        v = mx_sympy(mx(w, "laplace(sin(t),t,s)"))
+        check("laplace-sin-maxima", same_symbolic(v, oracle),
+              "L{sin t} = %s" % v)
+
+        oracle = sympy.laplace_transform(t * sympy.exp(a * t), t, s)[0]
+        v = mx_sympy(mx(w, "laplace(exp(a*t)*t,t,s)"))
+        check("laplace-te-at-maxima", same_symbolic(v, oracle),
+              "L{t e^{at}} = %s" % v)
+
         # ---------------- PINS: quirks documentados (no son acuerdos)
 
         r = mx_raw(w, "eulerphi(100)")
@@ -372,6 +472,30 @@ def main():
         check("pin-sage-var-no-inyecta", pin,
               "var('qq ww') no inyecta en globals (%r): usar "
               "x, y = var('x y')" % r.strip())
+
+        r = w.call_tool("alkahest_cas_tool",
+                        {"mode": "compute", "operation": "sum_definite",
+                         "expr": "1/k^2", "var": "k", "bounds": [1, "oo"]})
+        pin = isinstance(r, str) and r.startswith("PySumError")
+        check("pin-alkahest-basel-forma", pin,
+              "sum 1/k^2 -> PySumError E-SUM-002 (texto plano, sin ok): "
+              "Basel exige la forma k^(-2)")
+
+        r = w.call_tool("sagebrush_math_tool",
+                        {"mode": "compute", "operation": "sage",
+                         "code": "t = var('t')\ny = function('y', t)\n"
+                                 "print(desolve(diff(y,t)+y, y))"})
+        pin = (isinstance(r, dict) and r.get("ok") is False
+               and "TypeError" in (r.get("error") or ""))
+        check("pin-sage-desolve-roto", pin,
+              "desolve del shim falla con TypeError en aritmética de "
+              "function: no usable para ODE")
+
+        r = mx_raw(w, "ode2(diff(y,x)+y=0,y,x)")
+        pin = r.get("ok") and (r.get("result") or "").strip() == "false"
+        check("pin-maxima-ode2-false", pin,
+              "ode2 sin ' en diff -> ok=True con 'false': la derivada "
+              "debe ir cotada ('diff(...)), y ok True no es exito")
     finally:
         w.close()
 

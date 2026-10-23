@@ -279,6 +279,9 @@ def _fresh_pool():
     return ak.ExprPool()
 
 
+_INF_ALIASES = frozenset({"oo", "OO", "inf", "Inf", "infinity", "∞", "+∞"})
+
+
 def _to_expr(pool, value):
     if isinstance(value, bool):
         raise ValueError(f"valor no esperado: {value!r}")
@@ -286,7 +289,10 @@ def _to_expr(pool, value):
         return pool.integer(value)
     if isinstance(value, float):
         return ak.parse(repr(float(value)), pool)
-    return ak.parse(str(value), pool)
+    text = str(value)
+    if text in _INF_ALIASES:
+        return pool.pos_infinity()
+    return ak.parse(text, pool)
 
 
 def _ser_derived(result):
@@ -646,6 +652,26 @@ def _validate():
         value = ak.limit(expr, x, pool.integer(0)).value
         return str(value) == "1", str(value), "1"
 
+    def check_limit_bernoulli_inf():
+        # Regresión de _to_expr: "oo" debe resolverse a pos_infinity();
+        # con un símbolo normal el límite quedaba sin evaluar.
+        pool = _fresh_pool()
+        expr = ak.parse("(1+1/n)^n", pool, {})
+        n = pool.symbol("n")
+        value = ak.limit(expr, n, _to_expr(pool, "oo")).value
+        return str(value) == "exp(1)", str(value), "exp(1)"
+
+    def check_sum_definite_basel_inf():
+        # Basel exige la forma k^(-2): "1/k^2" parsea como 1/(k^2) y cae
+        # en PySumError E-SUM-002 (comportamiento upstream de alkahest).
+        pool = _fresh_pool()
+        k = pool.symbol("k")
+        value = ak.sum_definite(
+            _to_expr(pool, "k^(-2)"), k, _to_expr(pool, 1), _to_expr(pool, "oo")
+        ).value
+        got = _eval_at(value, [])
+        return abs(got - math.pi**2 / 6) < 1e-12, f"eval={got!r}", "pi^2/6"
+
     def check_series_exp():
         pool = _fresh_pool()
         expr = ak.parse("exp(x)", pool, {})
@@ -932,6 +958,8 @@ def _validate():
     chk("integrate_definite_cos", check_integrate_cos)
     chk("simplify_rational", check_simplify_rational)
     chk("limit_sin_over_x", check_limit)
+    chk("limit_bernoulli_inf", check_limit_bernoulli_inf)
+    chk("sum_definite_basel_inf", check_sum_definite_basel_inf)
     chk("series_exp_truncation", check_series_exp)
     chk("solve_quadratic_roots", check_solve_quadratic)
     chk("solve_system_residuals", check_solve_system)
