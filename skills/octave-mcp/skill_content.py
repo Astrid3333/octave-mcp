@@ -252,6 +252,10 @@ cd /home/astrid/octave-mcp
                                                     # serial: ~5.2 min (cap 900s)
 ```
 
+A local (untracked) `.git/hooks/pre-push` runs the guarded suite before
+every push (~4 min); it aborts on red. Bypass only when urgent:
+`git push --no-verify`.
+
 Both must agree (expected as of 2026-10-23:
 371 registered / 353 evaluated / 353 PASSED / 0 FAILED / 0 ERROR / 18 SKIPPED).
 These counts drift over time: refresh them from `health_check_tool.py` (JSON
