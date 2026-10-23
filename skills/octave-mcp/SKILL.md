@@ -1,6 +1,6 @@
 ---
 name: octave-mcp
-description: Use when the user wants scientific/numeric computation served by their local GNU Octave MCP server — linear algebra, ODEs/PDEs, symbolic math, curve fitting, physics/chemistry/biology simulations, plotting data, or "run this in Octave". Talks to the `octave` MCP (meta-tools only), so it covers all 368+ registered tools. Also use when debugging why an octave-mcp tool fails or validating the whole tool suite.
+description: Use when the user wants scientific/numeric computation served by their local GNU Octave MCP server — linear algebra, ODEs/PDEs, symbolic math, curve fitting, physics/chemistry/biology simulations, plotting data, or "run this in Octave". Talks to the `octave` MCP (meta-tools only), so it covers all 369+ registered tools. Also use when debugging why an octave-mcp tool fails or validating the whole tool suite.
 ---
 
 # Octave MCP (local)
@@ -23,7 +23,7 @@ as the MCP `octave` (global opencode config, `mcp.octave`, command
 Never invent a tool name from memory. Always:
 `octave_list_tools` → `octave_get_tool_schema` → `octave_call_tool`.
 
-`tools/list_full` (365 entries) is a private endpoint for the validation
+`tools/list_full` (366 entries) is a private endpoint for the validation
 harness, not for clients.
 
 ## 1 · Calling convention
@@ -49,7 +49,7 @@ harness, not for clients.
 
 ## 2 · Known gaps in this environment (verified 2026-10-22)
 
-**None open.** The full validation suite is green (350/350 evaluated tools
+**None open.** The full validation suite is green (351/351 evaluated tools
 pass). If something breaks after a machine change, check the fixed list
 below first — those are the things that used to fail:
 
@@ -90,9 +90,25 @@ below first — those are the things that used to fail:
   newform 11.2.a.a, session persistence, error fence). Its `sage`/`python`
   operations share ONE persistent `sagebrush.session.Session` per server
   process (variables persist across calls; `operation=reiniciar` restarts);
-  `factor`/`number_field`/`newforms` run isolated. This is the tool to
-  reach for ECM, number fields/class groups, modular forms or elliptic
-  curves — nothing else in the server covers those.
+   `factor`/`number_field`/`newforms` run isolated. This is the tool to
+   reach for ECM, number fields/class groups, modular forms or elliptic
+   curves — nothing else in the server covers those.
+- Lispium 0.16.0 (PyPI `lispium`, self-contained Zig binary via
+  `lispium.cli.get_binary_path()`, Lisp syntax, no Python deps) →
+  `lispium_math_tool` passes its 17 validate checks (factorial 100 exact
+  vs `math.factorial`, float-window pin for n=18..20, silent unknown
+  function, small binomial, diff/integrate/solve/factor, modpow vs
+  `pow()`, prime? flags + pinned prime? M61 bug, det/eigenvalues/linsolve,
+  define+lambda, Parse/Eval fences). One-shot per call: writes a temp
+  `.lspm` and runs `lispium run` — no session across calls (`define`
+  lives only within one call). Engine quirks pinned by validate:
+  `(factorial n)` prints float for n=18..20; unknown functions return
+  unevaluated with exit 0; `solve` formats `(solutions a b)`; `binomial`
+  degrades to float beyond ~10^15; `prime?` only trustworthy to ~2^53
+  (literals bigger → Eval error, expression values bigger → returns 0,
+  bug: M61=2^61-1 answers 0 while sagebrush/sympy say prime). Reach for
+  it as an INDEPENDENT cross-check engine — it does NOT factor integers
+  (use sagebrush/maxima) and has no Laplace/ilt (use maxima_eval_tool).
 - `attractor_trajectory` butterfly check now measures at t=40 (empirical
   `d(t)`: the `d>1` crossing is at t≈30.5, max 47 at t≈33.7, d(40)=8.2 —
   a t=30 horizon was just short of the crossing, tool math was fine).
@@ -134,7 +150,7 @@ cd /home/astrid/octave-mcp
 ```
 
 Both must agree (expected as of 2026-10-22:
-368 registered / 350 evaluated / 350 PASSED / 0 FAILED / 0 ERROR / 18 SKIPPED).
+369 registered / 351 evaluated / 351 PASSED / 0 FAILED / 0 ERROR / 18 SKIPPED).
 These counts drift over time: refresh them from `health_check_tool.py` (JSON
 report) before regenerating this skill, instead of trusting the numbers above.
 Exit code 1 means failures. Always use `.venv/bin/python` (or
