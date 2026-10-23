@@ -29,7 +29,7 @@ SKILL_PATH = "skills/octave-mcp/SKILL.md"
 # regenerar con regenerate_skill_content.py.
 _SKILL_MD_EMBEDDED = r"""---
 name: octave-mcp
-description: Use when the user wants scientific/numeric computation served by their local GNU Octave MCP server — linear algebra, ODEs/PDEs, symbolic math, curve fitting, physics/chemistry/biology simulations, plotting data, or "run this in Octave". Talks to the `octave` MCP (meta-tools only), so it covers all 370+ registered tools. Also use when debugging why an octave-mcp tool fails or validating the whole tool suite.
+description: Use when the user wants scientific/numeric computation served by their local GNU Octave MCP server — linear algebra, ODEs/PDEs, symbolic math, curve fitting, physics/chemistry/biology simulations, plotting data, or "run this in Octave". Talks to the `octave` MCP (meta-tools only), so it covers all 371+ registered tools. Also use when debugging why an octave-mcp tool fails or validating the whole tool suite.
 ---
 
 # Octave MCP (local)
@@ -52,7 +52,7 @@ as the MCP `octave` (global opencode config, `mcp.octave`, command
 Never invent a tool name from memory. Always:
 `octave_list_tools` → `octave_get_tool_schema` → `octave_call_tool`.
 
-`tools/list_full` (367 entries) is a private endpoint for the validation
+`tools/list_full` (368 entries) is a private endpoint for the validation
 harness, not for clients.
 
 ## 1 · Calling convention
@@ -154,6 +154,20 @@ below first — those are the things that used to fail:
   silently); Kronecker delta does not contract (`eliminate_metric`
   does); sympy bridge with `^` is broken — write `x**2`; no CLI, no
   `__version__`.
+- CAS router: `cas_router_math_tool` unifies the four CAS tools
+  (maxima/sagebrush/lispium/cadabra2) with 10 validate checks.
+  mode=compute operation=eval takes a `query` written in the TARGET
+  engine's dialect (the router does NOT translate): route = explicit
+  `engine` > `field` hint (tensor→cadabra2, numero/prime→sagebrush,
+  laplace/calculo→maxima, lisp→lispium) > content sniff (LaTeX tensor
+  subscripts like '_{'/cusps→cadabra2, euler_phi/is_prime→sagebrush,
+  '(^ '/'(factor'→lispium, %e/diff(→maxima) > default maxima. With
+  `fallback=true` (default) it chains the other engines and reports
+  `engine_used` + `attempts[]` (who failed and why); cadabra2 queries
+  are wrapped as `evaluate(Ex(...))`, sagebrush runs op=sage.
+  operation=guia returns the routing table. Reach for it when unsure
+  which engine fits, or for fallback-resilient one-liners; for
+  cross-checks call the individual tools twice with explicit engines.
 - `attractor_trajectory` butterfly check now measures at t=40 (empirical
   `d(t)`: the `d>1` crossing is at t≈30.5, max 47 at t≈33.7, d(40)=8.2 —
   a t=30 horizon was just short of the crossing, tool math was fine).
@@ -195,7 +209,7 @@ cd /home/astrid/octave-mcp
 ```
 
 Both must agree (expected as of 2026-10-23:
-370 registered / 352 evaluated / 352 PASSED / 0 FAILED / 0 ERROR / 18 SKIPPED).
+371 registered / 353 evaluated / 353 PASSED / 0 FAILED / 0 ERROR / 18 SKIPPED).
 These counts drift over time: refresh them from `health_check_tool.py` (JSON
 report) before regenerating this skill, instead of trusting the numbers above.
 Exit code 1 means failures. Always use `.venv/bin/python` (or

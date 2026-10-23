@@ -64,6 +64,7 @@ import maxima_eval_tool  # auto-registra via tool_registry, no requiere mas edic
 import sagebrush_math_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import lispium_math_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import cadabra2_math_tool  # auto-registra via tool_registry, no requiere mas ediciones
+import cas_router_math_tool  # auto-registra via tool_registry; importa los 4 CAS antes
 import savings_goal_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import investment_portfolio_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import tax_estimation_tool  # auto-registra via tool_registry, no requiere mas ediciones
