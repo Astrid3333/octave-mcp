@@ -1,7 +1,8 @@
 """cas_router_math_tool — router unificado de CAS.
 
-Enruta una consulta al motor mas adecuado entre los cuatro CAS ya
-integrados en el servidor (maxima, sagebrush, lispium, cadabra2) y, si
+Enruta una consulta al motor mas adecuado entre los cinco CAS ya
+integrados en el servidor (maxima, sagebrush, lispium, cadabra2,
+sympy) y, si
 `fallback=true`, encadena los restantes hasta encontrar uno que
 responda ok. NO traduce sintaxis: el usuario escribe la consulta en la
 sintaxis del motor objetivo; la tool decide el motor (o respeta
@@ -15,6 +16,12 @@ Uso tipico (mode=compute, operation=eval):
   {"query": "...", "field": "tensor"}              -> cadabra2 (hint)
   {"query": "(expt 2 10)", "engine": "maxima",
    "fallback": true}                               -> fallback a lispium
+
+Uso crosscheck (mode=compute, operation=crosscheck):
+  {"queries": {"maxima": "2+2", "lispium": "(+ 2 2)"}}   -> por motor
+  {"query": "2+2", "engines": ["maxima", "sagebrush"]}    -> misma query
+Compara los resultados normalizados (sympy si parsea, si no string)
+y reporta agreement: agree | disagree | uncomparable.
 
 Cada llamada invoca el handler registrado de la tool destino via
 tool_registry (en proceso, sin wire ni recursión). Las respuestas de
@@ -30,14 +37,18 @@ import cadabra2_math_tool  # noqa: F401 — registra su handler
 import lispium_math_tool  # noqa: F401
 import maxima_eval_tool  # noqa: F401
 import sagebrush_math_tool  # noqa: F401
+import sympy_eval_tool  # noqa: F401
 from tool_registry import get_handler, register_tool
 
-_ENGINES = ["maxima", "sagebrush", "lispium", "cadabra2"]
+# sympy al final: la cadena de fallback existente (maxima ->
+# sagebrush -> lispium) conserva su orden de intentos.
+_ENGINES = ["maxima", "sagebrush", "lispium", "cadabra2", "sympy"]
 _TOOL_BY_ENGINE = {
     "maxima": "maxima_eval_tool",
     "sagebrush": "sagebrush_math_tool",
     "lispium": "lispium_math_tool",
     "cadabra2": "cadabra2_math_tool",
+    "sympy": "sympy_eval_tool",
 }
 _FIELD_MAP = {
     "tensor": "cadabra2",
@@ -75,10 +86,12 @@ CAS_ROUTER_TOOL_SCHEMA = {
     "name": "cas_router_math_tool",
     "description": (
         "Router unificado de CAS: enruta una consulta al motor adecuado "
-        "entre maxima/sagebrush/lispium/cadabra2 (sniffing + hint `field` "
-        "+ `engine` explicito) con cadena de fallback y log de intentos. "
+        "entre maxima/sagebrush/lispium/cadabra2/sympy (sniffing + hint "
+        "`field` + `engine` explicito) con cadena de fallback y log de "
+        "intentos, o compara varios motores con operation=crosscheck. "
         "Sin traduccion de sintaxis. mode=compute (operation=eval, "
-            "operation=guia) o mode=validate (12 checks)."
+        "operation=crosscheck, operation=guia) o mode=validate "
+        "(15 checks)."
     ),
     "inputSchema": {
         "type": "object",
@@ -90,19 +103,45 @@ CAS_ROUTER_TOOL_SCHEMA = {
             },
             "operation": {
                 "type": "string",
-                "enum": ["eval", "guia"],
-                "description": "eval (default) | guia",
+                "enum": ["eval", "crosscheck", "guia"],
+                "description": "eval (default) | crosscheck | guia",
             },
             "query": {
                 "type": "string",
                 "description": (
                     "Consulta en la sintaxis del motor elegido/ruteado. "
-                    "Requerida para operation=eval."
+                    "Requerida para operation=eval; en crosscheck se "
+                    "reenvia tal cual a cada motor de `engines`."
+                ),
+            },
+            "queries": {
+                "type": "object",
+                "additionalProperties": {"type": "string"},
+                "description": (
+                    "Por motor: {\"maxima\": \"2+2\", \"lispium\": \"(+ 2 "
+                    "2)\"}. En crosscheck, alternativa a query+engines "
+                    "(dialecto propio por motor)."
+                ),
+            },
+            "engines": {
+                "type": "array",
+                "items": {
+                    "type": "string",
+                    "enum": ["maxima", "sagebrush", "lispium",
+                             "cadabra2", "sympy"],
+                },
+                "description": (
+                    "Motores destino en operation=crosscheck cuando se "
+                    "usa `query` unica (>=2). La query unica debe ser "
+                    "valida en los dialectos elegidos (sin traduccion); "
+                    "si un motor la acepta sin devolver valor, queda "
+                    "fuera de la comparacion."
                 ),
             },
             "engine": {
                 "type": "string",
-                "enum": ["auto", "maxima", "sagebrush", "lispium", "cadabra2"],
+                "enum": ["auto", "maxima", "sagebrush", "lispium",
+                         "cadabra2", "sympy"],
                 "default": "auto",
                 "description": "Motor explicito o auto (default).",
             },
@@ -145,6 +184,9 @@ def _engine_args(engine, query, timeout):
         code = "print(str(evaluate(Ex(%s))))" % json.dumps(query)
         return {"mode": "compute", "operation": "eval",
                 "code": code, "timeout": timeout}
+    if engine == "sympy":
+        return {"mode": "compute", "operation": "eval",
+                "expr": query, "timeout": timeout}
     # lispium: operation=eval + code (s-expr crudo)
     return {"mode": "compute", "operation": "eval",
             "code": query, "timeout": timeout}
@@ -168,6 +210,8 @@ def _result_str(engine, r):
     if engine == "sagebrush":
         return r.get("stdout")
     if engine == "lispium":
+        return r.get("result")
+    if engine == "sympy":
         return r.get("result")
     return r.get("stdout")  # cadabra2
 
@@ -252,6 +296,97 @@ def _route_eval(args):
     }
 
 
+def _normalize(text):
+    """Normaliza un resultado para comparar entre dialectos.
+
+    Intenta sympy (con los ajustes de dialecto: ^ -> **, %e/%pi de
+    maxima); si no parsea, devuelve el string tal cual (comparacion
+    literal despues). Devuelve (valor, es_simbolico).
+    """
+    if text is None:
+        return None, False
+    s = str(text).strip()
+    # lispium ecua el fuente en lineas '; ...': se descartan
+    s = "\n".join(ln for ln in s.splitlines()
+                  if not ln.lstrip().startswith(";")).strip()
+    try:
+        import sympy  # noqa: PLC0415 — import perezoso, dep opcional
+        s2 = (s.replace("^", "**").replace("%e", "E")
+              .replace("%pi", "pi").replace("%i", "I"))
+        return sympy.sympify(s2), True
+    except Exception:  # noqa: BLE001
+        return s, False
+
+
+def _agreement(results):
+    """Compara los resultados ok: agree | disagree | uncomparable."""
+    oks = [r for r in results if r["ok"] and r["result"] is not None]
+    if len(oks) < 2:
+        return "uncomparable"
+    vals = [_normalize(r["result"]) for r in oks]
+    if all(sym for _, sym in vals):
+        first = vals[0][0]
+        for other, _ in vals[1:]:
+            try:
+                import sympy  # noqa: PLC0415
+                if sympy.simplify(first - other) != 0:
+                    return "disagree"
+            except Exception:  # noqa: BLE001
+                return "uncomparable"
+        return "agree"
+    strs = [v for v, sym in vals if not sym]
+    if len(strs) == len(vals):
+        return "agree" if len(set(strs)) == 1 else "disagree"
+    return "uncomparable"
+
+
+def _route_crosscheck(args):
+    """Corre la(s) query(s) en >=2 motores y compara resultados."""
+    timeout = args.get("timeout", 30)
+    queries = args.get("queries")
+    if queries:
+        if not isinstance(queries, dict):
+            raise ValueError("queries debe ser un objeto {engine: query}")
+        items = [(str(e).strip().lower(), str(q))
+                 for e, q in queries.items()]
+    else:
+        query = args.get("query")
+        if not query or not str(query).strip():
+            raise ValueError(
+                "operation=crosscheck requiere queries {engine: query} "
+                "o query + engines")
+        engines = args.get("engines") or _ENGINES
+        if not isinstance(engines, list) or len(engines) < 2:
+            raise ValueError(
+                "engines debe listar >=2 motores (o use queries)")
+        items = [(str(e).strip().lower(), str(query)) for e in engines]
+    if len(items) < 2:
+        raise ValueError("crosscheck necesita >=2 motores")
+    for eng, _ in items:
+        if eng not in _ENGINES:
+            raise ValueError(
+                "engine desconocido %r; use uno de %s"
+                % (eng, ", ".join(_ENGINES)))
+
+    t0 = time.time()
+    results = []
+    for eng, q in items:
+        raw = _call_engine(eng, q, timeout)
+        ok = bool(raw.get("ok"))
+        results.append({
+            "engine": eng,
+            "ok": ok,
+            "result": _result_str(eng, raw) if ok else None,
+            "error": None if ok else _error_str(eng, raw),
+        })
+    agree = _agreement(results)
+    return {
+        "operation": "crosscheck", "ok": any(r["ok"] for r in results),
+        "results": results, "agreement": agree,
+        "seconds": time.time() - t0,
+    }
+
+
 def _guia():
     return {
         "tool": "cas_router_math_tool",
@@ -283,11 +418,16 @@ def _guia():
              "forte": "Lisp numerico/simbolico, cross-check"},
             {"engine": "cadabra2", "tool": "cadabra2_math_tool",
              "forte": "tensores, fermiones, algebra fisica (LaTeX)"},
+            {"engine": "sympy", "tool": "sympy_eval_tool",
+             "forte": "oraculo en proceso, dialecto Python, "
+                      "laplace_transform/solve/diff"},
         ],
         "crosscheck": (
-            "Para cross-check multi-motor: llamar dos veces con "
-            "engine=maxima y engine=sagebrush (o lispium) y comparar "
-            "attempts[].engine + result."
+            "operation=crosscheck corre una o mas queries en >=2 "
+            "motores (queries {engine: query} con dialecto propio, o "
+            "query unica + engines) y devuelve results[] por motor + "
+            "agreement (agree/disagree/uncomparable) comparando con "
+            "sympy cuando parsea y string cuando no."
         ),
     }
 
@@ -388,8 +528,8 @@ def _c_fallback_chain():
 def _c_all_fail():
     r = _r({"query": "raise ValueError('boom')"})
     ok = (not r["ok"]) and r["engine_used"] is None and \
-        len(r["attempts"]) == 4 and all(not a["ok"] for a in r["attempts"])
-    return "raise en 4 motores -> ok=False, 4 intentos fallidos", ok
+        len(r["attempts"]) == 5 and all(not a["ok"] for a in r["attempts"])
+    return "raise en 5 motores -> ok=False, 5 intentos fallidos", ok
 
 
 def _c_result_normalizado():
@@ -406,6 +546,38 @@ def _c_unknown_engine():
         return "ValueError: %s" % str(exc)[:80], "wolfram" in str(exc)
 
 
+def _c_crosscheck_agree():
+    r = _cas_router_math_handler({
+        "mode": "compute", "operation": "crosscheck",
+        "queries": {"maxima": "2+2", "sagebrush": "print(2+2)",
+                    "lispium": "(+ 2 2)", "cadabra2": "2+2"}})
+    ok = r["ok"] and r["agreement"] == "agree" and \
+        all(x["ok"] for x in r["results"]) and len(r["results"]) == 4
+    return "4 motores 2+2 -> agreement=%s (%s)" % (
+        r["agreement"], ",".join(x["engine"] for x in r["results"])), ok
+
+
+def _c_crosscheck_disagree():
+    r = _cas_router_math_handler({
+        "mode": "compute", "operation": "crosscheck",
+        "queries": {"maxima": "2+2", "lispium": "(+ 2 3)"}})
+    same = _cas_router_math_handler({
+        "mode": "compute", "operation": "crosscheck",
+        "query": "2+2", "engines": ["maxima", "cadabra2"]})
+    ok = r["ok"] and r["agreement"] == "disagree" and \
+        same["agreement"] == "agree" and len(same["results"]) == 2
+    return "2+2 vs (+ 2 3) -> %s; query unica x2 -> %s" % (
+        r["agreement"], same["agreement"]), ok
+
+
+def _c_route_sympy():
+    r = _r({"query": "diff(x**3, x)", "engine": "sympy",
+            "fallback": False})
+    ok = r["ok"] and r["engine_used"] == "sympy" and \
+        r["result"] == "3*x**2"
+    return "diff(x**3, x) -> sympy %r" % r["result"], ok
+
+
 def _validate():
     checks = [
         _check("route_explicit", _c_route_explicit),
@@ -416,15 +588,19 @@ def _validate():
         _check("field_hint_tensor", _c_field_hint),
         _check("field_hint_laplace", _c_field_laplace),
         _check("field_hint_ode", _c_field_ode),
+        _check("crosscheck_multi_dialect", _c_crosscheck_agree),
+        _check("crosscheck_query_unica", _c_crosscheck_disagree),
         _check("fallback_chain", _c_fallback_chain),
         _check("all_fail_report", _c_all_fail),
         _check("result_normalizado", _c_result_normalizado),
+        _check("route_sympy_explicit", _c_route_sympy),
         _check("unknown_engine_fence", _c_unknown_engine),
     ]
     passed = sum(1 for c in checks if c["passed"])
     return {
         "tool": "cas_router_math_tool",
-        "engine": "cas-router 1.0 (maxima+sagebrush+lispium+cadabra2)",
+        "engine": "cas-router 1.1 "
+                  "(maxima+sagebrush+lispium+cadabra2+sympy)",
         "validation_passed": passed == len(checks),
         "checks_passed": passed,
         "checks_total": len(checks),
@@ -443,7 +619,10 @@ def _cas_router_math_handler(args):
         return {"operation": "guia", "ok": True, "guia": _guia()}
     if operation == "eval":
         return _route_eval(args)
-    raise ValueError("operation debe ser eval|guia, no %r" % operation)
+    if operation == "crosscheck":
+        return _route_crosscheck(args)
+    raise ValueError(
+        "operation debe ser eval|crosscheck|guia, no %r" % operation)
 
 
 register_tool(
