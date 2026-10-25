@@ -1,11 +1,11 @@
 ---
 name: octave-mcp
-description: Use when the user wants scientific/numeric computation served by their local GNU Octave MCP server — linear algebra, ODEs/PDEs, symbolic math, curve fitting, physics/chemistry/biology simulations, plotting data, or "run this in Octave". Talks to the `octave` MCP (meta-tools only), so it covers all 371+ registered tools. Also use when debugging why an octave-mcp tool fails or validating the whole tool suite.
+description: Use when the user wants scientific/numeric computation served by their local GNU Octave MCP server — linear algebra, ODEs/PDEs, symbolic math, curve fitting, physics/chemistry/biology simulations, plotting data, or "run this in Octave". Talks to the `octave` MCP (meta-tools only), so it covers all 372 registered tools. Also use when debugging why an octave-mcp tool fails or validating the whole tool suite.
 ---
 
 # Octave MCP (local)
 
-A local MCP server exposing 360+ numeric/simulation tools backed by GNU Octave
+A local MCP server exposing 372 numeric/simulation tools backed by GNU Octave
 and Python. It lives at `/home/astrid/octave-mcp` and is registered in opencode
 as the MCP `octave` (global opencode config, `mcp.octave`, command
 `cd /home/astrid/octave-mcp && exec .venv/bin/python server.py`).
@@ -16,14 +16,14 @@ as the MCP `octave` (global opencode config, `mcp.octave`, command
 
 | tool | use |
 |---|---|
-| `octave_list_tools` | discover: substring filter on name or description (`{"filter": "ode"}`) |
-| `octave_get_tool_schema` | full `inputSchema` for one tool — read it before calling |
-| `octave_call_tool` | invoke: `{"name": <tool>, "arguments": {...}}` |
+| `list_tools` | discover: substring filter on name or description (`{"filter": "ode"}`) |
+| `get_tool_schema` | full `inputSchema` for one tool — read it before calling |
+| `call_tool` | invoke: `{"name": <tool>, "arguments": {...}}` |
 
 Never invent a tool name from memory. Always:
-`octave_list_tools` → `octave_get_tool_schema` → `octave_call_tool`.
+`list_tools` → `get_tool_schema` → `call_tool`.
 
-`tools/list_full` (368 entries) is a private endpoint for the validation
+`tools/list_full` (369 entries) is a private endpoint for the validation
 harness, not for clients.
 
 ## 1 · Calling convention
@@ -47,10 +47,12 @@ harness, not for clients.
   (`ALTERNATE_VALIDATE_MODE`, `ALTERNATE_VALIDATE_PARAM_NAME`,
   `FLAT_SIGNATURE_TOOLS`).
 
-## 2 · Known gaps in this environment (verified 2026-10-22)
+## 2 · Known gaps in this environment (verified 2026-10-25)
 
-**None open.** The full validation suite is green (351/351 evaluated tools
-pass). If something breaks after a machine change, check the fixed list
+**None open.** The full validation suite is green: 372/372 tools evaluate
+(369 registered + 3 deprecated aliases), 0 FAILED, 0 ERROR, 0 SKIPPED —
+every registered tool now has a validate path (T3, 2026-10-24). If
+something breaks after a machine change, check the fixed list
 below first — those are the things that used to fail:
 
 - `umap-learn` 0.5.12 is installed in the venv → `numeral_systems_embedding`
@@ -158,7 +160,16 @@ below first — those are the things that used to fail:
   `dsolve`/`laplace_transform`/`inverse_laplace_transform`, ODE
   solutions checked by residual (or numeric error vs the analytic
   solution for RK4), not by constant matching) against a live sympy
-  oracle — 63/63 PASS as of 2026-10-23, ruff clean. Ten PINS document
+  oracle — 99/99 PASS as of 2026-10-25 (63 functional checks + 36 fuzz),
+  ruff clean. Section 16 adds FUZZING DIFFERENTIAL: 12 rounds
+  (`FUZZ_ROUNDS`, default) of random expression trees (depth-limited
+  `+ - * ^ sin cos` over integers and rationals, no division/exp) evaluated
+  in maxima, lispium and sagebrush against the sympy value+derivative
+  oracle at a random float point (tolerance 1e-6 abs / 1e-8 rel). Seeded
+  (`FUZZ_SEED`, default 20261024) and deterministic: two runs produce an
+  identical diff. Sage quirks pinned there: the preparser rewrites
+  literals to Integer in error text, and pure Integer expressions need an
+  SR() wrapper before subs. Ten PINS document
   the known quirks (maxima noun-forms with ok=True, lispium float
   degradation, eco of unevaluated forms, sage `var()` non-injection,
   alkahest Basel term form, sagebrush applied-function requirement,
@@ -167,7 +178,7 @@ below first — those are the things that used to fail:
   Run it after touching any CAS tool: `.venv/bin/python
   examples/multi_cas_crosscheck.py`.
 - CAS router: `cas_router_math_tool` unifies the four CAS tools
-  (maxima/sagebrush/lispium/cadabra2) with 12 validate checks
+  (maxima/sagebrush/lispium/cadabra2) plus sympy with 15 validate checks
   (including field-laplace and field-ode routed to maxima).
   mode=compute operation=eval takes a `query` written in the TARGET
   engine's dialect (the router does NOT translate): route = explicit
@@ -178,9 +189,23 @@ below first — those are the things that used to fail:
   `fallback=true` (default) it chains the other engines and reports
   `engine_used` + `attempts[]` (who failed and why); cadabra2 queries
   are wrapped as `evaluate(Ex(...))`, sagebrush runs op=sage.
-  operation=guia returns the routing table. Reach for it when unsure
-  which engine fits, or for fallback-resilient one-liners; for
-  cross-checks call the individual tools twice with explicit engines.
+  operation=guia returns the routing table. operation=crosscheck runs the
+  same query in every engine at once (explicit `engines` list or default
+  maxima/sagebrush/lispium/cadabra2 + sympy) and returns per-engine
+  `results` plus an `agreement` verdict — the differential in one call.
+  Reach for the router when unsure which engine fits, or for
+  fallback-resilient one-liners.
+- sympy_eval_tool: sympy in-process as fifth CAS engine, 9 validate
+  checks (arithmetic, diff, integrate, solve, factorial(100) exact vs
+  math.factorial, laplace_transform, sqrt auto-simplified, simplify of
+  (x^2-4)/(x-2), error fence). Python dialect (`x**2`, `diff(f, x)`),
+  no subprocess, no session; sympify uses Python eval so only trusted
+  input (local server). It is the sympy engine behind the router's
+  operation=crosscheck (agreement is normalized with sympy) and the same
+  oracle family the battery uses. `timeout` is accepted for router
+  compatibility but cannot interrupt in-process evaluation. Reach for it
+  for portable symbolic cross-checks; for big-integer factorization or
+  deep number theory use sagebrush/maxima instead.
 - `attractor_trajectory` butterfly check now measures at t=40 (empirical
   `d(t)`: the `d>1` crossing is at t≈30.5, max 47 at t≈33.7, d(40)=8.2 —
   a t=30 horizon was just short of the crossing, tool math was fine).
@@ -217,7 +242,7 @@ would then be duplicated (`TOOLS = static_list + tool_registry.get_schemas()`).
 ```bash
 cd /home/astrid/octave-mcp
 .venv/bin/python run_all_validations.py --verbose   # ~2.5 min, 4 workers
-.venv/bin/python run_validations_guarded.py         # suite + battery (63/63),
+.venv/bin/python run_validations_guarded.py         # suite + battery (99/99),
                                                     # exit 0 solo si ambas OK
 .venv/bin/python health_check_tool.py               # same engine, JSON report;
                                                     # serial: ~5.2 min (cap 900s)
@@ -227,15 +252,38 @@ A local (untracked) `.git/hooks/pre-push` runs the guarded suite before
 every push (~4 min); it aborts on red. Bypass only when urgent:
 `git push --no-verify`.
 
-Both must agree (expected as of 2026-10-23:
-371 registered / 353 evaluated / 353 PASSED / 0 FAILED / 0 ERROR / 18 SKIPPED).
+Both must agree (expected as of 2026-10-25:
+372 registered / 372 evaluated / 372 PASSED / 0 FAILED / 0 ERROR / 0 SKIPPED).
 These counts drift over time: refresh them from `health_check_tool.py` (JSON
 report) before regenerating this skill, instead of trusting the numbers above.
 Exit code 1 means failures. Always use `.venv/bin/python` (or
 `sys.executable` from a venv script) — never system `python3`, which lacks the
 `ocas` dependency and makes the server die at import.
 
-## 5 · Local install / packaging
+## 5 · CI (GitHub Actions)
+
+`.github/workflows/ci.yml` (same template as the pre-existing
+`readme-check.yml`: checkout@v4, setup-python@v5, Python 3.12) has two
+jobs:
+
+- **lint**: installs `ruff==0.15.19` (the version this repo is pinned to)
+  and checks ONLY the maintained-file manifest `ci/ruff_files.txt`
+  (17 files: router, sympy_eval, statistics, workspace, materials,
+  composite, eurocode/fire/timber/concrete/pdelta, examples battery,
+  skill_content, etc.). `server.py` is deliberately excluded: it carries
+  815 pre-existing errors (F811/F401/E402 from legacy soil_* tools) that
+  we do not touch — never run repo-wide `ruff check .` as a CI gate.
+- **smoke**: `pip install -r requirements.txt` (verified sufficient — no
+  maxima/sage/lispium needed) then `python ci/smoke.py`, a stdio MCP
+  client that asserts initialize OK, exactly 3 meta-tools, 369 tools in
+  `list_tools`, and `validate` on `concrete_design_tool` + `pdelta_tool`.
+
+README is generated: edit `render_readme.py` and run
+`.venv/bin/python render_readme.py` (CI-check `--check` fails if stale).
+Both jobs were run locally before push: lint `All checks passed!`,
+smoke `SMOKE PASS`, exit 0.
+
+## 6 · Local install / packaging
 
 - Runtime: `.venv` (680M, machine-specific absolute paths — never ship it).
 - Portable copy: zip excluding `.venv*`, `.git`, `archive/`, `__pycache__`,
