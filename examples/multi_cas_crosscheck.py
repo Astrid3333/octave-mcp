@@ -10,13 +10,19 @@ inverse_laplace_transform o residuo numérico) y PINS de quirks
 conocidos (noun-forms de maxima que salen con ok=True, orden de ilt,
 degradación a float de lispium en enteros grandes, eco de formas sin
 evaluar, function sin aplicar en sagebrush, forma de término Basel en
-alkahest, quoting de ode2).
+alkahest, quoting de ode2) y FUZZING DIFERENCIAL con semilla fija:
+expresiones aleatorias (enteros, x, + - ^, sin/cos) evaluadas en
+maxima/sagebrush/lispium — valor y derivada en un punto de muestra —
+contra el oráculo sympy con tolerancia numérica. Semilla y rondas
+controlables con FUZZ_SEED / FUZZ_ROUNDS (entorno).
 
 Uso:  .venv/bin/python examples/multi_cas_crosscheck.py
 """
 
 import ast
 import json
+import os
+import random
 import re
 import subprocess
 import sys
@@ -211,6 +217,118 @@ def check(label, ok, detail):
     CHECKS.append(bool(ok))
     print("    %s %s: %s" % ("OK  " if ok else "FAIL", label, detail))
     return ok
+
+
+# ------------------------------------------------- fuzzing diferencial
+
+FUZZ_SEED = int(os.environ.get("FUZZ_SEED", "20261024"))
+FUZZ_ROUNDS = int(os.environ.get("FUZZ_ROUNDS", "12"))
+FUZZ_TOL_ABS = 1e-6
+FUZZ_TOL_REL = 1e-8
+
+_FZ_GRID = ([sympy.Integer(v) for v in (-2, -1, 1, 2)]
+            + [sympy.Rational(*p) for p in
+               ((1, 2), (3, 4), (1, 3), (2, 3), (-1, 2), (-3, 4))])
+
+
+def _fz_gen(rng, depth):
+    """Expresión aleatoria acotada: sin división ni exp (magnitudes seguras)."""
+    if depth <= 0:
+        return x if rng.random() < 0.5 else sympy.Integer(rng.randint(1, 9))
+    op = rng.choice(["+", "-", "*", "pow", "sin", "cos"])
+    if op == "pow":
+        base = x if rng.random() < 0.6 else sympy.Integer(rng.randint(2, 9))
+        return base ** rng.randint(1, 3)
+    if op in ("sin", "cos"):
+        f = sympy.sin if op == "sin" else sympy.cos
+        return f(_fz_gen(rng, depth - 1))
+    a = _fz_gen(rng, depth - 1)
+    b = _fz_gen(rng, depth - 1)
+    return a + b if op == "+" else a - b if op == "-" else a * b
+
+
+def _fz_infix(e):
+    """Dialecto maxima/sage: ^ para potencias."""
+    return str(e).replace("**", "^")
+
+
+def _fz_lisp(e):
+    """Dialecto lispium (s-express) de una expresión sympy."""
+    if e.is_Integer:
+        return str(int(e))
+    if e == x:
+        return "x"
+    if isinstance(e, sympy.Add):
+        return "(+ %s)" % " ".join(_fz_lisp(a) for a in e.args)
+    if isinstance(e, sympy.Mul):
+        return "(* %s)" % " ".join(_fz_lisp(a) for a in e.args)
+    if isinstance(e, sympy.Pow):
+        return "(^ %s %s)" % (_fz_lisp(e.args[0]), _fz_lisp(e.args[1]))
+    if isinstance(e, sympy.sin):
+        return "(sin %s)" % _fz_lisp(e.args[0])
+    if isinstance(e, sympy.cos):
+        return "(cos %s)" % _fz_lisp(e.args[0])
+    raise ValueError("fuzz: forma desconocida %r" % (e,))
+
+
+def _fz_close(got, orcl):
+    return abs(got - orcl) <= FUZZ_TOL_ABS + FUZZ_TOL_REL * abs(orcl)
+
+
+def _fz_detail(got_v, v_or, got_d, d_or):
+    return ("f(x0)=%.12g (oráculo %.12g), f'(x0)=%.12g (oráculo %.12g)"
+            % (got_v, v_or, got_d, d_or))
+
+
+def fuzz(w):
+    """Rondas deterministas (semilla fija) valor+derivada en 3 motores."""
+    rng = random.Random(FUZZ_SEED)
+    print("  fuzzing diferencial (semilla=%d, rondas=%d)"
+          % (FUZZ_SEED, FUZZ_ROUNDS))
+    for i in range(FUZZ_ROUNDS):
+        expr = _fz_gen(rng, 1 + i % 3)
+        x0 = rng.choice(_FZ_GRID)
+        x0f = float(x0)
+        dexpr = sympy.diff(expr, x)
+        v_or = float(expr.subs(x, x0))
+        d_or = float(dexpr.subs(x, x0))
+        inf = _fz_infix(expr)
+        lis = _fz_lisp(expr)
+
+        # maxima: valor y derivada en dos llamadas (dialecto ^)
+        try:
+            got_v = float(mx(w, "float(subst(x=%s, %s))" % (x0, inf)))
+            got_d = float(mx(w, "float(subst(x=%s, diff(%s, x)))"
+                                  % (x0, inf)))
+            ok = _fz_close(got_v, v_or) and _fz_close(got_d, d_or)
+            det = _fz_detail(got_v, v_or, got_d, d_or)
+        except Exception as exc:
+            ok, det = False, "excepción: %s" % exc
+        check("fuzz-maxima-%02d" % i, ok, det)
+
+        # sagebrush: ambas salidas en un solo print
+        try:
+            out = sg(w, "x = var('x')\nprint(float((SR(%s)).subs(x==%s)), "
+                        "float((diff(SR(%s), x)).subs(x==%s)))"
+                         % (inf, x0, inf, x0))
+            p = out.split()
+            got_v, got_d = float(p[0]), float(p[1])
+            ok = _fz_close(got_v, v_or) and _fz_close(got_d, d_or)
+            det = _fz_detail(got_v, v_or, got_d, d_or)
+        except Exception as exc:
+            ok, det = False, "excepción: %s" % exc
+        check("fuzz-sagebrush-%02d" % i, ok, det)
+
+        # lispium: valor con let numérico; derivada simbólica -> sympy
+        try:
+            got_v = float(lp(w, "(let ((x %r)) %s)" % (x0f, lis)))
+            d_lisp = lp_sympy(lp(w, "(diff %s x)" % lis))
+            got_d = float(sympy.sympify(d_lisp).subs(x, x0))
+            ok = _fz_close(got_v, v_or) and _fz_close(got_d, d_or)
+            det = _fz_detail(got_v, v_or, got_d, d_or)
+        except Exception as exc:
+            ok, det = False, "excepción: %s" % exc
+        check("fuzz-lispium-%02d" % i, ok, det)
 
 
 # ------------------------------------------------------------- battery
@@ -611,6 +729,9 @@ def main():
         check("pin-maxima-ilt-orden", pin,
               "ilt con el orden de laplace (f,t,s) -> ok=True con "
               "delta(s)/(s^2+1): ilt va (f,s,t), y ok True no es exito")
+
+        # --- 16. fuzzing diferencial con semilla fija (ver FUZZ_SEED)
+        fuzz(w)
     finally:
         w.close()
 
