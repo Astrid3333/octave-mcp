@@ -38,7 +38,7 @@ CONCRETE_DESIGN_TOOL_SCHEMA = {
         "properties": {
             "mode": {
                 "type": "string",
-                "enum": ["beam", "column", "shear_wall", "material"],
+                "enum": ["beam", "column", "shear_wall", "material", "validate"],
             },
             "params": {"type": "object"},
         },
@@ -292,11 +292,80 @@ def _shear_wall(params):
     }
 
 
+def _mode_validate() -> dict:
+    """Autochequeo: valores de material EC2, dimensionado de viga y
+    límites de armadura de columna."""
+    checks = []
+
+    def _check(name, passed, detail=""):
+        checks.append({"name": name, "passed": bool(passed), "detail": detail})
+
+    try:
+        m = _material(30.0)
+        f_ctm_exp = 0.30 * 30.0 ** (2.0 / 3.0)
+        e_cm_exp = 22.0 * (38.0 / 10.0) ** 0.3 * 1e9
+        ok = (abs(m["f_cd_Pa"] - 17e6) < 1e-6  # 0.85*30e6/1.5
+              and abs(m["f_ctm_MPa"] - f_ctm_exp) < 1e-12
+              and abs(m["E_cm_Pa"] - e_cm_exp) < 1e-3
+              and m["gamma_c"] == 1.5 and m["alpha_cc"] == 0.85)
+        _check("material_ec2_c30", ok,
+               detail=f"f_cd={m['f_cd_Pa']}, f_ctm={m['f_ctm_MPa']}")
+    except Exception as e:
+        _check("material_ec2_c30", False, detail=repr(e))
+
+    try:
+        r = _handler({"mode": "beam",
+                      "params": {"b": 0.25, "h": 0.5, "M_Ed": 100e3,
+                                 "V_Ed": 50e3, "f_ck": 30}})
+        d = 0.5 - 0.04 - 0.0125  # 0.4475
+        z_exp = 0.9 * d  # palanca usada por la herramienta
+        as_exp = 100e3 / (500e6 * z_exp)
+        ok = (abs(r["d_m"] - d) < 1e-12 and abs(r["z_arm_m"] - z_exp) < 1e-12
+              and abs(r["As1_req_m2"] - as_exp) < 1e-15
+              and r["checks"].get("flexion_ok") is True)
+        _check("beam_flexure_dimensioning", ok,
+               detail=f"d={r['d_m']}, As1={r['As1_req_m2']} (exp {as_exp})")
+    except Exception as e:
+        _check("beam_flexure_dimensioning", False, detail=repr(e))
+
+    try:
+        r = _handler({"mode": "column",
+                      "params": {"b": 0.3, "h": 0.3, "N_Ed": 500e3, "f_ck": 30}})
+        # Implementación de la herramienta: rho_min = 0.10*N_Ed/(fy*A_c) >= 0.002
+        a_c = 0.3 * 0.3
+        rho_min_exp = max(0.10 * 500e3 / (500e6 * a_c), 0.002)
+        ok = (abs(r["rho_min"] - rho_min_exp) < 1e-12 and r["rho_max"] == 0.04)
+        _check("column_rho_bounds", ok,
+               detail=f"rho_min={r['rho_min']} (exp {rho_min_exp}), rho_max={r['rho_max']}")
+    except Exception as e:
+        _check("column_rho_bounds", False, detail=repr(e))
+
+    try:
+        r = _handler({"mode": "material", "params": {"f_ck": 60.0}})
+        # Rama f_ck>50: f_ctm = 2.12 + 0.106*(f_ck-50)/5 = 2.12+0.212
+        _check("material_fck60_branch", abs(r["f_ctm_MPa"] - 2.332) < 1e-12,
+               detail=f"f_ctm={r['f_ctm_MPa']}")
+    except Exception as e:
+        _check("material_fck60_branch", False, detail=repr(e))
+
+    passed = sum(1 for c in checks if c["passed"])
+    return {
+        "mode": "validate",
+        "checks": checks,
+        "total_passed": passed,
+        "total_checks": len(checks),
+        "validation_passed": passed == len(checks),
+        "status": "success" if passed == len(checks) else "failed",
+    }
+
+
 def _handler(args):
     mode = args.get("mode")
     params = args.get("params") or {}
     try:
-        if mode == "beam":
+        if mode == "validate":
+            return _mode_validate()
+        elif mode == "beam":
             return _beam(params)
         elif mode == "column":
             return _column(params)

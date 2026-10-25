@@ -110,7 +110,7 @@ EUROCODE_STEEL_TOOL_SCHEMA = {
             "mode": {
                 "type": "string",
                 "enum": ["section_class", "buckling", "bending",
-                         "combined", "sls", "ecb_combo", "profile"],
+                         "combined", "sls", "ecb_combo", "profile", "validate"],
             },
             "params": {"type": "object"},
         },
@@ -379,9 +379,80 @@ def _ecb_combo(params):
             "gamma_G": g_g, "gamma_Q": g_q}
 
 
+def _mode_validate() -> dict:
+    """Autochequeo: clase de sección, N_cr de Euler, χ·N_pl y combinación ULS."""
+    import math as _math
+
+    checks = []
+
+    def _check(name, passed, detail=""):
+        checks.append({"name": name, "passed": bool(passed), "detail": detail})
+
+    try:
+        r = _handler({"mode": "section_class",
+                      "params": {"shape": "I", "h": 100, "b": 50,
+                                 "tw": 5, "tf": 8}})
+        # c/tf = ((50-5)/2)/8 = 2.8125 ; h/tw claro = (100-2*8)/5 = 16.8
+        ok = (r["section_class"] == 1 and r["flange_class"] == 1
+              and abs(r["flange_c_over_tf"] - 2.8125) < 1e-12
+              and abs(r["web_h_over_tw"] - 16.8) < 1e-12)
+        _check("section_class_I", ok,
+               detail=f"class={r['section_class']}, c/tf={r['flange_c_over_tf']}")
+    except Exception as e:
+        _check("section_class_I", False, detail=repr(e))
+
+    try:
+        r = _handler({"mode": "buckling",
+                      "params": {"N_Ed": 1e5, "A": 5380e-6, "fy": 355e6,
+                                 "L_cr": 3.0, "Iz": 8360e-8}})
+        n_cr_exp = _math.pi ** 2 * 210e9 * 8360e-8 / 3.0 ** 2
+        chi_exp = r["chi"]
+        n_b_exp = chi_exp * 5380e-6 * 355e6  # gamma_M1 = 1.0
+        ok = (abs(r["N_cr"] - n_cr_exp) < 1e-3
+              and abs(r["N_b_Rd"] - n_b_exp) < 1e-6
+              and r["ok"] is True)
+        _check("buckling_euler_ncr", ok,
+               detail=f"N_cr={r['N_cr']} (exp {n_cr_exp}), N_b_Rd={r['N_b_Rd']}")
+    except Exception as e:
+        _check("buckling_euler_ncr", False, detail=repr(e))
+
+    try:
+        r = _handler({"mode": "ecb_combo",
+                      "params": {"actions": {"dead": {"type": "G", "value": 100.0},
+                                             "live": {"type": "Q", "value": 50.0}}}})
+        # ULS básica: 1.35*100 + 1.5*50 = 210
+        dv = r["combos"][0]["design_value"]
+        ok = (r["gamma_G"] == 1.35 and r["gamma_Q"] == 1.5 and abs(dv - 210.0) < 1e-9)
+        _check("ecb_combo_uls_210", ok, detail=f"design_value={dv}")
+    except Exception as e:
+        _check("ecb_combo_uls_210", False, detail=repr(e))
+
+    try:
+        r = _handler({"mode": "profile", "params": {"profile": "IPE300"}})
+        # Catálogo: A=53.8 cm2, peso 42.2 kg/m
+        ok = (r.get("name") == "IPE300" and abs(r.get("A_m2", 0) - 5.38e-3) < 1e-12
+              and abs(r.get("peso_kg_m", 0) - 42.2) < 1e-9)
+        _check("profile_ipe300_catalog", ok,
+               detail=f"A={r.get('A_m2')}, peso={r.get('peso_kg_m')}")
+    except Exception as e:
+        _check("profile_ipe300_catalog", False, detail=repr(e))
+
+    passed = sum(1 for c in checks if c["passed"])
+    return {
+        "mode": "validate",
+        "checks": checks,
+        "total_passed": passed,
+        "total_checks": len(checks),
+        "validation_passed": passed == len(checks),
+        "status": "success" if passed == len(checks) else "failed",
+    }
+
+
 def _handler(args):
     mode = args.get("mode", "section_class")
     params = args.get("params") or {}
+    if mode == "validate":
+        return _mode_validate()
     # inyectar propiedades del catálogo si se pasó 'profile'
     if params.get("profile"):
         params = _inject_profile(params)

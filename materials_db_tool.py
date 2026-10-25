@@ -36,7 +36,7 @@ MATERIALS_DB_TOOL_SCHEMA = {
         "properties": {
             "mode": {
                 "type": "string",
-                "enum": ["lookup", "compare", "search", "innovate"],
+                "enum": ["lookup", "compare", "search", "innovate", "validate"],
             },
             "params": {"type": "object"},
         },
@@ -396,11 +396,62 @@ def _innovate(params):
             "available_cases": list(suggestions.keys())}
 
 
+def _mode_validate() -> dict:
+    """Autochequeo: lookup exacto/case-insensitive, error con sugerencias y compare."""
+    checks = []
+
+    def _check(name, passed, detail=""):
+        checks.append({"name": name, "passed": bool(passed), "detail": detail})
+
+    try:
+        r = _lookup({"name": "S235"})
+        p = r.get("properties", {})
+        ok = (r.get("category") == "common" and abs(p.get("fy", 0) - 235e6) < 1
+              and abs(p.get("E", 0) - 210e9) < 1 and p.get("rho") == 7850)
+        _check("lookup_s235_si_values", ok,
+               detail=f"fy={p.get('fy')}, E={p.get('E')}, rho={p.get('rho')}")
+    except Exception as e:
+        _check("lookup_s235_si_values", False, detail=repr(e))
+
+    try:
+        r = _lookup({"name": "s235"})  # case-insensitive
+        _check("lookup_case_insensitive", r.get("name") == "S235",
+               detail=f"resolvió a {r.get('name')}")
+    except Exception as e:
+        _check("lookup_case_insensitive", False, detail=repr(e))
+
+    try:
+        r = _lookup({"name": "material_que_no_existe_xyz"})
+        _check("lookup_unknown_returns_error",
+               "error" in r and "suggestions" in r, detail=str(r)[:80])
+    except Exception as e:
+        _check("lookup_unknown_returns_error", False, detail=repr(e))
+
+    try:
+        r = _compare({"names": ["S235", "C30"]})
+        ok = r.get("n") == 2 and all("error" not in m for m in r.get("materials", []))
+        _check("compare_two_materials", ok, detail=str(r)[:100])
+    except Exception as e:
+        _check("compare_two_materials", False, detail=repr(e))
+
+    passed = sum(1 for c in checks if c["passed"])
+    return {
+        "mode": "validate",
+        "checks": checks,
+        "total_passed": passed,
+        "total_checks": len(checks),
+        "validation_passed": passed == len(checks),
+        "status": "success" if passed == len(checks) else "failed",
+    }
+
+
 def _handler(args):
     mode = args.get("mode")
     params = args.get("params") or {}
     try:
-        if mode == "lookup":
+        if mode == "validate":
+            return _mode_validate()
+        elif mode == "lookup":
             return _lookup(params)
         elif mode == "compare":
             return _compare(params)

@@ -36,7 +36,7 @@ TIMBER_DESIGN_TOOL_SCHEMA = {
         "properties": {
             "mode": {
                 "type": "string",
-                "enum": ["beam", "column", "material", "fire"],
+                "enum": ["beam", "column", "material", "fire", "validate"],
             },
             "params": {"type": "object"},
         },
@@ -256,11 +256,85 @@ def _material(params):
     }
 
 
+def _mode_validate() -> dict:
+    """Autochequeo: propiedades EC5 C24, tabla k_mod, flexión de viga
+    y pandeo de columna con reimplementación independiente de EC5 6.3.2."""
+    import math as _math
+
+    checks = []
+
+    def _check(name, passed, detail=""):
+        checks.append({"name": name, "passed": bool(passed), "detail": detail})
+
+    try:
+        m = _material({"tipo": "C24"})
+        ok = (abs(m["f_m_k_Pa"] - 24e6) < 1e-6
+              and abs(m["E0_mean_Pa"] - 10.8e9) < 1e-3
+              and m["rho_mean"] == 440 and m["gamma_M"] == 1.3)
+        _check("material_c24_ec5", ok,
+               detail=f"f_m_k={m['f_m_k_Pa']}, E0_mean={m['E0_mean_Pa']}, rho={m['rho_mean']}")
+    except Exception as e:
+        _check("material_c24_ec5", False, detail=repr(e))
+
+    try:
+        ok = (abs(_k_mod("short", "short") - 1.2) < 1e-12
+              and abs(_k_mod("permanent", "permanent") - 0.6) < 1e-12)
+        _check("k_mod_table", ok,
+               detail=f"short/short={_k_mod('short','short')}, "
+                      f"perm/perm={_k_mod('permanent','permanent')}")
+    except Exception as e:
+        _check("k_mod_table", False, detail=repr(e))
+
+    try:
+        r = _beam({"tipo": "C24", "b": 0.1, "h": 0.2, "M_Ed": 2e3, "l": 4.0})
+        w_exp = 0.1 * 0.2 ** 2 / 6.0
+        m_rd_exp = 1.2 * 24e6 * w_exp / 1.3  # k_mod*f_m_k*W/gamma_M
+        ok = (abs(r["W_m3"] - w_exp) < 1e-15
+              and abs(r["M_Rd_Nm"] - m_rd_exp) < 1e-9
+              and r["checks"]["bending_ok"] is True)
+        _check("beam_flexure_ec5", ok,
+               detail=f"W={r['W_m3']}, M_Rd={r['M_Rd_Nm']} (exp {m_rd_exp})")
+    except Exception as e:
+        _check("beam_flexure_ec5", False, detail=repr(e))
+
+    try:
+        r = _column({"b": 0.1, "h": 0.1, "N_Ed": 5e4, "tipo": "C24",
+                     "servicio": "short", "duracion": "short", "L0": 3.0})
+        # Reimplementación EC5 6.3.2 independiente
+        a = 0.1 * 0.1
+        n_rd0_exp = 1.2 * 31e6 * a / 1.3
+        i_min = 0.1 / _math.sqrt(12.0)
+        lam_1 = 0.7 * _math.sqrt(10.8e9 / 31e6)
+        lam_rel_exp = (3.0 / i_min) / lam_1
+        phi = 0.5 * (1 + 0.1 * (lam_rel_exp - 0.3) + lam_rel_exp ** 2)
+        chi_exp = min(1.0 / (phi + _math.sqrt(phi ** 2 - lam_rel_exp ** 2)), 1.0)
+        ok = (abs(r["N_Rd0_N"] - n_rd0_exp) < 1e-6
+              and abs(r["lambda_rel_k"] - lam_rel_exp) < 1e-9
+              and abs(r["chi_k"] - chi_exp) < 1e-12)
+        _check("column_buckling_ec5", ok,
+               detail=f"lam_rel={r['lambda_rel_k']} (exp {lam_rel_exp}), "
+                      f"chi={r['chi_k']} (exp {chi_exp})")
+    except Exception as e:
+        _check("column_buckling_ec5", False, detail=repr(e))
+
+    passed = sum(1 for c in checks if c["passed"])
+    return {
+        "mode": "validate",
+        "checks": checks,
+        "total_passed": passed,
+        "total_checks": len(checks),
+        "validation_passed": passed == len(checks),
+        "status": "success" if passed == len(checks) else "failed",
+    }
+
+
 def _handler(args):
     mode = args.get("mode")
     params = args.get("params") or {}
     try:
-        if mode == "beam":
+        if mode == "validate":
+            return _mode_validate()
+        elif mode == "beam":
             return _beam(params)
         elif mode == "column":
             return _column(params)

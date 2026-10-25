@@ -232,6 +232,8 @@ WORKSPACE_SAVE_SCHEMA = {
             "run_id": {"type": "string", "description": "Identificador único. Si se omite, se autogenera."},
             "data": {"type": "object", "description": "Dict de arrays/escalares a guardar."},
             "meta": {"type": "object", "description": "Metadata libre: tool de origen, params usados, etc."},
+            "mode": {"type": "string", "enum": ["validate"],
+                     "description": "'validate' corre el autochequeo completo del workspace."},
         },
         "required": ["data"],
     },
@@ -245,6 +247,8 @@ WORKSPACE_LOAD_SCHEMA = {
         "properties": {
             "run_id": {"type": "string"},
             "keys": {"type": "array", "items": {"type": "string"}, "description": "Subconjunto de arrays a cargar (opcional)."},
+            "mode": {"type": "string", "enum": ["validate"],
+                     "description": "'validate' corre el autochequeo completo del workspace."},
         },
         "required": ["run_id"],
     },
@@ -255,7 +259,11 @@ WORKSPACE_LIST_SCHEMA = {
     "description": "Lista todos los runs guardados en el workspace, opcionalmente filtrados por tool de origen.",
     "inputSchema": {
         "type": "object",
-        "properties": {"filter_tool": {"type": "string"}},
+        "properties": {
+            "filter_tool": {"type": "string"},
+            "mode": {"type": "string", "enum": ["validate"],
+                     "description": "'validate' corre el autochequeo completo del workspace."},
+        },
         "required": [],
     },
 }
@@ -265,7 +273,11 @@ WORKSPACE_DESCRIBE_SCHEMA = {
     "description": "Muestra shapes/dtypes de un run sin cargar los arrays completos (útil para trayectorias largas antes de graficar).",
     "inputSchema": {
         "type": "object",
-        "properties": {"run_id": {"type": "string"}},
+        "properties": {
+            "run_id": {"type": "string"},
+            "mode": {"type": "string", "enum": ["validate"],
+                     "description": "'validate' corre el autochequeo completo del workspace."},
+        },
         "required": ["run_id"],
     },
 }
@@ -275,7 +287,11 @@ WORKSPACE_DELETE_SCHEMA = {
     "description": "Borra un run del workspace.",
     "inputSchema": {
         "type": "object",
-        "properties": {"run_id": {"type": "string"}},
+        "properties": {
+            "run_id": {"type": "string"},
+            "mode": {"type": "string", "enum": ["validate"],
+                     "description": "'validate' corre el autochequeo completo del workspace."},
+        },
         "required": ["run_id"],
     },
 }
@@ -392,7 +408,8 @@ try:
     register_tool(
         name="workspace_save",
         schema=WORKSPACE_SAVE_SCHEMA,
-        handler=lambda args: save_run(**args),
+        handler=lambda args: validate_workspace_tool()
+        if args.get("mode") == "validate" else save_run(**args),
     )
 except ImportError:
     pass
@@ -403,7 +420,8 @@ try:
     register_tool(
         name="workspace_load",
         schema=WORKSPACE_LOAD_SCHEMA,
-        handler=lambda args: load_run_safe(**args),  # antes: load_run(**args)
+        handler=lambda args: validate_workspace_tool()
+        if args.get("mode") == "validate" else load_run_safe(**args),  # antes: load_run(**args)
     )
 except ImportError:
     pass
@@ -414,7 +432,8 @@ try:
     register_tool(
         name="workspace_list",
         schema=WORKSPACE_LIST_SCHEMA,
-        handler=lambda args: list_runs(**args),
+        handler=lambda args: validate_workspace_tool()
+        if args.get("mode") == "validate" else list_runs(**args),
     )
 except ImportError:
     pass
@@ -425,7 +444,8 @@ try:
     register_tool(
         name="workspace_describe",
         schema=WORKSPACE_DESCRIBE_SCHEMA,
-        handler=lambda args: describe_run(**args),
+        handler=lambda args: validate_workspace_tool()
+        if args.get("mode") == "validate" else describe_run(**args),
     )
 except ImportError:
     pass
@@ -436,7 +456,8 @@ try:
     register_tool(
         name="workspace_delete",
         schema=WORKSPACE_DELETE_SCHEMA,
-        handler=lambda args: delete_run(**args),
+        handler=lambda args: validate_workspace_tool()
+        if args.get("mode") == "validate" else delete_run(**args),
     )
 except ImportError:
     pass

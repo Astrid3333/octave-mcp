@@ -426,7 +426,11 @@ TOOLS = [
             "description": "Ejecuta codigo GNU Octave",
             "inputSchema": {
                 "type": "object",
-                "properties": {"code": {"type": "string"}},
+                "properties": {
+                    "code": {"type": "string"},
+                    "mode": {"type": "string", "enum": ["validate"],
+                             "description": "'validate' corre autochequeos internos del runtime Octave."},
+                },
                 "required": ["code"],
             },
         },
@@ -610,11 +614,40 @@ if __name__ == "__main__":
                         "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
                     }
                 elif tool_name == "run_octave":
-                    output = run_octave(args["code"])
-                    resp = {
-                        "jsonrpc": "2.0", "id": req_id,
-                        "result": {"content": [{"type": "text", "text": output or "(sin salida)"}]},
-                    }
+                    if args.get("mode") == "validate":
+                        # Autochequeo del runtime Octave: binario presente,
+                        # aritmetica basica y sqrt, en un solo subprocess.
+                        checks = []
+                        binary_ok = shutil.which("octave-cli") is not None
+                        checks.append({"name": "octave_binary", "passed": binary_ok,
+                                       "details": shutil.which("octave-cli") or "octave-cli no encontrado"})
+                        if binary_ok:
+                            out = run_octave("disp(40+2); disp(sqrt(9));")
+                            lines = [l.strip() for l in out.strip().splitlines() if l.strip()]
+                            math_ok = "42" in lines and "3" in lines
+                            checks.append({"name": "basic_math", "passed": math_ok,
+                                           "details": f"salida={lines!r}"})
+                        else:
+                            checks.append({"name": "basic_math", "passed": False,
+                                           "details": "omitido: sin binario"})
+                        passed = sum(1 for c in checks if c["passed"])
+                        result = {
+                            "checks": checks,
+                            "total_passed": passed,
+                            "total_checks": len(checks),
+                            "validation_passed": passed == len(checks),
+                            "status": "success" if passed == len(checks) else "failed",
+                        }
+                        resp = {
+                            "jsonrpc": "2.0", "id": req_id,
+                            "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}]},
+                        }
+                    else:
+                        output = run_octave(args["code"])
+                        resp = {
+                            "jsonrpc": "2.0", "id": req_id,
+                            "result": {"content": [{"type": "text", "text": output or "(sin salida)"}]},
+                        }
 
                 elif tool_name == "numeral_systems_embedding":
                     result = compute_numeral_systems_embedding(**args)

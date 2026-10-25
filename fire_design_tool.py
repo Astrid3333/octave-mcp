@@ -39,7 +39,7 @@ FIRE_DESIGN_TOOL_SCHEMA = {
             "mode": {
                 "type": "string",
                 "enum": ["section_factor", "unprotected", "protected",
-                         "bolt", "material"],
+                         "bolt", "material", "validate"],
             },
             "params": {"type": "object"},
         },
@@ -232,11 +232,81 @@ def _material(params):
     return {"T_C": T, "k_E": k_E, "k_y": k_y, "k_u": k_u}
 
 
+def _mode_validate() -> dict:
+    """Autochequeo: ISO 834, A/V, t_cr de sección sin protección y
+    factores k_y/k_E de EN 1993-1-2."""
+    import math as _math
+
+    checks = []
+
+    def _check(name, passed, detail=""):
+        checks.append({"name": name, "passed": bool(passed), "detail": detail})
+
+    try:
+        t30 = _T_iso834(30.0)
+        exp30 = 20.0 + 345.0 * _math.log10(8 * 30 + 1)
+        t60 = _T_iso834(60.0)
+        exp60 = 20.0 + 345.0 * _math.log10(8 * 60 + 1)
+        ok = abs(t30 - exp30) < 1e-9 and abs(t60 - exp60) < 1e-9
+        _check("iso834_temperature", ok, detail=f"T(30)={t30} (exp {exp30})")
+    except Exception as e:
+        _check("iso834_temperature", False, detail=repr(e))
+
+    try:
+        r = _handler({"mode": "section_factor",
+                      "params": {"area_m2": 0.3 * 0.15,
+                                 "perimeter_m": 2 * (0.3 + 0.15), "t": 30}})
+        k_av_exp = 0.045 / 0.9  # A/V = 0.05
+        ok = (abs(r["k_AV_m1"] - k_av_exp) < 1e-12
+              and abs(r["T_iso834_C"] - (20.0 + 345.0 * _math.log10(241))) < 1e-9)
+        _check("section_factor_av", ok,
+               detail=f"k_AV={r['k_AV_m1']} (exp {k_av_exp})")
+    except Exception as e:
+        _check("section_factor_av", False, detail=repr(e))
+
+    try:
+        r = _handler({"mode": "unprotected",
+                      "params": {"k_AV": 50.0, "t_expuesto": 6.0,
+                                 "M_Ed": 1.0e4, "M_Rd_amb": 2.0e4}})
+        # t_cr = max(5, 15*(20/50)) = 6 min
+        ok = (abs(r["t_cr_min"] - 6.0) < 1e-12
+              and r["checks"]["time_ok"] is True
+              and r["M_Rd_fire_Nm"] > 0
+              and r["checks"]["bending_fire_ok"] is True)
+        _check("unprotected_tcr", ok,
+               detail=f"t_cr={r['t_cr_min']}, M_Rd_fire={r['M_Rd_fire_Nm']}")
+    except Exception as e:
+        _check("unprotected_tcr", False, detail=repr(e))
+
+    try:
+        r = _handler({"mode": "material", "params": {"T": 500.0}})
+        # EN 1993-1-2 rama T<=500: k_E = 0.96 - 0.03*(T-400)/100 = 0.93
+        # k_y = min(1, 1.05*k_E) para T>400
+        ok = (abs(r["k_E"] - 0.93) < 1e-12
+              and abs(r["k_y"] - min(1.0, 0.93 * 1.05)) < 1e-12)
+        _check("material_k_factors", ok,
+               detail=f"k_E={r['k_E']}, k_y={r['k_y']}")
+    except Exception as e:
+        _check("material_k_factors", False, detail=repr(e))
+
+    passed = sum(1 for c in checks if c["passed"])
+    return {
+        "mode": "validate",
+        "checks": checks,
+        "total_passed": passed,
+        "total_checks": len(checks),
+        "validation_passed": passed == len(checks),
+        "status": "success" if passed == len(checks) else "failed",
+    }
+
+
 def _handler(args):
     mode = args.get("mode")
     params = args.get("params") or {}
     try:
-        if mode == "section_factor":
+        if mode == "validate":
+            return _mode_validate()
+        elif mode == "section_factor":
             return _section_factor(params)
         elif mode == "unprotected":
             return _unprotected(params)

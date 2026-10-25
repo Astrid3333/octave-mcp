@@ -37,7 +37,7 @@ STATISTICS_EXTENDED_TOOL_SCHEMA = {
                 "type": "string",
                 "enum": [
                     "descriptive_stats", "contingency_table", "two_sample_tests",
-                    "anova_oneway", "normality_tests", "resampling",
+                    "anova_oneway", "normality_tests", "resampling", "validate",
                 ],
             },
             "params": {"type": "object", "description": "Parametros especificos de cada modo, ver docstrings."},
@@ -304,8 +304,58 @@ def _resampling(resampling_mode, **kwargs):
 # ---------------------------------------------------------------------------
 # dispatcher
 # ---------------------------------------------------------------------------
+def _mode_validate() -> dict:
+    """Autochequeo con valores deterministas (validados contra scipy.stats)."""
+    checks = []
+
+    def _check(name, passed, detail=""):
+        checks.append({"name": name, "passed": bool(passed), "detail": detail})
+
+    try:
+        d = _descriptive_stats(data=[1.0, 2.0, 3.0, 4.0, 5.0])
+        _check("descriptive_stats_mean", abs(d["mean"] - 3.0) < 1e-12,
+               detail=f"mean={d['mean']}")
+    except Exception as e:
+        _check("descriptive_stats_mean", False, detail=repr(e))
+
+    try:
+        c = _contingency_table(table=[[10, 20], [30, 40]])
+        exp_ok = (abs(c["expected"][0][0] - 12.0) < 1e-12
+                  and abs(c["expected"][1][1] - 42.0) < 1e-12)
+        _check("contingency_expected_frequencies", exp_ok,
+               detail=f"expected={c['expected']}")
+    except Exception as e:
+        _check("contingency_expected_frequencies", False, detail=repr(e))
+
+    try:
+        t = _two_sample_tests("ttest_ind", x=[1.0, 2.0, 3.0, 4.0], y=[5.0, 6.0, 7.0, 8.0])
+        _check("ttest_ind_statistic", abs(t["statistic"] - (-4.3817804600413295)) < 1e-9,
+               detail=f"statistic={t['statistic']}")
+    except Exception as e:
+        _check("ttest_ind_statistic", False, detail=repr(e))
+
+    try:
+        n = _normality_tests("shapiro", data=[1.0, 2.0, 3.0, 4.0, 5.0])
+        _check("shapiro_statistic", abs(n["statistic"] - 0.9867621554477195) < 1e-9,
+               detail=f"statistic={n['statistic']}")
+    except Exception as e:
+        _check("shapiro_statistic", False, detail=repr(e))
+
+    passed = sum(1 for c in checks if c["passed"])
+    return {
+        "mode": "validate",
+        "checks": checks,
+        "total_passed": passed,
+        "total_checks": len(checks),
+        "validation_passed": passed == len(checks),
+        "status": "success" if passed == len(checks) else "failed",
+    }
+
+
 def compute_statistics_extended(mode, params=None):
     params = dict(params or {})
+    if mode == "validate":
+        return _mode_validate()
     if mode == "descriptive_stats":
         return _descriptive_stats(**params)
     elif mode == "contingency_table":

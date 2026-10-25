@@ -145,6 +145,29 @@ def execute_pipeline(steps: list) -> tuple:
     return context, trace
 
 
+# Demo fija de mode="validate": deriva simbolicamente y despues analiza su
+# error numerico, para confirmar que el encadenado funciona sin pedir input.
+_DEFAULT_DEMO_STEPS = [
+    {
+        "tool": "compute_gradient_hessian",
+        "args": {"expression": "x**2*sin(y) + exp(x*y)", "variables": "x,y", "order": 1},
+        "save_as": "grad",
+    },
+    {
+        "tool": "compute_math_error_analysis",
+        "args": {
+            "mode": "truncation_roundoff",
+            "function_expr": "sin(x)",
+            "x0": 1.0,
+            "method": "central",
+            "h_min_exp": 1,
+            "h_max_exp": 8,
+        },
+        "save_as": "err",
+    },
+]
+
+
 def run_math_pipeline(steps: list = None, mode: str = "validate") -> dict:
     """
     Orquesta una cadena de llamadas a tools de octave-mcp, resolviendo
@@ -160,34 +183,68 @@ def run_math_pipeline(steps: list = None, mode: str = "validate") -> dict:
               "validate" (default) corre un pipeline de demo fijo:
               deriva simbolicamente y despues analiza su error numerico,
               para confirmar que el encadenado funciona sin pedir input.
+              "self_test" corre 4 checks internos del orquestador
+              (pipeline demo, resolucion de referencias, errores esperados)
+              y devuelve un reporte con validation_passed.
 
     Returns:
         dict con mode, n_steps, trace (bitacora con tiempos) y results
-        (mapa save_as -> resultado de cada paso).
+        (mapa save_as -> resultado de cada paso). En mode="self_test",
+        dict con checks/total_passed/validation_passed/status.
     """
-    if mode not in ("run", "validate"):
-        raise ValueError("mode debe ser 'run' o 'validate'")
+    if mode not in ("run", "validate", "self_test"):
+        raise ValueError("mode debe ser 'run', 'validate' o 'self_test'")
+
+    if mode == "self_test":
+        checks = []
+
+        # (1) El pipeline demo completo se ejecuta de verdad: 2 pasos con
+        # save_as en el context.
+        try:
+            demo = run_math_pipeline(steps=_DEFAULT_DEMO_STEPS, mode="run")
+            ok = demo["n_steps"] == 2 and set(demo["results"]) == {"grad", "err"}
+            checks.append({"name": "demo_pipeline", "passed": bool(ok),
+                           "details": f"n_steps={demo['n_steps']}, save_as={sorted(demo['results'])}"})
+        except Exception as e:
+            checks.append({"name": "demo_pipeline", "passed": False, "details": str(e)})
+
+        # (2) Resolucion de referencias anidadas '$a.b'.
+        try:
+            got = _resolve_value({"x": "$a.b"}, {"a": {"b": 5}})
+            checks.append({"name": "resolve_reference", "passed": got == {"x": 5},
+                           "details": f"resultado={got}"})
+        except Exception as e:
+            checks.append({"name": "resolve_reference", "passed": False, "details": str(e)})
+
+        # (3) Tool inexistente -> ValueError con lista de disponibles.
+        try:
+            _lookup_tool("no_such_tool")
+            checks.append({"name": "unknown_tool_raises", "passed": False,
+                           "details": "no lanzo ValueError"})
+        except ValueError:
+            checks.append({"name": "unknown_tool_raises", "passed": True,
+                           "details": "ValueError esperado"})
+
+        # (4) Referencia a paso inexistente -> ValueError.
+        try:
+            _resolve_value("$missing.k", {})
+            checks.append({"name": "bad_reference_raises", "passed": False,
+                           "details": "no lanzo ValueError"})
+        except ValueError:
+            checks.append({"name": "bad_reference_raises", "passed": True,
+                           "details": "ValueError esperado"})
+
+        passed = sum(1 for c in checks if c["passed"])
+        return {
+            "checks": checks,
+            "total_passed": passed,
+            "total_checks": len(checks),
+            "validation_passed": passed == len(checks),
+            "status": "success" if passed == len(checks) else "failed",
+        }
 
     if mode == "validate":
-        steps = [
-            {
-                "tool": "compute_gradient_hessian",
-                "args": {"expression": "x**2*sin(y) + exp(x*y)", "variables": "x,y", "order": 1},
-                "save_as": "grad",
-            },
-            {
-                "tool": "compute_math_error_analysis",
-                "args": {
-                    "mode": "truncation_roundoff",
-                    "function_expr": "sin(x)",
-                    "x0": 1.0,
-                    "method": "central",
-                    "h_min_exp": 1,
-                    "h_max_exp": 8,
-                },
-                "save_as": "err",
-            },
-        ]
+        steps = _DEFAULT_DEMO_STEPS
     elif not steps:
         raise ValueError("Debes indicar 'steps' (lista no vacia) cuando mode='run'")
 
@@ -209,16 +266,17 @@ PIPELINE_BUILDER_TOOL_SCHEMA = {
         "de error, benchmark de metodos, interpolacion, crecimiento bacteriano, cinetica enzimatica, dinamica poblacional, reaccion-difusion, estadistica, calculo simbolico), pasando el output de un "
         "paso como input del siguiente via referencias '$save_as.campo.subcampo'. "
         "mode='validate' corre una demo fija (derivada -> analisis de error) sin "
-        "pedir argumentos; mode='run' ejecuta los 'steps' dados."
+        "pedir argumentos; mode='run' ejecuta los 'steps' dados; mode='self_test' "
+        "corre los autochequeos internos del orquestador."
     ),
     "inputSchema": {
         "type": "object",
         "properties": {
             "mode": {
                 "type": "string",
-                "enum": ["run", "validate"],
+                "enum": ["run", "validate", "self_test"],
                 "default": "validate",
-                "description": "'validate' corre una demo fija; 'run' ejecuta 'steps'.",
+                "description": "'validate' corre una demo fija; 'run' ejecuta 'steps'; 'self_test' corre los autochequeos internos.",
             },
             "steps": {
                 "type": "array",

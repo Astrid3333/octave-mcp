@@ -39,7 +39,7 @@ PDELTA_TOOL_SCHEMA = {
         "properties": {
             "mode": {
                 "type": "string",
-                "enum": ["solve", "amplify", "buckling_load"],
+                "enum": ["solve", "amplify", "buckling_load", "validate"],
             },
             "params": {"type": "object"},
         },
@@ -203,11 +203,65 @@ def _solve(params):
     }
 
 
+def _mode_validate() -> dict:
+    """Autochequeo: amplificación θ=1/(1-N/N_cr), divergencia N>N_cr,
+    convergencia del solver iterativo y ruta de error de buckling_load."""
+    checks = []
+
+    def _check(name, passed, detail=""):
+        checks.append({"name": name, "passed": bool(passed), "detail": detail})
+
+    try:
+        r = _amplify({"M_I": 100.0, "N": 50e3, "N_cr": 100e3})
+        ok = abs(r["theta"] - 2.0) < 1e-12 and abs(r["M_II_Nm"] - 200.0) < 1e-9
+        _check("amplify_theta_half_cr", ok,
+               detail=f"theta={r['theta']}, M_II={r['M_II_Nm']}")
+    except Exception as e:
+        _check("amplify_theta_half_cr", False, detail=repr(e))
+
+    try:
+        r = _amplify({"M_I": 100.0, "N": 150e3, "N_cr": 100e3})
+        # N>N_cr -> 1/(1-1.5) = -2 y flag stable=False (pandeo superado)
+        _check("amplify_beyond_critical_negative", abs(r["theta"] - (-2.0)) < 1e-12
+               and r["checks"]["stable"] is False,
+               detail=f"theta={r['theta']}, stable={r['checks']['stable']}")
+    except Exception as e:
+        _check("amplify_beyond_critical_negative", False, detail=repr(e))
+
+    try:
+        r = _solve({"members": [{"M_I": 100.0, "N": 50e3, "N_cr": 100e3}],
+                    "n_iter": 10, "tol": 1e-6})
+        ok = bool(r.get("converged")) and 0 < r["n_iter"] <= 10
+        _check("solve_converges", ok,
+               detail=f"converged={r.get('converged')}, n_iter={r.get('n_iter')}")
+    except Exception as e:
+        _check("solve_converges", False, detail=repr(e))
+
+    try:
+        r = _buckling_load({})
+        _check("buckling_load_missing_model_errors",
+               isinstance(r, dict) and "error" in r, detail=str(r)[:80])
+    except Exception as e:
+        _check("buckling_load_missing_model_errors", False, detail=repr(e))
+
+    passed = sum(1 for c in checks if c["passed"])
+    return {
+        "mode": "validate",
+        "checks": checks,
+        "total_passed": passed,
+        "total_checks": len(checks),
+        "validation_passed": passed == len(checks),
+        "status": "success" if passed == len(checks) else "failed",
+    }
+
+
 def _handler(args):
     mode = args.get("mode")
     params = args.get("params") or {}
     try:
-        if mode == "amplify":
+        if mode == "validate":
+            return _mode_validate()
+        elif mode == "amplify":
             return _amplify(params)
         elif mode == "buckling_load":
             return _buckling_load(params)

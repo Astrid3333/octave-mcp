@@ -51,11 +51,21 @@ TIMEOUT_SECONDS = 900  # subido de 300: con 73 tools validate llego a 279.6s (ca
 # significa otra cosa para ellas (no "correr autochequeos internos") --
 # se excluyen a mano de la evaluacion automatica en vez de reportarlas
 # como ERROR. Ver justificacion de cada una en el comentario.
-KNOWN_NON_STANDARD_VALIDATE = {
-    # mode=validate ejecuta un pipeline default de pasos (compute_gradient_hessian
-    # + compute_math_error_analysis encadenados) y devuelve su trace/resultados,
-    # no un reporte de autochequeo con validation_passed/all_passed.
-    "run_math_pipeline": "mode=validate ejecuta un pipeline default, no un autochequeo",
+# (Vacio desde 2026-10-24: run_math_pipeline gano un modo self_test real,
+# ahora se evalua via VALIDATE_MODE_OVERRIDES, no se excluye.)
+KNOWN_NON_STANDARD_VALIDATE = {}
+
+# Override con PRIORIDAD sobre el enum del schema: para tools donde
+# mode="validate" existe en el enum pero no es su autochequeo, y su
+# autochequeo real vive en otro modo. Se consulta ANTES de la logica
+# enum/ALTERNATE (a diferencia de ALTERNATE_VALIDATE_MODE, que solo
+# aplica cuando el enum NO declara "validate" -- ahi el enum gana).
+VALIDATE_MODE_OVERRIDES = {
+    # enum ["run","validate"]: validate corre un pipeline default de pasos
+    # (compute_gradient_hessian + compute_math_error_analysis) y devuelve su
+    # trace/resultados, no un reporte de autochequeo. self_test corre 4
+    # checks internos con validation_passed (nuevo 2026-10-24).
+    "run_math_pipeline": "self_test",
 }
 
 # Tools cuyo autochequeo interno existe y es funcionalmente equivalente a
@@ -128,7 +138,21 @@ ALTERNATE_VALIDATE_PARAM_NAME = {
     "ethnomath2": "preset",
     "math_explainer": "source_tool",
     "numeral_systems_embedding": "method",
+    "ethnomath_comparative_tool": "experiment",
 }
+
+# Tools cuyo autochequeo solo se llega invocando un modo no-enum (añadidas
+# 2026-10-24 para cerrar la cobertura 372/372):
+#  - optical/polarization: enum es {"type":"string"} sin lista -> ALTERNATE
+#    gana por que enum is None; validate_all internamente es _mode_validate_all
+#    (all_passed).
+#  - ethnomath_comparative_tool: schema registrado con clave "input_schema"
+#    (minusculas), el registry no la expone como "inputSchema", mode_prop
+#    queda vacio -> ALTERNATE gana; el handler toma el dict completo y el
+#    parametro real es "experiment" (ver ALTERNATE_VALIDATE_PARAM_NAME).
+ALTERNATE_VALIDATE_MODE["optical_sequence_id_2d_tool"] = "validate_all"
+ALTERNATE_VALIDATE_MODE["polarization_mapping_stokes_tool"] = "validate_all"
+ALTERNATE_VALIDATE_MODE["ethnomath_comparative_tool"] = "full_comparative"
 
 # Nombres de campo alternativos para "el autochequeo paso" -- distintas
 # tools nunca convergieron en una sola convencion. all_params_within_2sigma
@@ -158,13 +182,15 @@ def build_requests(tools):
         name = t["name"]
         mode_prop = t.get("inputSchema", {}).get("properties", {}).get("mode", {})
         enum = mode_prop.get("enum")
-        mode_to_call = "validate"
-        if enum is None or "validate" not in enum:
-            if name in ALTERNATE_VALIDATE_MODE:
-                mode_to_call = ALTERNATE_VALIDATE_MODE[name]
-            else:
-                skipped.append((name, "sin modo validate en el schema"))
-                continue
+        mode_to_call = VALIDATE_MODE_OVERRIDES.get(name)
+        if mode_to_call is None:
+            mode_to_call = "validate"
+            if enum is None or "validate" not in enum:
+                if name in ALTERNATE_VALIDATE_MODE:
+                    mode_to_call = ALTERNATE_VALIDATE_MODE[name]
+                else:
+                    skipped.append((name, "sin modo validate en el schema"))
+                    continue
         if name in KNOWN_NON_STANDARD_VALIDATE:
             skipped.append((name, KNOWN_NON_STANDARD_VALIDATE[name]))
             continue
@@ -210,13 +236,15 @@ def _run_chunk(chunk_tools, id_offset):
         name = t["name"]
         mode_prop = t.get("inputSchema", {}).get("properties", {}).get("mode", {})
         enum = mode_prop.get("enum")
-        mode_to_call = "validate"
-        if enum is None or "validate" not in enum:
-            if name in ALTERNATE_VALIDATE_MODE:
-                mode_to_call = ALTERNATE_VALIDATE_MODE[name]
-            else:
-                skipped.append((name, "sin modo validate en el schema"))
-                continue
+        mode_to_call = VALIDATE_MODE_OVERRIDES.get(name)
+        if mode_to_call is None:
+            mode_to_call = "validate"
+            if enum is None or "validate" not in enum:
+                if name in ALTERNATE_VALIDATE_MODE:
+                    mode_to_call = ALTERNATE_VALIDATE_MODE[name]
+                else:
+                    skipped.append((name, "sin modo validate en el schema"))
+                    continue
         if name in KNOWN_NON_STANDARD_VALIDATE:
             skipped.append((name, KNOWN_NON_STANDARD_VALIDATE[name]))
             continue
