@@ -129,11 +129,11 @@ def _beam(params):
     # Simplificado: si M_Ed y L dados, q = 8·M_Ed/L² para UDL
     flecha = None
     if L > 0:
-        I = b * h ** 3 / 12.0
+        I_z = b * h ** 3 / 12.0
         q = 8.0 * M_Ed / L ** 2 if M_Ed > 0 else 0.0
         # Límites EC5 2.2: permanente+movilizable L/250; solo movilizable L/300;
         # total L/250; viento L/300. Simplificado: total L/250.
-        delta = 5.0 * q * L ** 4 / (384.0 * E * I) if q > 0 else 0.0
+        delta = 5.0 * q * L ** 4 / (384.0 * E * I_z) if q > 0 else 0.0
         flecha = {
             "L_m": L, "q_udl_Nm": q, "delta_m": delta,
             "limit_total": L / 250.0, "limit_instant": L / 300.0,
@@ -183,8 +183,7 @@ def _column(params):
     if lam_rel < 0.3:
         chi = 1.0
     else:
-        k = 0.2  # curva 1 (rect. sin perforaciones)
-        beta_c = 0.1  # βc=0.1 madera maciza
+        beta_c = 0.1  # βc=0.1 madera maciza (curva 1, rect. sin perforaciones)
         phi = 0.5 * (1 + beta_c * (lam_rel - 0.3) + lam_rel ** 2)
         chi = min(1.0 / (phi + math.sqrt(phi ** 2 - lam_rel ** 2)), 1.0)
 

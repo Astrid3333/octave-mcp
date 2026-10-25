@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install ruff
+        run: pip install ruff==0.15.19
+      - name: Lint archivos propios (manifiesto ci/ruff_files.txt)
+        run: |
+          grep -v '^\s*#' ci/ruff_files.txt | grep -v '^\s*$' \
+            | xargs ruff check --output-format=concise
+
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Smoke (initialize + 369 tools + 2 validate)
+        run: python ci/smoke.py

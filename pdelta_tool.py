@@ -21,9 +21,6 @@ Requiere: struct_kernel_py para eigen; fallback numpy para solve.
 
 import math
 
-import numpy as np
-
-import struct_kernel_py as sk
 from tool_registry import register_tool
 
 PDELTA_TOOL_SCHEMA = {
@@ -120,15 +117,15 @@ def _buckling_load(params):
     critical = []
     for i, m in enumerate(members):
         E = float(m.get("E", 210e9))
-        I = float(m.get("Iz", 1e-6))
-        A = float(m.get("A", 1e-3))
+        I_z = float(m.get("Iz", 1e-6))
         xi, yi = nodes[m["i"]]
         xj, yj = nodes[m["j"]]
         L = math.hypot(xj - xi, yj - yi)
         if L <= 0:
             continue
-        N_cr = math.pi ** 2 * E * I / L ** 2  # Euler simple, sin factor de longitud
-        N = abs(member_forces[i].get("N", member_forces[i].get("N_N", 0))) if i < len(member_forces) else 0
+        N_cr = math.pi ** 2 * E * I_z / L ** 2  # Euler simple, sin factor de longitud
+        mf = member_forces[i] if i < len(member_forces) else {}
+        N = abs(float(mf.get("N_max", mf.get("N", mf.get("N_N", 0)))))
         if N > 0:
             lambda_cr = N_cr / N
             critical.append({

@@ -1,0 +1,20 @@
+# Archivos propios con lint estricto en CI (ruff 0.15.19).
+# server.py y el resto de archivos legacy NO se lintean (815 / 548 errores
+# pre-existentes fuera de este manifiesto).
+cas_router_math_tool.py
+sympy_eval_tool.py
+examples/multi_cas_crosscheck.py
+run_validations_guarded.py
+run_all_validations.py
+math_pipeline_builder_tool.py
+workspace_tool.py
+statistics_extended_tool.py
+composite_homogenization.py
+materials_db_tool.py
+eurocode_steel_tool.py
+fire_design_tool.py
+octave_infra_tool.py
+tool_registry.py
+concrete_design_tool.py
+pdelta_tool.py
+timber_design_tool.py

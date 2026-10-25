@@ -109,10 +109,6 @@ def _beam(params):
     f_ck = float(params.get("f_ck", 30.0))
     fy = _fy(params.get("fy"))
     d = float(params.get("d", h - 0.04 - 0.0125))
-    l = float(params.get("l", 0.0))
-
-    f_cd_ = _f_cd(f_ck)
-    f_ctd_ = _f_ctd(f_ck)
 
     # Flexión: M_Rd = 0.167·f_cd·b·d² (λ=0.8 para C30/37; simplificado)
     # Más preciso: μ = M_Ed/(f_cd·b·d²), ω = ρ·fy/f_cd, μ = ω·(1−0.5ω)
@@ -248,11 +244,9 @@ def _shear_wall(params):
     V_Ed = float(params.get("V_Ed", 0.0))
     f_ck = float(params.get("f_ck", 30.0))
     d = float(params.get("d", h_w * 0.9))
-    l = float(params.get("l", h_w))  # altura del muro
     Asw = float(params.get("Asw", 0.0))
     s = float(params.get("s", 0.0))
 
-    f_ctd_ = _f_ctd(f_ck)
     A_c = b_w * h_w
 
     # V_Rd,c muro (EC2 6.2.2, simplificado): 0.12·b_w·d·(f_ck)^{1/3}·1e-? 
@@ -272,9 +266,6 @@ def _shear_wall(params):
     if Asw > 0 and s > 0:
         V_Rd_s = (Asw / s) * fy * z * cot_theta / _GAMMA_S
     else:
-        Asw_s = 0.0
-        if V_Ed > V_Rd_c:
-            Asw_s = V_Ed * _GAMMA_S / (fy * z * cot_theta)
         V_Rd_s = float("inf")
 
     return {
