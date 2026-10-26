@@ -2,8 +2,11 @@
 """Ejercicio donde sagebrush_math_tool es necesaria: teoria de numeros.
 
 Nada mas en el servidor cubre grupos de clase, formas modulares ni
-curvas elipticas (Maxima no evalua class_number, Octave sin symbolic),
-y alkahest tiene su bug SIGILL en factorizacion. Cadena sobre el wire
+curvas elipticas (Maxima no evalua class_number, Octave sin symbolic).
+El bug SIGILL de alkahest en factorizacion quedo corregido el
+2026-10-26 (libflint vendorizado reconstruido sin ADX, ver
+scripts/fix_alkahest_adx_flint.sh), pero sagebrush sigue siendo la unica
+via para todo lo demas. Cadena sobre el wire
 MCP real:
 
 1. Validacion cruzada: factor(2^64-1) y factor(x^2-5x+6) en sagebrush

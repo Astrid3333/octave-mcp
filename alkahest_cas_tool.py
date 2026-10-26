@@ -19,20 +19,31 @@ Diseño:
 - La serie con order=N trunca ANTES de x^N (término O(x^N)); para
   verificar hasta x^5 se pide order=6.
 
-Nota de robustez (bug upstream 2026-10-22): las operaciones de teoría de
-números de alkahest (factorint/totient/nextprime con entradas grandes o
-difíciles) abortan el proceso con SIGILL dentro del kernel Rust — un
-panic con abort que NO se puede capturar con try/except. Por eso las
-cuatro NT ops corren en un subprocess aislado: si el hijo alkahest muere
-(señal/timeout), el padre reintenta con sympy (motores verificados
-instantáneos para F6 y 2^71-1) y reporta el motor en el campo `engine`.
+Nota de robustez (bug 2026-10-22, causa raíz 2026-10-26): las operaciones
+de teoría de números de alkahest (factorint/totient/nextprime con entradas
+grandes o difíciles) abortaban el proceso con SIGILL — un panic con abort
+que NO se puede capturar con try/except. Causa raíz: el libflint
+empaquetado del wheel viene compilado con ADX (adcx/adox, Broadwell+;
+2626 patrones en segmentos ejecutables) y esta CPU (Haswell i7-4785T) no
+tiene ADX. Fix aplicado 2026-10-26: FLINT 3.6.0 reconstruido con
+`-O2 -march=x86-64 -mtune=generic` y reemplazado en
+`site-packages/alkahest.libs/libflint-*.so` (0 patrones ADX). El validate
+comprueba que esa lib siga sin ADX (`nt_libflint_no_adx`): si alguien
+reinstala el wheel roto, el check falla en vez de esconder el fallback.
+Las cuatro NT ops siguen corriendo en un subprocess aislado (defensa en
+profundidad para ruedas/CPUs sin el fix): si el hijo alkahest muere
+(señal/timeout), el padre reintenta con sympy y reporta el motor en el
+campo `engine` con `fallback_reason`, nunca en silencio.
 """
 
 import json
 import math
+import mmap
 import signal
+import struct
 import subprocess
 import sys
+from pathlib import Path
 
 from tool_registry import register_tool
 
@@ -208,7 +219,9 @@ def _require_ak():
 # Hijo aislado para NT: el kernel Rust de alkahest aborta con SIGILL en
 # ciertas entradas (factorint/totient/nextprime grandes o difíciles) y una
 # señal así mata al MCP entero si corre in-process. RLIMIT_CORE=0 evita
-# core dumps; el padre detecta rc<0 y reintenta con sympy.
+# core dumps; el padre detecta rc<0 y reintenta con sympy. Con el libflint
+# sin ADX el hijo alkahest ya no muere en esta CPU, pero el fence queda
+# como defensa en profundidad (p. ej. ruedas reinstaladas con el bug).
 _NT_CHILD_SRC = """
 import json, resource, sys
 resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
@@ -568,6 +581,48 @@ def _compute(args):
     raise ValueError(f"operation desconocida: {op}")
 
 
+# Patrones de máquina ADX (adcx/adox = F3/F2 0F 38 F6, con/sin REX):
+# presentes solo si el binario fue compilado para CPUs con ADX
+# (Broadwell+). Haswell y anteriores los abortan con SIGILL.
+_ADX_PATTERNS = (
+    b"\xf3\x0f\x38\xf6",
+    b"\xf2\x0f\x38\xf6",
+    b"\xf3\x48\x0f\x38\xf6",
+    b"\xf3\x49\x0f\x38\xf6",
+    b"\xf3\x4c\x0f\x38\xf6",
+    b"\xf3\x41\x0f\x38\xf6",
+    b"\xf2\x48\x0f\x38\xf6",
+    b"\xf2\x4c\x0f\x38\xf6",
+)
+
+
+def _count_adx_exec(path):
+    """Cuenta patrones adcx/adox en segmentos ejecutables de un ELF."""
+    with open(path, "rb") as fh, mmap.mmap(
+        fh.fileno(), 0, access=mmap.ACCESS_READ
+    ) as mm:
+        if mm[:4] != b"\x7fELF" or len(mm) < 64:
+            return -1
+        e_phoff = struct.unpack_from("<Q", mm, 32)[0]
+        e_phentsize, e_phnum = struct.unpack_from("<HH", mm, 54)
+        if e_phoff == 0 or e_phentsize == 0:
+            return -1
+        total = 0
+        for i in range(e_phnum):
+            off = e_phoff + i * e_phentsize
+            p_type, p_flags = struct.unpack_from("<II", mm, off)
+            if p_type != 1 or not (p_flags & 1):  # PT_LOAD + PF_X
+                continue
+            p_offset, _, _, p_filesz = struct.unpack_from("<QQQQ", mm, off + 8)
+            seg = bytes(mm[p_offset : p_offset + p_filesz])
+            for pat in _ADX_PATTERNS:
+                j = seg.find(pat)
+                while j >= 0:
+                    total += 1
+                    j = seg.find(pat, j + 1)
+        return total
+
+
 def _validate():
     if ak is None:
         msg = "alkahest no instalado (.venv/bin/pip install alkahest)"
@@ -769,8 +824,9 @@ def _validate():
         return got == expected, got, expected
 
     def check_nt_isolated_fence():
-        # Repro del crash upstream: factorint(2^64+1) aborta alkahest con
-        # SIGILL in-process; el fence lo contiene y sympy lo resuelve.
+        # Repro del crash: factorint(2^64+1) abortaba alkahest con SIGILL
+        # in-process; el fence lo contiene y sympy lo resuelve. Con el
+        # libflint sin ADX debe responder alkahest nativo.
         result = _nt_isolated("factorint", 2**64 + 1)
         expected = {"274177": 1, "67280421310721": 1}
         ok = (
@@ -782,6 +838,24 @@ def _validate():
             f"engine={result.get('engine')}, factors={result.get('factors')}, "
             f"reason={result.get('fallback_reason', '-')}",
             "F6 = 274177 x 67280421310721 con motor declarado, sin crash",
+        )
+
+    def check_nt_libflint_no_adx():
+        # El wheel original trae libflint con ADX (2626 patrones adcx/adox
+        # en segmentos ejecutables): SIGILL en CPUs sin ADX (Haswell).
+        # Tras el fix baseline debe quedar 0; cualquier reinstalación del
+        # wheel roto vuelve a pasar este umbral y el check falla de forma
+        # visible en vez de esconder el fallback de sympy.
+        libs = Path(ak.__file__).resolve().parent.parent / "alkahest.libs"
+        targets = sorted(libs.glob("libflint-*.so*"))
+        counts = {p.name: _count_adx_exec(p) for p in targets}
+        total = sum(c for c in counts.values() if c >= 0)
+        ok = bool(targets) and total < 100
+        return (
+            ok,
+            f"libflint={counts}, total_adx={total}",
+            ">=1 libflint empaquetado y <100 patrones ADX "
+            "(wheel original: 2626, fix baseline: 0)",
         )
 
     def check_derived_contract():
@@ -969,6 +1043,7 @@ def _validate():
     chk("nt_factorint", check_nt_factorint)
     chk("nt_totient_nextprime", check_nt_totient_nextprime)
     chk("nt_isolated_fence", check_nt_isolated_fence)
+    chk("nt_libflint_no_adx", check_nt_libflint_no_adx)
     chk("derived_result_contract", check_derived_contract)
     chk("certificate_lean_export", check_certificate_lean)
     chk("matrix_eigenvals_2x2", check_matrix_eigenvals_2x2)
