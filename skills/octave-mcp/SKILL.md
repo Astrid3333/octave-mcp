@@ -245,7 +245,10 @@ cd /home/astrid/octave-mcp
 .venv/bin/python run_validations_guarded.py         # suite + battery (99/99),
                                                     # exit 0 solo si ambas OK
 .venv/bin/python health_check_tool.py               # same engine, JSON report;
-                                                    # serial: ~5.2 min (cap 900s)
+                                                    # parallel 4 workers: ~148s
+                                                    # (con la maquina cargada
+                                                    # ~235s); PARALLEL_WORKERS=1
+                                                    # = serie ~5.2 min (cap 900s)
 ```
 
 A local (untracked) `.git/hooks/pre-push` runs the guarded suite before

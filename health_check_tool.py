@@ -20,21 +20,22 @@ Modos:
               FAILED/ERROR (sin el detalle de checks) -- pensado para
               lectura rapida.
 
-Nota de diseno: esta tool deliberadamente NO declara mode="validate" en
-su propio schema (el enum es solo ["run","summary"]). Si lo hiciera,
-run_all_validations.py (o esta misma tool corriendose sobre si misma)
-la detectaria como candidata a autovalidarse, y validarse a si misma
-implicaria spawnear un health-check completo (que a su vez spawnea un
-subprocess entero de server.py) DENTRO de otro health-check -- recursion
-sin beneficio real. Por eso queda afuera del barrido automatico y se
-invoca siempre a proposito.
+Nota de diseno: el enum de mode incluye "validate", pero ese modo NO
+corre la suite -- llama a _validate(), un autochequeo trivial de 2 checks
+(schema/handler). Asi run_all_validations.py puede incluirla en el
+barrido (372/372) sin recursion: validarla a si misma no spawnea otro
+health-check. La suite completa solo corre en mode="run"/"summary",
+que se invocan siempre a proposito.
 
-Nota de costo: cada llamada spawnea un subprocess COMPLETO de server.py
-(dos veces: uno para tools/list_full, otro para correr los tools/call de
-validate). Con las ~347 tools que declaran validate hoy, tarda
-~150s en la maquina donde se corrio la ultima vez (ver
-COMPRESSION_BENCHMARK.md / logs del hook de pre-push). No pensada para
-llamarse en un loop ni con alta frecuencia.
+Nota de costo: cada llamada spawnea un subprocess de server.py para
+tools/list_full + tools/list_deprecated, y despues corre los tools/call
+de validate repartidos en PARALLEL_WORKERS subprocessos de server.py en
+paralelo (mismo motor que run_all_validations.py: 148s con 4 workers con
+la maquina despejada, 235s con load 15; ~5.5 min en serie -- medido
+2026-10-25). Con la suite en serie el cliente MCP tipico cancelaba a los
+4 min (y 6 workers empeora: 291s por oversubscription).
+PARALLEL_WORKERS=1 recupera el camino secuencial (para comparar). No
+pensada para llamarse en un loop ni con alta frecuencia.
 """
 import json
 import os
@@ -45,10 +46,16 @@ import time
 import run_all_validations  # constructor canonico de requests (single source of truth)
 
 SERVER_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "server.py")
-# 900s: las validaciones corren en serie por UN subprocess del server; las
-# tools que antes fallaban al instante (dft, cfd, bem, fem) ahora computan
-# de verdad y 300s ya no alcanzaba (medido 2026-10-22, suite 347 verde).
+# 900s por subprocess (bootstrap o chunk de validate): las tools que antes
+# fallaban al instante (dft, cfd, bem, fem) ahora computan de verdad y
+# 300s no alcanzaba (medido 2026-10-22, suite 347 verde).
 TIMEOUT_SECONDS = 900
+
+# run_all_validations.SERVER_PATH es relativo ("server.py", pensado para
+# correr desde el repo); health_check puede arrancar con cualquier CWD
+# (cliente MCP), asi que se fija la ruta absoluta antes de reusar
+# run_validations_parallel() (usa SERVER_PATH dentro de _run_chunk).
+run_all_validations.SERVER_PATH = SERVER_PATH
 
 HEALTH_CHECK_TOOL_SCHEMA = {
     "name": "health_check_tool",
@@ -60,8 +67,9 @@ HEALTH_CHECK_TOOL_SCHEMA = {
         "cliente MCP veria. Devuelve un reporte estructurado con conteos "
         "PASSED/FAILED/ERROR/SKIPPED. mode='run' incluye el detalle "
         "completo de checks por tool; mode='summary' (default) solo los "
-        "conteos y los nombres de las tools FAILED/ERROR. Tarda del orden "
-        "de 1-3 minutos -- no pensada para llamarse con alta frecuencia."
+        "conteos y los nombres de las tools FAILED/ERROR. Corre los "
+        "tools/call en paralelo (PARALLEL_WORKERS subprocessos, default 4): "
+        "~2-3 minutos -- no pensada para llamarse con alta frecuencia."
     ),
     "inputSchema": {
         "type": "object",
@@ -147,30 +155,48 @@ def _run_suite():
             "detail": "el bootstrap de run_all_validations.build_requests difiere del "
                       "este archivo: " + str([r["method"] for r in builder_bootstrap]),
         }
-    full_requests = bootstrap + call_requests
 
+    workers = run_all_validations.PARALLEL_WORKERS
+    stderr_chunk_count = 0
+    stderr_tails = []
     t0 = time.time()
-    input_data = "\n".join(json.dumps(r) for r in full_requests) + "\n"
-    try:
-        proc = subprocess.run(
-            [sys.executable, SERVER_PATH], input=input_data,
-            capture_output=True, text=True, timeout=TIMEOUT_SECONDS,
-        )
-    except subprocess.TimeoutExpired:
-        return {"status": "fatal_error", "detail": f"timeout ({TIMEOUT_SECONDS}s) corriendo las validaciones"}
-    elapsed = time.time() - t0
-
-    responses = {}
-    for line in proc.stdout.splitlines():
-        if not line.strip():
-            continue
+    if workers <= 1:
+        # camino secuencial de siempre: UN subprocess con todos los tools/call
+        full_requests = bootstrap + call_requests
+        input_data = "\n".join(json.dumps(r) for r in full_requests) + "\n"
         try:
-            d = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        rid = d.get("id")
-        if rid in tool_id_map:
-            responses[rid] = d
+            proc = subprocess.run(
+                [sys.executable, SERVER_PATH], input=input_data,
+                capture_output=True, text=True, timeout=TIMEOUT_SECONDS,
+            )
+        except subprocess.TimeoutExpired:
+            return {"status": "fatal_error", "detail": f"timeout ({TIMEOUT_SECONDS}s) corriendo las validaciones"}
+        elapsed = time.time() - t0
+        if proc.stderr.strip():
+            stderr_chunk_count = 1
+            stderr_tails = [proc.stderr[-400:]]
+
+        responses = {}
+        for line in proc.stdout.splitlines():
+            if not line.strip():
+                continue
+            try:
+                d = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            rid = d.get("id")
+            if rid in tool_id_map:
+                responses[rid] = d
+    else:
+        # paralelo: n chunks con ids offseteados, cada uno su subprocess de
+        # server.py (mismo motor que run_all_validations.py). Reemplaza el
+        # tool_id_map/skipped del camino secuencial (los ids difieren).
+        tool_id_map, skipped_pairs, responses, elapsed, stderrs = (
+            run_all_validations.run_validations_parallel(tools, workers)
+        )
+        skipped = [{"tool": name, "reason": reason} for name, reason in skipped_pairs]
+        stderr_chunk_count = len(stderrs)
+        stderr_tails = [e[:400] for e in stderrs]
 
     passed, failed, errored = [], [], []
     for rid, name in tool_id_map.items():
@@ -215,6 +241,10 @@ def _run_suite():
     return {
         "status": "ok",
         "elapsed_seconds": round(elapsed, 1),
+        "parallel_workers": workers,
+        "stderr_chunk_count": stderr_chunk_count,
+        # solo visible en mode="run": el summary usa una lista blanca de campos
+        "stderr_chunks_tail": stderr_tails,
         "total_tools_registered": len(tools),
         "with_validate_mode": len(tool_id_map),
         "overall_health": "healthy" if not failed and not errored else "degraded",
@@ -241,6 +271,8 @@ def compute_health_check(mode="summary", params=None):
     return {
         "status": result["status"],
         "elapsed_seconds": result["elapsed_seconds"],
+        "parallel_workers": result.get("parallel_workers"),
+        "stderr_chunk_count": result.get("stderr_chunk_count"),
         "total_tools_registered": result["total_tools_registered"],
         "with_validate_mode": result["with_validate_mode"],
         "overall_health": result["overall_health"],
