@@ -20,9 +20,18 @@ Modos:
               FAILED/ERROR (sin el detalle de checks) -- pensado para
               lectura rapida.
 
+Subconjunto (subset): parametro opcional con lista de nombres de tool.
+Si viene no vacio, SOLO se validan esas (mismo motor, mismo reporte) y
+los conteos son sobre el subconjunto -- pensado para barrer lotes de
+tools sin correr la suite completa ni inundar la conversacion con
+detalle (cada tool reportada solo como nombre + conteo). Los nombres
+inexistentes se devuelven en 'unknown_tools'; si ninguno coincide,
+overall_health='no_tools' (nunca 'healthy' con 0 tools validadas).
+
 Nota de diseno: el enum de mode incluye "validate", pero ese modo NO
-corre la suite -- llama a _validate(), un autochequeo trivial de 2 checks
-(schema/handler). Asi run_all_validations.py puede incluirla en el
+corre la suite -- llama a _validate(), un autochequeo trivial (schema
+del subset, filtro puro y guard de tipo; ningun subprocess). Asi
+run_all_validations.py puede incluirla en el
 barrido (372/372) sin recursion: validarla a si misma no spawnea otro
 health-check. La suite completa solo corre en mode="run"/"summary",
 que se invocan siempre a proposito.
@@ -60,16 +69,19 @@ run_all_validations.SERVER_PATH = SERVER_PATH
 HEALTH_CHECK_TOOL_SCHEMA = {
     "name": "health_check_tool",
     "description": (
-        "Corre la suite de autovalidacion de todas las tools de octave-mcp "
+        "Corre la suite de autovalidacion de las tools de octave-mcp "
         "que declaran mode='validate' en su schema (mismo motor que "
         "run_all_validations.py), spawneando un subprocess fresco del "
         "servidor y hablando JSON-RPC real -- prueba exactamente lo que un "
         "cliente MCP veria. Devuelve un reporte estructurado con conteos "
         "PASSED/FAILED/ERROR/SKIPPED. mode='run' incluye el detalle "
         "completo de checks por tool; mode='summary' (default) solo los "
-        "conteos y los nombres de las tools FAILED/ERROR. Corre los "
+        "conteos y los nombres de las tools FAILED/ERROR. Con el "
+        "parametro 'subset' valida SOLO las tools nombradas (conteos "
+        "compactos de un lote, sin correr la suite completa). Corre los "
         "tools/call en paralelo (PARALLEL_WORKERS subprocessos, default 4): "
-        "~2-3 minutos -- no pensada para llamarse con alta frecuencia."
+        "suite completa ~2-3 minutos; un subset, segundos -- no pensada "
+        "para llamarse con alta frecuencia."
     ),
     "inputSchema": {
         "type": "object",
@@ -79,6 +91,18 @@ HEALTH_CHECK_TOOL_SCHEMA = {
                 "enum": ["run", "summary", "validate"],
                 "default": "summary",
                 "description": "'run' = detalle completo de checks. 'summary' = solo conteos + nombres de tools con problemas.",
+            },
+            "subset": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": (
+                    "Lista OPCIONAL de nombres de tool: si viene no vacia, "
+                    "SOLO se validan esas y los conteos son sobre el "
+                    "subconjunto (reporte compacto de un lote). Nombres "
+                    "inexistentes van en 'unknown_tools'; si ninguno "
+                    "coincide, overall_health='no_tools'. Sin este campo "
+                    "(o vacio) = suite completa."
+                ),
             },
         },
     },
@@ -101,7 +125,26 @@ def _build_requests(tools):
     return bootstrap, requests, tool_id_map, skipped
 
 
-def _run_suite():
+def _apply_subset(tools, wanted):
+    """Filtra 'tools' por los nombres de 'wanted' preservando el orden
+    pedido y sin duplicados. Devuelve (seleccionadas, desconocidas).
+
+    Pura (sin subprocess): _validate() la autochequea con datos falsos."""
+    by_name = {t.get("name"): t for t in tools}
+    seen = set()
+    selected, unknown = [], []
+    for name in wanted:
+        if name in seen:
+            continue
+        seen.add(name)
+        if name in by_name:
+            selected.append(by_name[name])
+        else:
+            unknown.append(name)
+    return selected, unknown
+
+
+def _run_suite(tools_filter=None):
     # tools/list solo devuelve las 3 meta-tools (list_tools/get_tool_schema/
     # call_tool); el catalogo completo esta en tools/list_full. Usar
     # tools/list hacia el check reportar "healthy" validando 0 tools.
@@ -147,6 +190,38 @@ def _run_suite():
     if deprecated:
         seen = {t.get("name") for t in tools}
         tools = list(tools) + [t for t in deprecated if t.get("name") not in seen]
+    registered_total = len(tools)
+
+    # subset: filtrar ANTES de construir requests (los conteos y el
+    # tool_id_map son solo de las tools pedidas). Sin subset o vacio =
+    # suite completa, igual que siempre.
+    unknown_tools = []
+    subset_used = bool(tools_filter)
+    if subset_used:
+        tools, unknown_tools = _apply_subset(tools, tools_filter)
+        if not tools:
+            # ningun nombre coincide: NO correr nada y NO reportar
+            # 'healthy' validando 0 tools.
+            return {
+                "status": "ok",
+                "filter": "subset",
+                "requested_count": len(unknown_tools),
+                "unknown_tools": unknown_tools,
+                "elapsed_seconds": 0.0,
+                "parallel_workers": 0,
+                "stderr_chunk_count": 0,
+                "total_tools_registered": registered_total,
+                "with_validate_mode": 0,
+                "overall_health": "no_tools",
+                "passed_count": 0,
+                "failed_count": 0,
+                "error_count": 0,
+                "skipped_count": 0,
+                "passed": [],
+                "failed": [],
+                "errored": [],
+                "skipped": [],
+            }
 
     builder_bootstrap, call_requests, tool_id_map, skipped = _build_requests(tools)
     if [r["method"] for r in builder_bootstrap] != [r["method"] for r in bootstrap[:2]]:
@@ -238,16 +313,24 @@ def _run_suite():
         else:
             errored.append({"tool": name, "reason": f"respuesta valida pero sin campo de veredicto (probado: {', '.join(run_all_validations.VALIDATION_FIELD_ALIASES)})"})
 
-    return {
+    # 'healthy' exige al menos UN tool con validate_mode evaluado:
+    # reportar salud con 0 validadas es el mismo engano que el caso
+    # tools/list documentado arriba.
+    if not tool_id_map:
+        overall = "no_tools"
+    else:
+        overall = "healthy" if not failed and not errored else "degraded"
+
+    result = {
         "status": "ok",
         "elapsed_seconds": round(elapsed, 1),
         "parallel_workers": workers,
         "stderr_chunk_count": stderr_chunk_count,
         # solo visible en mode="run": el summary usa una lista blanca de campos
         "stderr_chunks_tail": stderr_tails,
-        "total_tools_registered": len(tools),
+        "total_tools_registered": registered_total,
         "with_validate_mode": len(tool_id_map),
-        "overall_health": "healthy" if not failed and not errored else "degraded",
+        "overall_health": overall,
         "passed_count": len(passed),
         "failed_count": len(failed),
         "error_count": len(errored),
@@ -257,18 +340,25 @@ def _run_suite():
         "errored": errored,
         "skipped": skipped,
     }
+    if subset_used:
+        result["filter"] = "subset"
+        result["requested_count"] = len(tools) + len(unknown_tools)
+        result["unknown_tools"] = unknown_tools
+    return result
 
 
-def compute_health_check(mode="summary", params=None):
+def compute_health_check(mode="summary", params=None, subset=None):
     if mode == "validate":
         return _validate()
     if mode not in ("summary", "run", "validate"):
         raise ValueError(f"mode desconocido: {mode!r}. Modos validos: summary, run, validate")
-    result = _run_suite()
+    if subset is not None and not isinstance(subset, list):
+        raise ValueError(f"subset debe ser una lista de nombres de tool, no {type(subset).__name__}")
+    result = _run_suite(tools_filter=subset)
     if result.get("status") != "ok" or mode == "run":
         return result
     # mode == "summary": mismo resultado sin el detalle de checks por tool
-    return {
+    out = {
         "status": result["status"],
         "elapsed_seconds": result["elapsed_seconds"],
         "parallel_workers": result.get("parallel_workers"),
@@ -283,6 +373,11 @@ def compute_health_check(mode="summary", params=None):
         "failed_tools": [f["tool"] for f in result["failed"]],
         "errored_tools": [e["tool"] for e in result["errored"]],
     }
+    if "filter" in result:
+        out["filter"] = result["filter"]
+        out["requested_count"] = result["requested_count"]
+        out["unknown_tools"] = result["unknown_tools"]
+    return out
 
 
 # --- auto-registro en tool_registry (ver tool_registry.py) ---
@@ -291,7 +386,9 @@ try:
     register_tool(
         name="health_check_tool",
         schema=HEALTH_CHECK_TOOL_SCHEMA,
-        handler=lambda args: compute_health_check(args.get("mode", "summary"), args.get("params")),
+        handler=lambda args: compute_health_check(
+            args.get("mode", "summary"), args.get("params"), args.get("subset")
+        ),
     )
 except ImportError:
     pass
@@ -300,22 +397,53 @@ except ImportError:
 
 
 def _validate() -> dict:
+    checks = []
+
+    # 1) el schema expone el param subset
+    props = HEALTH_CHECK_TOOL_SCHEMA.get("inputSchema", {}).get("properties", {})
+    ok = "subset" in props and props.get("subset", {}).get("type") == "array"
+    checks.append({
+        "name": "schema_has_subset_param",
+        "passed": ok,
+        "details": "properties=%s" % sorted(props) if ok else f"properties={sorted(props)} (falta subset)",
+    })
+
+    # 2) _apply_subset: orden pedido, dedupe y desconocidas (puro)
+    fake = [{"name": "a"}, {"name": "b"}, {"name": "c"}]
+    sel, unk = _apply_subset(fake, ["b", "x", "b", "y"])
+    ok = [t["name"] for t in sel] == ["b"] and unk == ["x", "y"]
+    checks.append({
+        "name": "apply_subset_filter",
+        "passed": ok,
+        "details": f"selected={[t['name'] for t in sel]} unknown={unk}",
+    })
+
+    # 3) subset no-lista se rechaza ANTES de spawneear nada
+    try:
+        compute_health_check(mode="summary", subset="not-a-list")
+        ok, detail = False, "no lanzo ValueError"
+    except ValueError as exc:
+        ok, detail = True, f"ValueError: {exc}"
+    checks.append({"name": "subset_type_guard", "passed": ok, "details": detail})
+
+    passed = [c["name"] for c in checks if c["passed"]]
     return {
-        "checks": [
-            {"name": "schema_ok", "passed": True, "details": "Schema registered"},
-            {"name": "handler_ok", "passed": True, "details": "Handler callable"}
-        ],
-        "total_passed": 2,
-        "total_checks": 2,
-        "validation_passed": True,
-        "status": "success"
+        "checks": checks,
+        "total_passed": len(passed),
+        "total_checks": len(checks),
+        "validation_passed": len(passed) == len(checks),
+        "status": "success" if len(passed) == len(checks) else "failed",
     }
 
 
 if __name__ == "__main__":
     import sys
     mode = "run" if "--verbose" in sys.argv else "summary"
-    d = compute_health_check(mode)
+    subset = None
+    for arg in sys.argv[1:]:
+        if arg.startswith("--subset="):
+            subset = [s for s in arg.split("=", 1)[1].split(",") if s]
+    d = compute_health_check(mode, subset=subset)
     print(json.dumps(d, indent=2, ensure_ascii=False))
     if d.get("status") == "ok":
         sys.exit(0 if d["overall_health"] == "healthy" else 1)

@@ -20,3 +20,4 @@ tool_registry.py
 concrete_design_tool.py
 pdelta_tool.py
 timber_design_tool.py
+health_check_tool.py

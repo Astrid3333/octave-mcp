@@ -278,7 +278,16 @@ cd /home/astrid/octave-mcp
                                                     # (con la maquina cargada
                                                     # ~235s); PARALLEL_WORKERS=1
                                                     # = serie ~5.2 min (cap 900s)
+.venv/bin/python health_check_tool.py --subset=a,b  # solo esas tools: segundos,
+                                                    # conteos del lote
 ```
+
+Subconjunto por MCP (para validar un lote sin la suite completa):
+`octave_call_tool` con `health_check_tool` y
+`{"mode":"summary","subset":["a","b"]}` — conteos solo del lote,
+nombres inexistentes en `unknown_tools`, y con 0 coincidencias
+`overall_health="no_tools"` (nunca `healthy`). Sin `subset` = suite
+completa, igual que siempre.
 
 A local (untracked) `.git/hooks/pre-push` runs the guarded suite before
 every push (~4 min); it aborts on red. Bypass only when urgent:
