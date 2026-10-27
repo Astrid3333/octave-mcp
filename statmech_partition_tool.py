@@ -93,10 +93,14 @@ def _symbolic_check_qho_energy():
     """
     Cruza el U de _qho (formula cerrada en Python) contra la derivada
     simbolica de -d(ln Z)/d(beta) calculada por Octave (pkg symbolic),
-    para beta=hbar=omega=1 (T=1, unidades naturales). Si el paquete
-    symbolic no esta instalado, el check se marca skipped=True y no
-    cuenta contra all_passed -- esta tool es pura Python/math y no se
-    le acopla una dependencia dura de Octave por este check extra.
+    para beta=hbar=omega=1 (T=1, unidades naturales). En este entorno
+    el paquete symbolic 3.2.2 esta instalado (pkg install -forge, el
+    2026-10-26), asi que el check CORRE de verdad y no se salta; si el
+    paquete falta (entorno nuevo sin instalar), el check se marca
+    skipped=True y no cuenta contra all_passed -- esta tool es pura
+    Python/math y no se le acopla una dependencia dura de Octave por
+    este check extra. skipped_checks en el payload hace visible cualquier
+    salto para que no pase por verde sin correr.
     """
     try:
         from octave_infra_tool import _run_octave
@@ -165,7 +169,13 @@ def _validate():
         })
 
     checks.append(_symbolic_check_qho_energy())
-    return {"validate": True, "all_passed": all(c["ok"] for c in checks if not c.get("skipped")), "checks": checks}
+    skipped = [c["case"] for c in checks if c.get("skipped")]
+    return {
+        "validate": True,
+        "all_passed": all(c["ok"] for c in checks if not c.get("skipped")),
+        "checks": checks,
+        "skipped_checks": skipped,
+    }
 
 
 def _linspace(a, b, n):
