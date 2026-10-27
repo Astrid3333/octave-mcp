@@ -1,6 +1,8 @@
 # Archivos propios con lint estricto en CI (ruff 0.15.19).
-# server.py y el resto de archivos legacy NO se lintean (815 / 548 errores
-# pre-existentes fuera de este manifiesto).
+# Los demas archivos legacy NO se lintean (548 errores pre-existentes
+# fuera de este manifiesto). server.py pasa por E402/F401 documentados
+# en .ruff.toml (bootstrap + imports con efecto lateral de registro).
+server.py
 cas_router_math_tool.py
 sympy_eval_tool.py
 examples/multi_cas_crosscheck.py

@@ -1,0 +1,13 @@
+# Configuracion de ruff (0.15.19, igual que CI).
+# CI (.github/workflows/ci.yml) lintea solo los archivos del manifiesto
+# ci/ruff_files.txt; esta config se les aplica igualmente.
+#
+# server.py es el bootstrap del servidor, no una libreria convencional:
+# - E402: el orden de las lineas iniciales es obligatorio
+#   (sys.modules.setdefault y sys.path.insert ANTES de los imports
+#   locales de tools/); reordenarlos romperia el arranque.
+# - F401: `import <tool>` ES el mecanismo de registro: cada tool
+#   ejecuta _register() al importarse, asi que el nombre no se usa
+#   despues, pero quitarlo desregistraria la tool del servidor.
+[lint.per-file-ignores]
+"server.py" = ["E402", "F401"]

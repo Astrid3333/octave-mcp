@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 import sys
 sys.modules.setdefault("server", sys.modules["__main__"])
-import subprocess, json, sys, os, shutil
+import subprocess
+import json
+import os
+import shutil
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'tools'))
@@ -375,10 +378,6 @@ import pedotransfer_tool
 import soil_mechanics_tool
 import soil_mixture_tool
 import soil_water_flow_tool
-import pedotransfer_tool
-import soil_mechanics_tool
-import soil_mixture_tool
-import soil_water_flow_tool
 import food_chemistry_tool
 import ethical_food_advisor_tool
 import sustainable_sourcing_tool
@@ -409,14 +408,6 @@ import fault_dislocation_tool  # noqa: F401  -- autoregistra via tool_registry
 import sandpile_avalanche_tool  # auto-registra via tool_registry
 import cascading_failure_tool  # auto-registra via tool_registry
 import systemic_risk_tool  # auto-registra via tool_registry
-import bloch_equation_tool  # auto-registra via tool_registry
-import cell_fate_decision_tool  # auto-registra via tool_registry
-import gradient_field_tool  # auto-registra via tool_registry
-import kspace_reconstruction_tool  # auto-registra via tool_registry
-import marine_ecosystem_impact_tool  # auto-registra via tool_registry
-import relaxometry_tool  # auto-registra via tool_registry
-import stem_cell_niche_tool  # auto-registra via tool_registry
-import tidal_harmonic_analysis_tool  # auto-registra via tool_registry
 import genetic_ternary_encoder_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import material_substitution_tool  # auto-registra via tool_registry
 import biomass_to_advanced_materials_tool  # auto-registra
@@ -623,7 +614,7 @@ if __name__ == "__main__":
                                        "details": shutil.which("octave-cli") or "octave-cli no encontrado"})
                         if binary_ok:
                             out = run_octave("disp(40+2); disp(sqrt(9));")
-                            lines = [l.strip() for l in out.strip().splitlines() if l.strip()]
+                            lines = [ln.strip() for ln in out.strip().splitlines() if ln.strip()]
                             math_ok = "42" in lines and "3" in lines
                             checks.append({"name": "basic_math", "passed": math_ok,
                                            "details": f"salida={lines!r}"})
