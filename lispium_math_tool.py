@@ -16,19 +16,26 @@ Qué aporta respecto al resto del servidor:
 
 Honestidad de alcance (contraste con pasted-7.txt):
 - "factoriales gigantes" -> CIERTO con (factorial n): 100! exacto bit
-  a bit; VENTANA BUG n en {18, 19, 20} sale como float (18!
+  a bit; el wrapper normaliza a entero exacto la ventana de bug
+  n en {18,19,20} (lispium 0.16.0 devuelve float: 18!
   -> 6.402373705728e15); (fact n) NO existe (se devuelve sin evaluar)
-- "binomiales exactos" -> SOLO pequeños: binomial 10 3 = 120, pero
-  binomial 100 50 -> 1.0089134454556418e29 (float, no el entero)
+- "binomiales exactos" -> con argumentos literales SI: si lispium
+  devuelve float (binomial 100 50) el wrapper lo normaliza a
+  math.comb exacto en `outputs`; con argumentos no literales queda el
+  float del motor
 - "Ferrari para cuárticas" -> CIERTO en casos exactos verificados
 - NO factoriza enteros (eso es sagebrush/maxima), NO tiene Laplace/ilt
   (eso es maxima_eval_tool), NO da certificados DerivedResult (alkahest)
 - funciones desconocidas se devuelven SIN evaluar y con exit 0
   (ruido silencioso, cubierto por un check de validate)
-- prime? SOLO fiable hasta ~2^53: literales mayores dan Eval error y
-  valores construidos por expresión mayores devuelven 0 (bug 0.16.0:
-  (prime? (- (^ 2 61) 1)) -> 0, pero M61 es primo; para primos
-  grandes usar sagebrush_math_tool)
+- prime? en lispium solo fiable hasta ~2^53: literales mayores dan
+  Eval error y expresiones mayores devuelven 0 aunque el número sea
+  primo (bug 0.16.0: M61 salia 0). El WRAPPER reescribe
+  (prime? X) cuando |X| > 2^53 se evalúa a entero exacto y decide con
+  Miller-Rabin propio (bases fijas; determinista hasta ~3.3e24,
+  más allá es empírico), emitiendo ((lambda (v) 0|1) X) y restaurando
+  el form original en `result`. Operandos no evaluables quedan al
+  motor tal cual.
 
 Integración one-shot: cada llamada escribe un archivo .lspm temporal y
 ejecuta `lispium run <archivo>` con timeout — no hay sesión entre
@@ -38,9 +45,10 @@ llamadas (define + usa en la misma llamada). Salida por bloque
 Modos:
 - compute: eval / diff / integrate / solve / factor / modular / guia.
 - validate: autochequeos contra referencias conocidas (factorial 100
-  exacto vs math.factorial, ventana float 18, función desconocida
-  silenciosa, binomial pequeño, diff/integrate/solve/factor, modpow vs
-  pow(), prime? 97/100 + bug de prime? en M61, det/eigenvalues/linsolve,
+  exacto vs math.factorial, ventana 18 exacta tras normalización,
+  función desconocida silenciosa, binomial 100 50 exacta vs
+  math.comb, diff/integrate/solve/factor, modpow vs pow(), prime?
+  97/100 + M61/M67/M127 vía wrapper, det/eigenvalues/linsolve,
   define+lambda y vallas de error Parse/Eval).
 """
 
@@ -142,6 +150,10 @@ _LISPIUM_MATH_TOOL_SCHEMA = {
 
 _INT_RE = re.compile(r"-?\d+$")
 _ERROR_LINE_RE = re.compile(r"^[^\s:]+:\d+(:\d+)?: (Parse|Eval) error")
+_PRIMEQ_HEAD = "(prime?"
+_FACTORIAL_LIT_RE = re.compile(r"^\(factorial\s+(-?\d+)\s*\)$")
+_BINOMIAL_LIT_RE = re.compile(r"^\(binomial\s+(\d+)\s+(\d+)\s*\)$")
+_BIGF = 1 << 53
 
 
 def _version():
@@ -186,18 +198,218 @@ def _timeout(args, default=30):
     return max(1.0, min(t, 3600.0))
 
 
-def _outputs(stdout):
-    """Bloques separados por línea en blanco: `; <expr>` + valor."""
-    blocks = []
+def _extract_sexpr(src, start):
+    """Índice justo después del s-expression balanceado en src[start]=='('."""
+    depth = 0
+    i = start
+    while i < len(src):
+        c = src[i]
+        if c == "(":
+            depth += 1
+        elif c == ")":
+            depth -= 1
+            if depth == 0:
+                return i + 1
+        i += 1
+    return -1
+
+
+def _apply_int_op(op, args):
+    if op == "+" and args:
+        return sum(args)
+    if op == "*" and args:
+        r = 1
+        for a in args:
+            r *= a
+        return r
+    if op == "-" and args:
+        v = args[0]
+        if len(args) == 1:
+            return -v
+        for a in args[1:]:
+            v -= a
+        return v
+    if op == "/" and len(args) == 2 and args[1] != 0 and args[0] % args[1] == 0:
+        return args[0] // args[1]
+    if op == "^" and len(args) == 2 and 0 <= args[1] <= 4096:
+        a, e = args
+        if abs(a) > 1 and e * abs(a).bit_length() > 4_000_000:
+            return None
+        return a ** e
+    return None
+
+
+def _eval_int_sexpr(s):
+    """Evalúa una s-expression aritmética de enteros; None si no es exacta."""
+    n = len(s)
+    pos = [0]
+
+    def skip():
+        while pos[0] < n and s[pos[0]].isspace():
+            pos[0] += 1
+
+    def parse():
+        skip()
+        if pos[0] >= n:
+            return None
+        c = s[pos[0]]
+        if c == "(":
+            pos[0] += 1
+            skip()
+            if pos[0] >= n or s[pos[0]] != "(":
+                # operador atómico obligatorio: (+ 1 2), no ((f x) y)
+                if pos[0] >= n or s[pos[0]] in ")":
+                    return None
+                op = ""
+                while pos[0] < n and not s[pos[0]].isspace() and s[pos[0]] != ")":
+                    op += s[pos[0]]
+                    pos[0] += 1
+            else:
+                return None
+            args = []
+            while True:
+                skip()
+                if pos[0] >= n:
+                    return None
+                if s[pos[0]] == ")":
+                    pos[0] += 1
+                    break
+                v = parse()
+                if v is None:
+                    return None
+                args.append(v)
+            return _apply_int_op(op, args)
+        if c == ")":
+            return None
+        atom = ""
+        while pos[0] < n and not s[pos[0]].isspace() and s[pos[0]] not in "()":
+            atom += s[pos[0]]
+            pos[0] += 1
+        if not _INT_RE.match(atom):
+            return None
+        return int(atom)
+
+    v = parse()
+    skip()
+    if v is None or pos[0] != n:
+        return None
+    return v
+
+
+def _isprime(n):
+    """Miller-Rabin con bases fijas; determinista hasta ~3.3e24."""
+    if n < 2:
+        return False
+    small = (
+        2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37,
+        41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97,
+    )
+    for p in small:
+        if n % p == 0:
+            return n == p
+    d = n - 1
+    r = 0
+    while d % 2 == 0:
+        d //= 2
+        r += 1
+    for a in small:
+        x = pow(a, d, n)
+        if x == 1 or x == n - 1:
+            continue
+        for _ in range(r - 1):
+            x = x * x % n
+            if x == n - 1:
+                break
+        else:
+            return False
+    return True
+
+
+def _patch_primeq(src):
+    """Reescribe `(prime? X)` con |X| > 2^53 evaluable a entero exacto.
+
+    lispium 0.16.0 falla con operandos grandes (literal -> Eval error,
+    expresión -> 0 aunque el valor sea primo). El wrapper calcula X y
+    decide con `_isprime`, emitiendo `((lambda (v) 0|1) X)` — misma
+    forma, valor correcto. Devuelve (src_nuevo, lista de
+    (form_parcheado, form_original)) para restaurar el eco en `result`.
+    """
+    patches = []
+    out = []
+    i = 0
+    while True:
+        j = src.find(_PRIMEQ_HEAD, i)
+        if j < 0:
+            out.append(src[i:])
+            break
+        end = _extract_sexpr(src, j)
+        if end < 0:
+            out.append(src[i:])
+            break
+        prev = src[j - 1] if j > 0 else " "
+        after = src[j + len(_PRIMEQ_HEAD)] if j + len(_PRIMEQ_HEAD) < len(src) else ""
+        if (prev.isalnum() or prev == "_") or after not in " \t\n(":
+            out.append(src[i:j + len(_PRIMEQ_HEAD)])
+            i = j + len(_PRIMEQ_HEAD)
+            continue
+        operand = src[j + len(_PRIMEQ_HEAD):end - 1]
+        val = _eval_int_sexpr(operand.strip())
+        if val is None or -_BIGF <= val <= _BIGF or val.bit_length() > 100000:
+            out.append(src[i:end])
+            i = end
+            continue
+        flag = "1" if (val > 0 and _isprime(val)) else "0"
+        new_form = "((lambda (v) %s) %s)" % (flag, operand)
+        out.append(src[i:j])
+        out.append(new_form)
+        patches.append((new_form, src[j:end]))
+        i = end
+    return "".join(out), patches
+
+
+def _restore_primeq(body, patches):
+    """Restaura `(prime? X)` originales en el eco de lispium.
+
+    El motor normaliza espacios en su eco (`; <expr>`), asi que el
+    parche se busca con un patron flexible a espacios.
+    """
+    for new_form, old_form in patches:
+        esc = re.escape(new_form)
+        pat = re.sub(r"(?:\\ )+", r"\\s+", esc)
+        pat = pat.replace("\\\n", r"\s+").replace("\n", r"\s+")
+        body = re.sub(pat, lambda _m, o=old_form: o, body)
+    return body
+
+
+def _blocks_pairs(stdout):
+    """Bloques `; <expr>` + valor, conservando la expr."""
+    pairs = []
     for chunk in (stdout or "").split("\n\n"):
         lines = [ln for ln in chunk.split("\n") if ln.strip()]
         if not lines:
             continue
+        expr = None
         if lines[0].startswith("; "):
+            expr = lines[0][2:].strip()
             lines = lines[1:]
         if lines:
-            blocks.append("\n".join(lines).strip())
-    return blocks
+            pairs.append((expr, "\n".join(lines).strip()))
+    return pairs
+
+
+def _normalize_exact(expr, val):
+    """Literales (factorial n)/(binomial n k) float -> entero exacto."""
+    if not expr or not val or not any(c in val for c in ".eE"):
+        return val
+    m = _FACTORIAL_LIT_RE.match(expr)
+    if m and 0 <= int(m.group(1)) <= 100000:
+        return str(math.factorial(int(m.group(1))))
+    m = _BINOMIAL_LIT_RE.match(expr)
+    if m:
+        a, b = int(m.group(1)), int(m.group(2))
+        if 0 <= b <= a <= 100000:
+            return str(math.comb(a, b))
+    return val
 
 
 def _run_lisp(code, timeout):
@@ -206,6 +418,7 @@ def _run_lisp(code, timeout):
         raise ValueError("code/expression vacío")
     if not code.endswith("\n"):
         code += "\n"
+    code, prime_patches = _patch_primeq(code)
     bin_path = _binary()
     fd, path = tempfile.mkstemp(suffix=".lspm", prefix="lispium_", text=True)
     started = time.monotonic()
@@ -241,8 +454,12 @@ def _run_lisp(code, timeout):
         }
         body = stdout.strip()
         if body:
+            if prime_patches:
+                body = _restore_primeq(body, prime_patches)
             out["result"] = body
-            parsed = _outputs(stdout)
+            parsed = [
+                _normalize_exact(expr, val) for expr, val in _blocks_pairs(stdout)
+            ]
             if parsed:
                 out["outputs"] = parsed
         if proc.returncode != 0 or error_lines:
@@ -273,11 +490,15 @@ def _guide():
             "Lineal: (matrix (a b) (c d)) (det M) (inv M) (matmul A B) "
             "(eigenvalues M) (linsolve A b)\n"
             "Modular/enteros: (mod a b) (gcd a b) (modpow b e m) "
-            "(prime? n) -> 1/0 SOLO fiable hasta ~2^53 (mayores: "
-            "literal -> Eval error; por expresión -> devuelve 0, bug "
-            "0.16.0: M61 sale 0), (factorial n) EXACTO excepto n en "
-            "{18,19,20} (sale float, bug 0.16.0), (binomial n k) "
-            "exacto solo pequeño\n"
+            "(prime? n) -> 1/0; el WRAPPER reescribe (prime? X) con "
+            "|X| > 2^53 evaluable a entero exacto y decide con "
+            "Miller-Rabin propio (determinista hasta ~3.3e24), "
+            "restaurando el form original en `result`; operandos no "
+            "evaluables quedan al motor (mayores: literal -> Eval "
+            "error; expresión -> 0, bug 0.16.0). "
+            "(factorial n) EXACTO: la ventana de bug n en "
+            "{18,19,20} (float) se normaliza en `outputs`; "
+            "(binomial n k) normalizado a entero con literales\n"
             "Programación: (define f (lambda (x) ...)) (f 7) — solo "
             "dentro de la MISMA llamada (no hay sesión entre llamadas).\n"
             "Errores: función desconocida se devuelve SIN evaluar y con "
@@ -380,10 +601,15 @@ def _validate():
         expected = str(math.factorial(100))
         return got == expected, got[-40:], "100! exacto vs math.factorial (final)" + expected[-10:]
 
-    def check_factorial_float_window():
+    def check_factorial_exact_window():
+        # lispium 0.16.0 devuelve float en n=18..20; el wrapper
+        # normaliza a entero exacto (math.factorial) en outputs.
         got = one("(factorial 18)")[0]
-        return got == "6.402373705728e15", got, (
-            "6.402373705728e15 (BUG documentado: n=18..20 sale float)"
+        expected = str(math.factorial(18))
+        return (
+            got == expected,
+            got,
+            "%s (exacto tras normalizar el float 6.402373705728e15)" % expected,
         )
 
     def check_unknown_function_silent():
@@ -397,6 +623,17 @@ def _validate():
     def check_binomial_small():
         got = one("(binomial 10 3)")[0]
         return got == "120", got, "120 (pequeños son exactos; ver guia para floats)"
+
+    def check_binomial_literal_exact():
+        # lispium 0.16.0 devolvia 1.0089134454556418e29 (float);
+        # el wrapper normaliza a math.comb con argumentos literales.
+        got = one("(binomial 100 50)")[0]
+        expected = str(math.comb(100, 50))
+        return (
+            got == expected,
+            got[-40:],
+            "%s (exacto; antes: 1.0089134454556418e29)" % expected[-40:],
+        )
 
     def check_diff_cubic():
         got = one("(diff (^ x 3) x)")[0]
@@ -430,17 +667,26 @@ def _validate():
         ok = outs[0] == "1" and outs[1] == "0"
         return ok, outs, ["1 (97 primo)", "0 (100 compuesto)"]
 
-    def check_prime_mersenne61_bug():
-        # Pin de bug 0.16.0: M61 = 2^61-1 ES primo de Mersenne, pero
-        # prime? con valor grande por expresión devuelve 0. El check
-        # pasa mientras el bug exista; si una versión futura lo arregla
-        # hay que actualizar este pin y la guía.
+    def check_prime_mersenne61():
+        # lispium 0.16.0 devolvia 0 con valor grande por expresión
+        # aunque M61 es primo; el wrapper lo reescribe con MR.
         got = one("(prime? (- (^ 2 61) 1))")[0]
         return (
-            got == "0",
+            got == "1",
             got,
-            "0 (BUG: M61=2^61-1 es primo; sagebrush/sympy dicen True)",
+            "1 (M61=2^61-1 primo; antes del wrapper: 0)",
         )
+
+    def check_prime_mersenne127_literal():
+        # literal grande: lispium daba Eval error; wrapper lo decide.
+        got = one("(prime? 170141183460469231731687303715884105727)")[0]
+        return got == "1", got, "1 (M127 literal; antes: Eval error)"
+
+    def check_prime_composite_big():
+        # ruta False del wrapper: M67 = 2^67-1 es compuesto.
+        outs = one("(prime? 147573952589676412927)\n(prime? (- (^ 2 67) 1))")
+        ok = outs[0] == "0" and outs[1] == "0"
+        return ok, outs, ["0 (literal compuesto)", "0 (expresión compuesta)"]
 
     def check_linear_algebra():
         outs = one(
@@ -480,9 +726,10 @@ def _validate():
 
     chk("lispium_arithmetic", check_arithmetic)
     chk("lispium_factorial_100_exact", check_factorial_100_exact)
-    chk("lispium_factorial_float_window", check_factorial_float_window)
+    chk("lispium_factorial_exact_window", check_factorial_exact_window)
     chk("lispium_unknown_function_silent", check_unknown_function_silent)
     chk("lispium_binomial_small", check_binomial_small)
+    chk("lispium_binomial_literal_exact", check_binomial_literal_exact)
     chk("lispium_diff_cubic", check_diff_cubic)
     chk("lispium_integrate_parts", check_integrate_parts)
     chk("lispium_solve_quadratic", check_solve_quadratic)
@@ -490,7 +737,9 @@ def _validate():
     chk("lispium_factor_quadratic", check_factor_quadratic)
     chk("lispium_modpow_crosscheck", check_modpow_crosscheck)
     chk("lispium_prime_flags", check_prime_flags)
-    chk("lispium_prime_mersenne61_bug", check_prime_mersenne61_bug)
+    chk("lispium_prime_mersenne61", check_prime_mersenne61)
+    chk("lispium_prime_mersenne127_literal", check_prime_mersenne127_literal)
+    chk("lispium_prime_composite_big", check_prime_composite_big)
     chk("lispium_linear_algebra", check_linear_algebra)
     chk("lispium_define_lambda", check_define_lambda)
     chk("lispium_error_fence_eval", check_error_fence_eval)

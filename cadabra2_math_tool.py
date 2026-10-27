@@ -8,13 +8,17 @@ wheel; version via importlib.metadata.
 
 Patron identico a lispium_math_tool: mode=compute (ops estructuradas +
 eval de codigo python cadabra libre) / mode=validate (checks con pins de
-los quirks descubiertos en smoke). Todos los quirks y limites estan en
-la guia.
+los quirks descubiertos en smoke). Los quirks que el WRAPPER puede
+arreglar se arreglan ahi (to_sympy normaliza ^ -> **; las ops
+estructuradas rechazan ex malformado con ValueError); los que viven en
+la libreria quedan como pins marcados known_bug en validate (campo
+known_bugs del payload). Todos los quirks y limites estan en la guia.
 """
 
 import importlib.metadata
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -169,20 +173,47 @@ def _run_cadabra(code, timeout):
     return out
 
 
+def _guard_ex(ex, what="ex"):
+    """Rechaza ex malformado que Ex() truncaria en silencio (solo structured).
+
+    Ex('x +') -> 'x' y Ex('(x') -> 'x' sin error: cualquier check de
+    estructura que dependa de que Ex() lance perderia el bug. En las ops
+    estructuradas validamos ANTES de correr: operador/abridor al final
+    o parentesis desbalanceados -> ValueError ruidoso.
+    """
+    if not isinstance(ex, str):
+        raise ValueError("%s debe ser texto" % what)
+    s = ex.strip()
+    if not s:
+        raise ValueError("%s vacio" % what)
+    if re.search(r"[+\-*/^,(]\s*$", s):
+        raise ValueError("%s termina en operador/abridor: %r" % (what, s))
+    if s.count("(") != s.count(")"):
+        raise ValueError("%s con parentesis desbalanceados: %r" % (what, s))
+    return s
+
+
 def _structured_code(op, ex, rule=None):
+    ex = _guard_ex(ex)
     ex_lit = json.dumps(ex)
     if op == "substitute":
         if not isinstance(rule, str) or not rule.strip():
             raise ValueError('operation=substitute requiere rule, ej "x = a"')
+        rule = _guard_ex(rule, "rule")
         return "_r = substitute(Ex(%s), Ex(%s))\nprint(str(_r))" % (
             ex_lit,
             json.dumps(rule),
         )
     if op == "to_sympy":
+        # `^` sin llaves es potencia en cadabra pero SympyBridge la
+        # convierte en indice: x^2 -> x(UP2). El puente solo maneja bien
+        # `**`, y `^{...}` (indice real) no se toca. Fix en el wrapper,
+        # no en la libreria: eval crudo de usuario queda como esta.
+        ex_fix = re.sub(r"\^(?!\{)", "**", ex)
         return (
             "import sympy as _sp\n"
             "_r = SympyBridge(Ex(%s)).to_sympy()\n"
-            "print(_sp.sstr(_r))" % ex_lit
+            "print(_sp.sstr(_r))" % json.dumps(ex_fix)
         )
     if op in _INPLACE_OPS:
         return (
@@ -236,7 +267,9 @@ def _guide():
             "queda '1 + 1'; evaluate -> 2), simplify (expande y cancela "
             "polinomios), distribute (distribuye productos: x*(y+z) -> "
             "x y + x z; NO expande potencias), eliminate_metric (g_{m n} "
-            "g^{n k} -> g_{m}^{k}), to_sympy (SympyBridge.to_sympy).\n"
+            "g^{n k} -> g_{m}^{k}), to_sympy (SympyBridge.to_sympy; el "
+            "wrapper normaliza ^ -> ** antes de llamar, porque el "
+            "puente convierte x^2 en el simbolo x(UP2)).\n"
             "Propiedades (en operation=eval, ANTES del algoritmo): "
             "AntiSymmetric(Ex('A_{m n}')), Indices(Ex('m, n, k'), "
             "Ex('position = fixed')), Metric(Ex('g_{m n}')), "
@@ -252,12 +285,18 @@ def _guide():
             "de una potencia (x^2 + y con x = a+b queda igual; usar "
             "patron completo x^2 = a); Ex() NUNCA lanza ante input "
             "malformado — trunca en silencio (')' -> '', 'x +' -> 'x'), "
-            "el unico error real es de python (sintaxis del code); "
+            "el unico error real es de python (sintaxis del code): "
+            "en eval crudo sigue asi (pin known_bug), pero las ops "
+            "estructuradas rechazan ex/rule malformado con ValueError "
+            "(termina en operador/abridor o parentesis desbalanceados); "
             "delta de Kronecker NO contrae (\\delta_{m n} A^m -> "
             "\\delta^{m}_{n} A_{m} tras canonicalise+reduce_delta; "
             "eliminate_metric si funciona); puente sympy con '^' roto "
-            "(x^2 -> simbolo 'x(UP2)') — escribir x**2 para potencias "
-            "escalares; map_sympy devuelve artefacto ('\\sum(x^{2})()') "
+            "en eval crudo (x^2 -> simbolo 'x(UP2)', pin known_bug); "
+            "la op to_sympy estructurada normaliza ^ -> ** (x^2 -> "
+            "x**2) pero x^{2} con llaves cae en el mismo bug — usar "
+            "** para potencias escalares; map_sympy devuelve artefacto "
+            "('\\sum(x^{2})()') "
             "— no usar; help() de funciones falla (manual .cnb no "
             "incluido en la wheel); sin binario cdb ni __version__ "
             "(version: importlib.metadata.version('cadabra2') = 2.6.0)."
@@ -268,7 +307,7 @@ def _guide():
 def _validate():
     checks = []
 
-    def chk(name, code, expect, timeout=60.0):
+    def chk(name, code, expect, timeout=60.0, known_bug=False):
         r = _run_cadabra(code, timeout)
         if r["ok"]:
             got = r["stdout"].splitlines()
@@ -282,6 +321,7 @@ def _validate():
                 "passed": passed,
                 "expected": expect,
                 "got": got,
+                **({"known_bug": True} if known_bug else {}),
             }
         )
 
@@ -372,12 +412,34 @@ def _validate():
         "print(_sp.sstr(SympyBridge(Ex(r'x^2')).to_sympy()))\n"
         "print(_sp.sstr(SympyBridge(Ex(r'x**2')).to_sympy()))",
         ["x(UP2)", "x**2"],
+        known_bug=True,
     )
     chk(
         "cadabra2_ex_silent_truncation_pin",
         "print(repr(str(Ex(r'x +'))))\n"
         "print(repr(str(Ex(r')'))))",
         ["'x'", "''"],
+        known_bug=True,
+    )
+    chk(
+        "cadabra2_to_sympy_power_normalized",
+        _structured_code("to_sympy", "x^2"),
+        ["x**2"],
+    )
+    guard_results = []
+    for bad in ("x +", "(x", "x + y +", ")"):
+        try:
+            _structured_code("simplify", bad)
+            guard_results.append("no-error")
+        except ValueError:
+            guard_results.append("error")
+    checks.append(
+        {
+            "name": "cadabra2_ex_malformed_guard",
+            "passed": guard_results == ["error"] * 4,
+            "expected": ["error", "error", "error", "error"],
+            "got": guard_results,
+        }
     )
     chk(
         "cadabra2_list_property_requires_comma",
@@ -420,6 +482,17 @@ def _validate():
         "mode": "validate",
         "validation_passed": all(c["passed"] for c in checks),
         "checks": checks,
+        "known_bugs": [
+            {
+                "name": c["name"],
+                "summary": (
+                    "pin del motor crudo: documenta un bug upstream de "
+                    "cadabra2 2.6.0, no un comportamiento deseado"
+                ),
+            }
+            for c in checks
+            if c.get("known_bug")
+        ],
         "engine": _version(),
     }
 
