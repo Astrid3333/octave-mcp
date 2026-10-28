@@ -69,7 +69,7 @@ HILBERT_TOOL_SCHEMA = {
 }
 
 _OCTAVE_TEMPLATE = r"""
-pkg load signal;
+try, pkg load signal; catch, end
 
 fs = __FS__;
 detrend_flag = __DETREND__;
@@ -83,7 +83,17 @@ end
 n = length(x);
 t = (0:n-1) / fs;
 
-xa = hilbert(x(:));
+try
+  xa = hilbert(x(:));
+catch
+  Xf = fft(x(:)); h = zeros(n,1);
+  if mod(n,2) == 0
+    h([1 n/2+1]) = 1; h(2:n/2) = 2;
+  else
+    h(1) = 1; h(2:(n+1)/2) = 2;
+  end
+  xa = ifft(Xf .* h);
+end
 env = abs(xa);
 phase_raw = angle(xa);
 phase_unwrapped = unwrap(phase_raw);
