@@ -28,5 +28,5 @@ jobs:
           python-version: "3.12"
       - name: Install dependencies
         run: pip install -r requirements.txt
-      - name: Smoke (initialize + 369 tools + 2 validate)
+      - name: Smoke (initialize + 370 tools + 2 validate)
         run: python ci/smoke.py

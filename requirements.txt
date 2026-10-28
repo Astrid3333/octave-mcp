@@ -10,3 +10,4 @@ opencv-python-headless
 scikit-image
 requests
 okada_wrapper
+cypari

@@ -36,6 +36,7 @@ import time
 import cadabra2_math_tool  # noqa: F401 — registra su handler
 import lispium_math_tool  # noqa: F401
 import maxima_eval_tool  # noqa: F401
+import pari_gp_tool  # noqa: F401
 import sagebrush_math_tool  # noqa: F401
 import sympy_eval_tool  # noqa: F401
 from tool_registry import get_handler, register_tool

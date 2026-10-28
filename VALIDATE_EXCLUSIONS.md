@@ -23,4 +23,4 @@
 
 ---
 
-**Decisión:** del catálogo completo (`tools/list_full` = 347), el runner evalúa 337; en el run histórico (b943d27) 255 pasan OK y 82 quedan errored/failed en ese run. Las 10 restantes quedan documentadas como exclusiones por diseño, NO como deuda técnica.
+**Decisión:** del catálogo completo (`tools/list_full` = 370), el runner evalúa 360; en el run histórico (b943d27) 255 pasan OK y 82 quedan errored/failed en ese run. Las 10 restantes quedan documentadas como exclusiones por diseño, NO como deuda técnica.

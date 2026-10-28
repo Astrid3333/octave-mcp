@@ -1,19 +1,19 @@
 # octave-mcp
 
-Servidor MCP (JSON-RPC manual, sin FastMCP) que expone 369 herramientas matemáticas y de simulación científica sobre Octave/Python (más 3 meta-tools de introspección, 372 en total), pensadas para usarse desde Claude Desktop u otros clientes MCP.
+Servidor MCP (JSON-RPC manual, sin FastMCP) que expone 370 herramientas matemáticas y de simulación científica sobre Octave/Python (más 3 meta-tools de introspección, 373 en total), pensadas para usarse desde Claude Desktop u otros clientes MCP.
 
 > **Nota de unificación:** este repositorio es el único proyecto activo. El antiguo `mcp-octave-real` (FastMCP, 39 tools) fue absorbido por completo — todas sus herramientas, incluidas las de historia cuantitativa (`plague_sir`, `settlement_clusters`, `historical_extractor`, `braid_group`, Benford en `historian`), viven ahora acá. `mcp-octave-real` queda deprecado y no debe usarse ni documentarse como proyecto en paralelo.
 
 ## Arquitectura
 
 - `server.py`: dispatcher manual (sin FastMCP). Las tools heredadas en la lista `TOOLS` siguen el esquema de tres ediciones coordinadas (import, entrada en `TOOLS`, bloque `elif tool_name ==`); las tools nuevas se registran solas.
-- `tool_registry.py`: auto-registro de tools vía `register_tool(name=, schema=, handler=)`. `TOOLS` arma como `[lista legacy] + tool_registry.get_schemas()` y el dispatch consulta `tool_registry.REGISTRY` (364 tools auto-registradas) antes que los `elif` — esto resuelve el problema de las tres ediciones coordinadas (bug historico de sobreescritura: `fractional_fourier_tool`).
-- Meta-tools de introspección: `list_tools`, `get_tool_schema`, `call_tool` — son las únicas que expone `tools/list` (evita mandar 350 schemas completos de una); `tools/list_full` devuelve las 369 herramientas.
+- `tool_registry.py`: auto-registro de tools vía `register_tool(name=, schema=, handler=)`. `TOOLS` arma como `[lista legacy] + tool_registry.get_schemas()` y el dispatch consulta `tool_registry.REGISTRY` (365 tools auto-registradas) antes que los `elif` — esto resuelve el problema de las tres ediciones coordinadas (bug historico de sobreescritura: `fractional_fourier_tool`).
+- Meta-tools de introspección: `list_tools`, `get_tool_schema`, `call_tool` — son las únicas que expone `tools/list` (evita mandar 370 schemas completos de una); `tools/list_full` devuelve las 370 herramientas.
 - Submotores Rust/Cargo (`submotors/`): `bem_electromagnetic`, `cfd_cavity`, `fem_poisson2d` — binarios externos invocados por sus tools, no código Python.
 - `Dockerfile` + `.dockerignore` para despliegue contenedor.
 - Dependencias: numpy, sympy y scipy (`advanced_probability_tool`, `advanced_stochastic_tool` y `multivariate_bayes_tool` dependen de scipy.stats).
 - Dependencia opcional: paquete Octave `symbolic` (`pkg install -forge symbolic`) para el check simbolico de `statmech_partition_tool`; si no esta instalado, ese check se salta (`skipped`) sin afectar el resultado global de `validate`.
-- Test rápido: pipear `initialize`, `tools/list_full`, `tools/call` (3 líneas JSON-RPC) a `timeout 30 python3 server.py`. Nota: `tools/list` devuelve solo las 3 meta-tools (`list_tools`, `get_tool_schema`, `call_tool`); `tools/list_full` devuelve las 369 herramientas.
+- Test rápido: pipear `initialize`, `tools/list_full`, `tools/call` (3 líneas JSON-RPC) a `timeout 30 python3 server.py`. Nota: `tools/list` devuelve solo las 3 meta-tools (`list_tools`, `get_tool_schema`, `call_tool`); `tools/list_full` devuelve las 370 herramientas.
 - Workspace persistente (`workspace_save` / `workspace_load` / `workspace_list` / `workspace_describe` / `workspace_delete`) para reutilizar resultados entre llamadas sin recomputar.
 
 ## Herramientas por área
@@ -85,7 +85,7 @@ Servidor MCP (JSON-RPC manual, sin FastMCP) que expone 369 herramientas matemát
 
 ---
 
-*Correr `tools/list_full` contra el servidor es la fuente de verdad para el conteo exacto de las 369 herramientas (`tools/list` devuelve solo las 3 meta-tools).*
+*Correr `tools/list_full` contra el servidor es la fuente de verdad para el conteo exacto de las 370 herramientas (`tools/list` devuelve solo las 3 meta-tools).*
 
 ## Física / simulación (bloque final del roadmap)
 
@@ -164,10 +164,10 @@ Pendiente: conectores externos (FreeCAD, BIM/IFC) — oCAS ya integrado.
 ---
 
 
-## Catalogo ampliado (369 herramientas + 3 meta-tools = 372 tools totales -- seccion generada automaticamente desde `tools/list_full`, complementa las categorias curadas arriba)
+## Catalogo ampliado (370 herramientas + 3 meta-tools = 373 tools totales -- seccion generada automaticamente desde `tools/list_full`, complementa las categorias curadas arriba)
 
 
-*Las tools de las secciones anteriores no se repiten aca. Las secciones combinadas (curadas + catalogo) cubren las 369 herramientas + 3 meta-tools = 372 tools en total.*
+*Las tools de las secciones anteriores no se repiten aca. Las secciones combinadas (curadas + catalogo) cubren las 370 herramientas + 3 meta-tools = 373 tools en total.*
 
 
 ### Desastres y riesgo natural
@@ -470,6 +470,7 @@ Pendiente: conectores externos (FreeCAD, BIM/IFC) — oCAS ya integrado.
 - `maxima_eval_tool` -- CAS Maxima 5.46 por CLI batch (maxima --batch-string, modo no interactivo; NO usa la GUI Xmaxima). Sirve como CAS alternativo para...
 - `octave_math_tool` -- Cálculos matemáticos profesionales con Octave 11 (SI/Newton no aplica aquí; puro math). integrate (quadgk), differentiate (diff), ode...
 - `optical_sequence_id_2d_tool` -- Segundo paso del pipeline: mascara de fase 2D desde Stokes (varios layouts), difraccion Fraunhofer/Fresnel e id optico (hash + firma)....
+- `pari_gp_tool` -- CAS PARI/GP (via cypari) para teoria de numeros: factorizacion, primalidad, cuerpos numericos (nfinit/bnfinit, discriminante, numero de...
 - `pdelta_tool` -- Análisis P-Δ segundo orden en SI (Newton). solve (Newton-Raphson geométrico), amplify (M_II=M_I/(1−N/N_cr) EC3 5.3.1), buckling_load...
 - `predator_prey_chaos` -- Modelos depredador-presa con geometria de atractor: hastings_powell (cadena trofica de 3 especies, caotico con parametros clasicos --...
 - `sagebrush_math_tool` -- Sagebrush 0.7.2 (motores Rust clean-room, sintaxis Sage, sin Sage/PARI/FLINT): teoría de números de investigación. ECM factor(2^128+1),...
@@ -499,19 +500,19 @@ for d in submotors/*/; do (cd "$d" && cargo build --release) || true; done
 
 Aplica a `bem_electromagnetic`, `cfd_cavity` y `fem_poisson2d`. Sin Docker hay que compilarlos manualmente con `cargo build --release` en cada directorio.
 
-### Nota sobre los conteos: 340, 347 y 350
+### Nota sobre los conteos: 365, 370 y 373
 
 | Cantidad | Que cuenta | Fuente |
 |---|---|---|
-| 340 | tools auto-registradas | `tool_registry.REGISTRY` |
-| 347 | 340 + 7 tools heredadas | `tools/list_full` = `TOOLS` (server.py:410) |
-| 350 | 347 + 3 meta-tools | `tools/list` expone `TOOLS` + `list_tools`, `get_tool_schema`, `call_tool` |
+| 365 | tools auto-registradas | `tool_registry.REGISTRY` |
+| 370 | 365 + 5 tools heredadas | `tools/list_full` = `TOOLS` (server.py:414) |
+| 373 | 370 + 3 meta-tools | `tools/list` expone las 3 meta-tools: `list_tools`, `get_tool_schema`, `call_tool` |
 
-Es decir: `TOOLS = [lista legacy] + tool_registry.get_schemas()` (server.py:410), y el endpoint `tools/list_full` devuelve las 347, mientras `tools/list` (el estandar) devuelve 347 + 3 meta-tools = 350.
+Es decir: `TOOLS = [lista legacy] + tool_registry.get_schemas()` (server.py:414), y el endpoint `tools/list_full` devuelve las 370, mientras `tools/list` (el estandar) devuelve solo las 3 meta-tools. `health_check_tool` reporta 373/373 (las 370 del catálogo + 3 aliases deprecados).
 
 ### Exclusiones de validate (10 tools, por diseño)
 
-El runner evalúa **337** de las 347 tools del catálogo (`tools/list_full`); las **10** restantes están documentadas en `VALIDATE_EXCLUSIONS.md`:
+El runner evalúa **360** de las 370 tools del catálogo (`tools/list_full`); las **10** restantes están documentadas en `VALIDATE_EXCLUSIONS.md`:
 
 - **Wrappers de I/O (6):** `workspace_list`, `workspace_describe`, `workspace_load`, `workspace_save`, `workspace_delete`, `run_octave` — son pass-through a disco; un self-test sin tocar disco no tiene sentido.
 - **`run_math_pipeline`:** `mode=validate` corre un pipeline real, no un autochequeo (comportamiento esperado).
@@ -523,7 +524,7 @@ Son exclusiones por diseño, **no** deuda técnica.
 
 ## Estado
 
-- **350 tools** totales: 347 en `tools/list_full` (340 auto-registradas + 7 heredadas) + 3 meta-tools.
-- Cobertura del registro verificada: **350/350** (script de cobertura).
-- El runner evalúa **337** tools (las 347 de `tools/list_full` menos **10** exclusiones por diseño, ver `VALIDATE_EXCLUSIONS.md`); en el run histórico (`b943d27`) **255** pasan OK y **82** quedan errored/failed.
+- **373 tools** totales: 370 en `tools/list_full` (365 auto-registradas + 5 heredadas) + 3 meta-tools.
+- Cobertura del registro verificada en su momento: **350/350** (cifra histórica; el script de cobertura ya no existe en el repo).
+- El runner evalúa **360** tools (las 370 de `tools/list_full` menos **10** exclusiones por diseño, ver `VALIDATE_EXCLUSIONS.md`); en el run histórico (`b943d27`) **255** pasan OK y **82** quedan errored/failed.
 - Todas las tools de probabilidad avanzada, procesos estocásticos y bayesiano multivariado están wireadas en `server.py`, probadas en vivo, y con `validation_passed: true` en sus auto-chequeos internos.

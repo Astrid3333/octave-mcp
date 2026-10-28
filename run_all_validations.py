@@ -142,7 +142,7 @@ ALTERNATE_VALIDATE_PARAM_NAME = {
 }
 
 # Tools cuyo autochequeo solo se llega invocando un modo no-enum (añadidas
-# 2026-10-24 para cerrar la cobertura 372/372):
+# 2026-10-24 para cerrar la cobertura 373/373):
 #  - optical/polarization: enum es {"type":"string"} sin lista -> ALTERNATE
 #    gana por que enum is None; validate_all internamente es _mode_validate_all
 #    (all_passed).
