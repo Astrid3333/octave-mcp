@@ -459,7 +459,7 @@ _EXPOSED_FAMILIES = ("lcdm", "wang_meng", "signswitch", "ide_h3")
 def compute_unified_dark_sector_tool(mode: str, params: dict | None = None):
     params = dict(params or {})
 
-    if mode == "self_test":
+    if mode in ("self_test", "validate"):
         ok = self_test(verbose=False)
         return {"mode": "self_test", "all_pass": ok}
 
@@ -524,7 +524,7 @@ UNIFIED_DARK_SECTOR_TOOL_SCHEMA = {
         "properties": {
             "mode": {
                 "type": "string",
-                "enum": ["compute_Hz", "self_test"],
+                "enum": ["compute_Hz", "self_test", "validate"],
                 "description": "compute_Hz: evalua H(z) para una familia. self_test: corre self_test() interno.",
             },
             "params": {

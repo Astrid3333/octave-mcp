@@ -273,7 +273,7 @@ def _cutoff_comparison(params):
 
 def compute_vacuum_energy_density_tool(mode, params=None):
     params = params or {}
-    if mode == "self_test":
+    if mode in ("self_test", "validate"):
         return _self_test()
     elif mode == "cutoff_comparison":
         return _cutoff_comparison(params)
@@ -302,7 +302,7 @@ VACUUM_ENERGY_DENSITY_TOOL_SCHEMA = {
     "inputSchema": {
         "type": "object",
         "properties": {
-            "mode": {"type": "string", "enum": ["self_test", "cutoff_comparison"]},
+            "mode": {"type": "string", "enum": ["self_test", "cutoff_comparison", "validate"]},
             "params": {
                 "type": "object",
                 "properties": {

@@ -281,7 +281,7 @@ def _evolve(params_in):
 
 def compute_scalar_field_cosmology_tool(mode, params=None):
     params = params or {}
-    if mode == "self_test":
+    if mode in ("self_test", "validate"):
         return _self_test()
     elif mode == "evolve":
         return _evolve(params)
@@ -309,7 +309,7 @@ SCALAR_FIELD_COSMOLOGY_TOOL_SCHEMA = {
     "inputSchema": {
         "type": "object",
         "properties": {
-            "mode": {"type": "string", "enum": ["self_test", "evolve"]},
+            "mode": {"type": "string", "enum": ["self_test", "evolve", "validate"]},
             "params": {
                 "type": "object",
                 "properties": {

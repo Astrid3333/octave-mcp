@@ -367,7 +367,7 @@ QUANTUM_COSMOLOGY_TOOL_SCHEMA = {
     "inputSchema": {
         "type": "object",
         "properties": {
-            "mode": {"type": "string", "enum": ["self_test", "friedmann_corrections"]},
+            "mode": {"type": "string", "enum": ["self_test", "friedmann_corrections", "validate"]},
             "params": {
                 "type": "object",
                 "properties": {
