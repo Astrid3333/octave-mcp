@@ -1,8 +1,8 @@
 """cas_router_math_tool — router unificado de CAS.
 
-Enruta una consulta al motor mas adecuado entre los cinco CAS ya
+Enruta una consulta al motor mas adecuado entre los seis CAS ya
 integrados en el servidor (maxima, sagebrush, lispium, cadabra2,
-sympy) y, si
+sympy, pari/gp) y, si
 `fallback=true`, encadena los restantes hasta encontrar uno que
 responda ok. NO traduce sintaxis: el usuario escribe la consulta en la
 sintaxis del motor objetivo; la tool decide el motor (o respeta
@@ -13,6 +13,7 @@ Uso tipico (mode=compute, operation=eval):
   {"query": "eulerphi(100)"}                       -> sagebrush (sniff)
   {"query": "(expt 2 10)"}                         -> lispium (sniff)
   {"query": "A_{m n} A^{n k}"}                     -> cadabra2 (sniff)
+  {"query": "ellap(ellinit([0,1,1,0,0]), 5)"}      -> pari (sniff)
   {"query": "...", "field": "tensor"}              -> cadabra2 (hint)
   {"query": "(expt 2 10)", "engine": "maxima",
    "fallback": true}                               -> fallback a lispium
@@ -42,14 +43,16 @@ import sympy_eval_tool  # noqa: F401
 from tool_registry import get_handler, register_tool
 
 # sympy al final: la cadena de fallback existente (maxima ->
-# sagebrush -> lispium) conserva su orden de intentos.
-_ENGINES = ["maxima", "sagebrush", "lispium", "cadabra2", "sympy"]
+# sagebrush -> lispium) conserva su orden de intentos. pari al final:
+# se agrega como motor opt-in, no altera el orden historico.
+_ENGINES = ["maxima", "sagebrush", "lispium", "cadabra2", "sympy", "pari"]
 _TOOL_BY_ENGINE = {
     "maxima": "maxima_eval_tool",
     "sagebrush": "sagebrush_math_tool",
     "lispium": "lispium_math_tool",
     "cadabra2": "cadabra2_math_tool",
     "sympy": "sympy_eval_tool",
+    "pari": "pari_gp_tool",
 }
 _FIELD_MAP = {
     "tensor": "cadabra2",
@@ -71,6 +74,8 @@ _FIELD_MAP = {
     "calculo": "maxima",
     "calculus": "maxima",
     "lisp": "lispium",
+    "pari": "pari",
+    "gp": "pari",
 }
 _LATEX_RE = re.compile(r"\\partial|\\psi|\\sum|\\frac|_\{|\^\{")
 _SAGE_RE = re.compile(
@@ -82,17 +87,21 @@ _MAXIMA_RE = re.compile(
 _LISP_RE = re.compile(
     r"\((factor|diff|integrate|expt|modular|solve|simplify|gcd|lcm)\s"
     r"|^\(\s*[+\-*/^]")
+# factor( se omite a proposito: es ambiguo con maxima/lisp.
+_PARI_RE = re.compile(
+    r"ellinit\(|nfinit\(|bnfinit\(|quadclassunit\(|idealprimedec\("
+    r"|ellap\(|znorder\(|factorint\(|primepi\(")
 
 CAS_ROUTER_TOOL_SCHEMA = {
     "name": "cas_router_math_tool",
     "description": (
         "Router unificado de CAS: enruta una consulta al motor adecuado "
-        "entre maxima/sagebrush/lispium/cadabra2/sympy (sniffing + hint "
-        "`field` + `engine` explicito) con cadena de fallback y log de "
-        "intentos, o compara varios motores con operation=crosscheck. "
+        "entre maxima/sagebrush/lispium/cadabra2/sympy/pari (sniffing + "
+        "hint `field` + `engine` explicito) con cadena de fallback y log "
+        "de intentos, o compara varios motores con operation=crosscheck. "
         "Sin traduccion de sintaxis. mode=compute (operation=eval, "
         "operation=crosscheck, operation=guia) o mode=validate "
-        "(15 checks)."
+        "(16 checks)."
     ),
     "inputSchema": {
         "type": "object",
@@ -129,7 +138,7 @@ CAS_ROUTER_TOOL_SCHEMA = {
                 "items": {
                     "type": "string",
                     "enum": ["maxima", "sagebrush", "lispium",
-                             "cadabra2", "sympy"],
+                             "cadabra2", "sympy", "pari"],
                 },
                 "description": (
                     "Motores destino en operation=crosscheck cuando se "
@@ -142,7 +151,7 @@ CAS_ROUTER_TOOL_SCHEMA = {
             "engine": {
                 "type": "string",
                 "enum": ["auto", "maxima", "sagebrush", "lispium",
-                         "cadabra2", "sympy"],
+                         "cadabra2", "sympy", "pari"],
                 "default": "auto",
                 "description": "Motor explicito o auto (default).",
             },
@@ -150,7 +159,7 @@ CAS_ROUTER_TOOL_SCHEMA = {
                 "type": "string",
                 "description": (
                     "Hint de dominio: tensor/fisica, numero/prime, "
-                    "laplace/ode/calculo, lisp."
+                    "laplace/ode/calculo, lisp, pari."
                 ),
             },
             "fallback": {
@@ -188,6 +197,9 @@ def _engine_args(engine, query, timeout):
     if engine == "sympy":
         return {"mode": "compute", "operation": "eval",
                 "expr": query, "timeout": timeout}
+    if engine == "pari":
+        # pari_gp_tool: mode=compute + expr (GP crudo)
+        return {"mode": "compute", "expr": query, "timeout": timeout}
     # lispium: operation=eval + code (s-expr crudo)
     return {"mode": "compute", "operation": "eval",
             "code": query, "timeout": timeout}
@@ -213,6 +225,8 @@ def _result_str(engine, r):
     if engine == "lispium":
         return r.get("result")
     if engine == "sympy":
+        return r.get("result")
+    if engine == "pari":
         return r.get("result")
     return r.get("stdout")  # cadabra2
 
@@ -240,6 +254,8 @@ def _sniff(query, field):
         return "sagebrush", "auto-number"
     if _LISP_RE.search(q):
         return "lispium", "auto-lisp"
+    if _PARI_RE.search(q):
+        return "pari", "auto-pari"
     if _MAXIMA_RE.search(q):
         return "maxima", "auto-maxima"
     return "maxima", "default"
@@ -394,15 +410,17 @@ def _guia():
         "routing": (
             "1) engine explicito; 2) hint `field` (tensor/fisica -> "
             "cadabra2, numero/prime -> sagebrush, laplace/ode/calculo -> "
-            "maxima, lisp -> lispium); 3) sniffing del query (latex "
-            "\\partial/\\psi/_{{ -> cadabra2; eulerphi/classgroup/ -> "
-            "sagebrush; (factor|expt|diff|... espaciado -> lispium; "
-            "%e/%pi/diff( -> maxima); 4) default maxima."
+            "maxima, lisp -> lispium, pari/gp -> pari); 3) sniffing del "
+            "query (latex \\partial/\\psi/_{{ -> cadabra2; "
+            "euler_phi/class_group/ -> sagebrush; (factor|expt|diff|... "
+            "espaciado -> lispium; ellinit/ellap/factorint/znorder/ -> "
+            "pari; %e/%pi/diff( -> maxima); 4) default maxima."
         ),
         "fallback": (
             "Con fallback=true el intento 1 es el ruteado y luego se "
-            "prueban maxima, sagebrush, lispium, cadabra2 en ese orden. "
-            "El log completo queda en attempts[]."
+            "prueban maxima, sagebrush, lispium, cadabra2, sympy, pari "
+            "(pari al final) en ese orden. El log completo queda en "
+            "attempts[]."
         ),
         "syntax": (
             "El router NO traduce sintaxis: cada motor recibe el query "
@@ -422,6 +440,9 @@ def _guia():
             {"engine": "sympy", "tool": "sympy_eval_tool",
              "forte": "oraculo en proceso, dialecto Python, "
                       "laplace_transform/solve/diff"},
+            {"engine": "pari", "tool": "pari_gp_tool",
+             "forte": "teoria de numeros, curvas elipticas, "
+                      "precision arbitraria"},
         ],
         "crosscheck": (
             "operation=crosscheck corre una o mas queries en >=2 "
@@ -529,8 +550,8 @@ def _c_fallback_chain():
 def _c_all_fail():
     r = _r({"query": "raise ValueError('boom')"})
     ok = (not r["ok"]) and r["engine_used"] is None and \
-        len(r["attempts"]) == 5 and all(not a["ok"] for a in r["attempts"])
-    return "raise en 5 motores -> ok=False, 5 intentos fallidos", ok
+        len(r["attempts"]) == 6 and all(not a["ok"] for a in r["attempts"])
+    return "raise en 6 motores -> ok=False, 6 intentos fallidos", ok
 
 
 def _c_result_normalizado():
@@ -579,6 +600,13 @@ def _c_route_sympy():
     return "diff(x**3, x) -> sympy %r" % r["result"], ok
 
 
+def _c_route_pari():
+    r = _r({"query": "factorint(100)", "engine": "pari",
+            "fallback": False})
+    ok = r["ok"] and r["engine_used"] == "pari" and bool(r["result"])
+    return "factorint(100) -> pari %r" % r["result"], ok
+
+
 def _validate():
     checks = [
         _check("route_explicit", _c_route_explicit),
@@ -595,13 +623,14 @@ def _validate():
         _check("all_fail_report", _c_all_fail),
         _check("result_normalizado", _c_result_normalizado),
         _check("route_sympy_explicit", _c_route_sympy),
+        _check("route_pari_explicit", _c_route_pari),
         _check("unknown_engine_fence", _c_unknown_engine),
     ]
     passed = sum(1 for c in checks if c["passed"])
     return {
         "tool": "cas_router_math_tool",
-        "engine": "cas-router 1.1 "
-                  "(maxima+sagebrush+lispium+cadabra2+sympy)",
+        "engine": "cas-router 1.2 "
+                  "(maxima+sagebrush+lispium+cadabra2+sympy+pari)",
         "validation_passed": passed == len(checks),
         "checks_passed": passed,
         "checks_total": len(checks),
