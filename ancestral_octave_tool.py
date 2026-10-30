@@ -19,6 +19,7 @@ import os
 _HERE = os.path.dirname(os.path.abspath(__file__))
 ANCESTRAL_M_PATH = os.path.join(_HERE, "ancestral.m")
 ANCESTRAL2_M_PATH = os.path.join(_HERE, "ancestral2.m")
+ANCESTRAL3_M_PATH = os.path.join(_HERE, "ancestral3.m")
 
 ANCESTRAL_OCTAVE_SCHEMA = {
     "name": "ancestral_octave",
@@ -38,15 +39,23 @@ ANCESTRAL_OCTAVE_SCHEMA = {
                 "enum": ["validate"],
                 "description": "Si se pasa 'validate', corre 5 casos de referencia contra valores analiticos conocidos y devuelve pass/fail (no requiere 'preset'). Si se omite, se ejecuta el 'preset' indicado normalmente.",
             },
-            "preset": {
-                "type": "string",
-                "enum": [
-                    "suanpan_add", "chinese_remainder", "vedic_multiply",
-                    "archimedes_pi", "quipu_encode", "ifa_cast",
-                    "ifa_cast_random", "etak_deadreckoning", "madhava_pi_series",
-                ],
-                "description": "Metodo ancestral a ejecutar. Requerido salvo cuando mode='validate'.",
-            },
+                "preset": {
+                    "type": "string",
+                    "enum": [
+                        "suanpan_add", "chinese_remainder", "vedic_multiply",
+                        "archimedes_pi", "quipu_encode", "ifa_cast",
+                        "ifa_cast_random", "etak_deadreckoning", "madhava_pi_series",
+                        "babylonian_sqrt2", "babylonian_reciprocal",
+                        "sexagesimal_to_decimal", "decimal_to_sexagesimal",
+                        "kashi_pi",
+                        "hebrew_gematria", "hebrew_number_to_text",
+                        "cananean_number_to_text",
+                        "egyptian_unit_fraction", "egyptian_multiplication",
+                        "maya_to_decimal", "decimal_to_maya",
+                        "greek_ionic",
+                    ],
+                    "description": "Metodo ancestral a ejecutar. Requerido salvo cuando mode='validate'.",
+                },
             "params": {
                 "type": "object",
                 "description": "Parametros especificos del preset elegido (p. ej. a/b para suanpan_add y vedic_multiply, remainders/moduli para chinese_remainder, iterations para archimedes_pi, value para quipu_encode, bits para ifa_cast, seed para ifa_cast_random, speed_knots/heading_deg/hours/lat0/lon0 para etak_deadreckoning, n_terms para madhava_pi_series).",
@@ -102,12 +111,47 @@ def build_octave_call(preset: str, params: dict, extra_octave: str = None) -> st
         )
     elif preset == "madhava_pi_series":
         call = f"r = madhava_pi_series({params.get('n_terms', 10)});"
+    elif preset == "babylonian_sqrt2":
+        call = f"r = babylonian_sqrt2({params.get('n_iter', 10)}, {params.get('x0', 1.0)});"
+    elif preset == "babylonian_reciprocal":
+        call = f"r = babylonian_reciprocal({params.get('n', 60)});"
+    elif preset == "sexagesimal_to_decimal":
+        digs = _oct_vec(params.get("digits", [1, 24, 51, 10]))
+        call = f"s = sexagesimal_to_decimal({digs}); r = struct('decimal', s);"
+    elif preset == "decimal_to_sexagesimal":
+        call = (f"d = decimal_to_sexagesimal({params.get('x', 1.414213562373)}, "
+                f"{params.get('n_digits', 5)}); r = struct('sexagesimal', d);")
+    elif preset == "kashi_pi":
+        call = f"p = kashi_pi({params.get('n_digits', 16)}); r = struct('pi', p);"
+    elif preset == "hebrew_gematria":
+        txt = params.get("text", "alef bet")
+        call = f"v = hebrew_gematria('{txt}'); r = struct('gematria', v);"
+    elif preset == "hebrew_number_to_text":
+        call = f"t = hebrew_number_to_text({params.get('n', 2024)}); r = struct('text', t);"
+    elif preset == "cananean_number_to_text":
+        call = f"c = cananean_number_to_text({params.get('n', 2024)}); r = struct('text', c.text, 'places', c);"
+    elif preset == "egyptian_unit_fraction":
+        call = (f"t = egyptian_unit_fraction({params.get('n', 2)}, "
+                f"{params.get('d', 3)}); r = struct('unit_terms', t);")
+    elif preset == "egyptian_multiplication":
+        call = (f"m = egyptian_multiplication({params.get('a', 13)}, "
+                f"{params.get('b', 12)}); r = struct('result', m.result, 'steps', m.steps);")
+    elif preset == "maya_to_decimal":
+        digs = _oct_vec(params.get("digits", [1, 0, 0]))
+        call = f"m = maya_to_decimal({digs}); r = struct('decimal', m);"
+    elif preset == "decimal_to_maya":
+        call = (f"d = decimal_to_maya({params.get('n', 400)}, "
+                f"{params.get('n_positions', 3)}); r = struct('digits', d);")
+    elif preset == "greek_ionic":
+        txt = params.get("text", "issance")
+        call = f"v = greek_ionic('{txt}'); r = struct('value', v);"
     else:
         raise ValueError(f"preset desconocido: {preset}")
 
     script = f"""
 source('{ANCESTRAL_M_PATH}');
 source('{ANCESTRAL2_M_PATH}');
+source('{ANCESTRAL3_M_PATH}');
 {call}
 """
     if extra_octave:
@@ -205,10 +249,30 @@ def _validate_ancestral_octave(run_octave_fn) -> dict:
     )
     checks.append({"name": "madhava_pi_series: correccion de Kerala reduce error real y converge <1%", "passed": ok, "got": r})
 
+    r = _call("babylonian_sqrt2", {"n_iter": 5, "x0": 1.0})
+    ok = r is not None and abs(r.get("sqrt2_decimal", 0) - math.sqrt(2)) < 1e-10
+    checks.append({"name": "babylonian_sqrt2: converge a sqrt(2) en 5 iteraciones", "passed": ok, "got": r})
+
+    r = _call("kashi_pi", {"n_digits": 16})
+    ok = r is not None and abs(r.get("pi", 0) - math.pi) < 1e-12
+    checks.append({"name": "kashi_pi: Al-Kashi pi a 16 digitos sexagesimales coincide con pi real", "passed": ok, "got": r})
+
+    r = _call("egyptian_unit_fraction", {"n": 2, "d": 3})
+    ok = r is not None and r.get("unit_terms") == [2, 6]
+    checks.append({"name": "egyptian_unit_fraction: 2/3 = 1/2 + 1/6", "passed": ok, "got": r})
+
+    r = _call("egyptian_multiplication", {"a": 13, "b": 12})
+    ok = r is not None and r.get("result") == 156
+    checks.append({"name": "egyptian_multiplication: 13 x 12 = 156", "passed": ok, "got": r})
+
+    r = _call("greek_ionic", {"text": "alpha beta"})
+    ok = r is not None and r.get("value") == 3
+    checks.append({"name": "greek_ionic: alpha+beta = 1+2 = 3", "passed": ok, "got": r})
+
     return {
         "validation_passed": all(c["passed"] for c in checks),
         "checks": checks,
-        "not_covered": ["quipu_encode", "ifa_cast", "ifa_cast_random", "etak_deadreckoning"],
+        "not_covered": ["quipu_encode", "ifa_cast", "ifa_cast_random", "etak_deadreckoning", "hebrew_gematria", "hebrew_number_to_text", "cananean_number_to_text", "sexagesimal_to_decimal", "decimal_to_sexagesimal", "babylonian_reciprocal", "maya_to_decimal", "decimal_to_maya"],
     }
 
 
