@@ -1,11 +1,11 @@
 ---
 name: octave-mcp
-description: Use when the user wants scientific/numeric computation served by their local GNU Octave MCP server — linear algebra, ODEs/PDEs, symbolic math, curve fitting, physics/chemistry/biology simulations, plotting data, or "run this in Octave". Talks to the `octave` MCP (meta-tools only), so it covers all 373 registered tools. Also use when debugging why an octave-mcp tool fails or validating the whole tool suite.
+description: Use when the user wants scientific/numeric computation served by their local GNU Octave MCP server — linear algebra, ODEs/PDEs, symbolic math, curve fitting, physics/chemistry/biology simulations, plotting data, or "run this in Octave". Talks to the `octave` MCP (meta-tools only), so it covers all 375 registered tools. Also use when debugging why an octave-mcp tool fails or validating the whole tool suite.
 ---
 
 # Octave MCP (local)
 
-A local MCP server exposing 373 numeric/simulation tools backed by GNU Octave
+A local MCP server exposing 375 numeric/simulation tools backed by GNU Octave
 and Python. It lives at `/home/astrid/octave-mcp` and is registered in opencode
 as the MCP `octave` (global opencode config, `mcp.octave`, command
 `cd /home/astrid/octave-mcp && exec .venv/bin/python server.py`).
@@ -23,7 +23,7 @@ as the MCP `octave` (global opencode config, `mcp.octave`, command
 Never invent a tool name from memory. Always:
 `list_tools` → `get_tool_schema` → `call_tool`.
 
-`tools/list_full` (370 entries) is a private endpoint for the validation
+`tools/list_full` (372 entries) is a private endpoint for the validation
 harness, not for clients.
 
 ## 1 · Calling convention
@@ -49,8 +49,8 @@ harness, not for clients.
 
 ## 2 · Known gaps in this environment (verified 2026-10-25)
 
-**None open.** The full validation suite is green: 373/373 tools evaluate
-(370 registered + 3 deprecated aliases), 0 FAILED, 0 ERROR, 0 SKIPPED —
+**None open.** The full validation suite is green: 375/375 tools evaluate
+(372 registered + 3 deprecated aliases), 0 FAILED, 0 ERROR, 0 SKIPPED —
 every registered tool now has a validate path (T3, 2026-10-24). If
 something breaks after a machine change, check the fixed list
 below first — those are the things that used to fail:
@@ -265,7 +265,7 @@ every push (~4 min); it aborts on red. Bypass only when urgent:
 `git push --no-verify`.
 
 Both must agree (expected as of 2026-10-25:
-373 registered / 373 evaluated / 373 PASSED / 0 FAILED / 0 ERROR / 0 SKIPPED).
+375 registered / 375 evaluated / 375 PASSED / 0 FAILED / 0 ERROR / 0 SKIPPED).
 These counts drift over time: refresh them from `health_check_tool.py` (JSON
 report) before regenerating this skill, instead of trusting the numbers above.
 Exit code 1 means failures. Always use `.venv/bin/python` (or
@@ -287,7 +287,7 @@ jobs:
   we do not touch — never run repo-wide `ruff check .` as a CI gate.
 - **smoke**: `pip install -r requirements.txt` (verified sufficient — no
   maxima/sage/lispium needed) then `python ci/smoke.py`, a stdio MCP
-  client that asserts initialize OK, exactly 3 meta-tools, 370 tools in
+  client that asserts initialize OK, exactly 3 meta-tools, 372 tools in
   `list_tools`, and `validate` on `concrete_design_tool` + `pdelta_tool`.
 
 README is generated: edit `render_readme.py` and run

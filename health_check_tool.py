@@ -32,7 +32,7 @@ Nota de diseno: el enum de mode incluye "validate", pero ese modo NO
 corre la suite -- llama a _validate(), un autochequeo trivial (schema
 del subset, filtro puro y guard de tipo; ningun subprocess). Asi
 run_all_validations.py puede incluirla en el
-barrido (373/373) sin recursion: validarla a si misma no spawnea otro
+barrido (375/375) sin recursion: validarla a si misma no spawnea otro
 health-check. La suite completa solo corre en mode="run"/"summary",
 que se invocan siempre a proposito.
 

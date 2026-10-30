@@ -1,19 +1,19 @@
 # octave-mcp
 
-Servidor MCP (JSON-RPC manual, sin FastMCP) que expone 370 herramientas matemáticas y de simulación científica sobre Octave/Python (más 3 meta-tools de introspección, 373 en total), pensadas para usarse desde Claude Desktop u otros clientes MCP.
+Servidor MCP (JSON-RPC manual, sin FastMCP) que expone 372 herramientas matemáticas y de simulación científica sobre Octave/Python (más 3 meta-tools de introspección, 375 en total), pensadas para usarse desde Claude Desktop u otros clientes MCP.
 
 > **Nota de unificación:** este repositorio es el único proyecto activo. El antiguo `mcp-octave-real` (FastMCP, 39 tools) fue absorbido por completo — todas sus herramientas, incluidas las de historia cuantitativa (`plague_sir`, `settlement_clusters`, `historical_extractor`, `braid_group`, Benford en `historian`), viven ahora acá. `mcp-octave-real` queda deprecado y no debe usarse ni documentarse como proyecto en paralelo.
 
 ## Arquitectura
 
 - `server.py`: dispatcher manual (sin FastMCP). Las tools heredadas en la lista `TOOLS` siguen el esquema de tres ediciones coordinadas (import, entrada en `TOOLS`, bloque `elif tool_name ==`); las tools nuevas se registran solas.
-- `tool_registry.py`: auto-registro de tools vía `register_tool(name=, schema=, handler=)`. `TOOLS` arma como `[lista legacy] + tool_registry.get_schemas()` y el dispatch consulta `tool_registry.REGISTRY` (365 tools auto-registradas) antes que los `elif` — esto resuelve el problema de las tres ediciones coordinadas (bug historico de sobreescritura: `fractional_fourier_tool`).
-- Meta-tools de introspección: `list_tools`, `get_tool_schema`, `call_tool` — son las únicas que expone `tools/list` (evita mandar 370 schemas completos de una); `tools/list_full` devuelve las 370 herramientas.
+- `tool_registry.py`: auto-registro de tools vía `register_tool(name=, schema=, handler=)`. `TOOLS` arma como `[lista legacy] + tool_registry.get_schemas()` y el dispatch consulta `tool_registry.REGISTRY` (367 tools auto-registradas) antes que los `elif` — esto resuelve el problema de las tres ediciones coordinadas (bug historico de sobreescritura: `fractional_fourier_tool`).
+- Meta-tools de introspección: `list_tools`, `get_tool_schema`, `call_tool` — son las únicas que expone `tools/list` (evita mandar 370 schemas completos de una); `tools/list_full` devuelve las 372 herramientas.
 - Submotores Rust/Cargo (`submotors/`): `bem_electromagnetic`, `cfd_cavity`, `fem_poisson2d` — binarios externos invocados por sus tools, no código Python.
 - `Dockerfile` + `.dockerignore` para despliegue contenedor.
 - Dependencias: numpy, sympy y scipy (`advanced_probability_tool`, `advanced_stochastic_tool` y `multivariate_bayes_tool` dependen de scipy.stats).
 - Dependencia opcional: paquete Octave `symbolic` (`pkg install -forge symbolic`) para el check simbolico de `statmech_partition_tool`; si no esta instalado, ese check se salta (`skipped`) sin afectar el resultado global de `validate`.
-- Test rápido: pipear `initialize`, `tools/list_full`, `tools/call` (3 líneas JSON-RPC) a `timeout 30 python3 server.py`. Nota: `tools/list` devuelve solo las 3 meta-tools (`list_tools`, `get_tool_schema`, `call_tool`); `tools/list_full` devuelve las 370 herramientas.
+- Test rápido: pipear `initialize`, `tools/list_full`, `tools/call` (3 líneas JSON-RPC) a `timeout 30 python3 server.py`. Nota: `tools/list` devuelve solo las 3 meta-tools (`list_tools`, `get_tool_schema`, `call_tool`); `tools/list_full` devuelve las 372 herramientas.
 - Workspace persistente (`workspace_save` / `workspace_load` / `workspace_list` / `workspace_describe` / `workspace_delete`) para reutilizar resultados entre llamadas sin recomputar.
 
 ## Herramientas por área
@@ -85,7 +85,7 @@ Servidor MCP (JSON-RPC manual, sin FastMCP) que expone 370 herramientas matemát
 
 ---
 
-*Correr `tools/list_full` contra el servidor es la fuente de verdad para el conteo exacto de las 370 herramientas (`tools/list` devuelve solo las 3 meta-tools).*
+*Correr `tools/list_full` contra el servidor es la fuente de verdad para el conteo exacto de las 372 herramientas (`tools/list` devuelve solo las 3 meta-tools).*
 
 ## Física / simulación (bloque final del roadmap)
 
@@ -164,10 +164,10 @@ Pendiente: conectores externos (FreeCAD, BIM/IFC) — oCAS ya integrado.
 ---
 
 
-## Catalogo ampliado (370 herramientas + 3 meta-tools = 373 tools totales -- seccion generada automaticamente desde `tools/list_full`, complementa las categorias curadas arriba)
+## Catalogo ampliado (372 herramientas + 3 meta-tools = 375 tools totales -- seccion generada automaticamente desde `tools/list_full`, complementa las categorias curadas arriba)
 
 
-*Las tools de las secciones anteriores no se repiten aca. Las secciones combinadas (curadas + catalogo) cubren las 370 herramientas + 3 meta-tools = 373 tools en total.*
+*Las tools de las secciones anteriores no se repiten aca. Las secciones combinadas (curadas + catalogo) cubren las 372 herramientas + 3 meta-tools = 375 tools en total.*
 
 
 ### Desastres y riesgo natural
@@ -461,6 +461,7 @@ Pendiente: conectores externos (FreeCAD, BIM/IFC) — oCAS ya integrado.
 - `fault_dislocation_tool` -- Deformacion elastica de un semi-espacio por deslizamiento en una falla rectangular (Okada 1985) via okada_wrapper. Modo...
 - `femur_biomechanics_tool` -- Datos de referencia geometricos (Tabla 3.1: longitud, offset/diametro/posicion de cabeza femoral, anchos de canal medular, angulo cuello-...
 - `fire_design_tool` -- Resistencia al fuego acero EN 1993-1-2 en SI (Newton). section_factor (A/V, k_A/V), unprotected (t_cr, k(t), resistencia residual),...
+- `flint_math_tool` -- python-flint: aritmetica exacta (fmpz/fmpq), polinomios fmpz_poly/fmpq_poly (x y X predefinidos), matrices fmpz_mat/fmpq_mat,...
 - `food_science_tool` -- Ciencia de alimentos: actividad de agua (isoterma GAB) y procesamiento termico (pasteurizacion/esterilizacion).
 - `frame_analysis_tool` -- Análisis matricial 2D de pórticos hiperestáticos (método de desplazamientos, barras Timoshenko con cortante). Modos: solve...
 - `kleinberg_burst_tool` -- Detección de ráfagas de eventos con autómata jerárquico de Kleinberg (2002): identifica períodos de actividad anómalamente intensa.
@@ -475,6 +476,7 @@ Pendiente: conectores externos (FreeCAD, BIM/IFC) — oCAS ya integrado.
 - `predator_prey_chaos` -- Modelos depredador-presa con geometria de atractor: hastings_powell (cadena trofica de 3 especies, caotico con parametros clasicos --...
 - `sagebrush_math_tool` -- Sagebrush 0.7.2 (motores Rust clean-room, sintaxis Sage, sin Sage/PARI/FLINT): teoría de números de investigación. ECM factor(2^128+1),...
 - `statistics_extended_tool` -- Fase A de estadistica: descriptiva/EDA, tablas de contingencia, tests de 2 muestras (parametricos y no parametricos), ANOVA de 1 via con...
+- `symengine_math_tool` -- SymEngine: algebra simbolica rapida (x y predefinidos como simbolos): expand, diff, subs, sqrt, Rational, expr.n(bits). Modos: compute...
 - `sympy_eval_tool` -- SymPy en proceso como CAS de cross-check: operation=eval sympifica una expresión en dialecto Python (x**2, diff, integrate, solve,...
 - `timber_design_tool` -- Diseño de madera EN 1995-1-1 en unidades SI (Newton). beam (flexión M_Rd, k_mod, flecha), column (compresión N_Rd, pandeo χ_k), material...
 - `ultrasound_tool` -- Fisica de ultrasonido complementaria a acoustics_tool: impedancia acustica y reflexion/transmision en interfaces (Z=rho*c,...

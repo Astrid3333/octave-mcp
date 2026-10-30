@@ -594,6 +594,7 @@ if __name__ == "__main__":
                             "result": {"content": [{"type": "text", "text": output or "(sin versión)"}]},
                         }
                     else:
+                        print(f"[DEBUG-32602] target={target!r} args={repr(args)[:300]} handler_none={_target_handler is None} registry_size={len(tool_registry.REGISTRY)}", file=__import__("sys").stderr, flush=True)
                         resp = {
                             "jsonrpc": "2.0", "id": req_id,
                             "error": {"code": -32602, "message": f"Tool '{target}' no encontrada en tool_registry (el meta call_tool no cae a la cadena legacy de server.py -- registrar via tool_registry.register_tool en el modulo de la tool)"},

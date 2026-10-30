@@ -11,3 +11,5 @@ scikit-image
 requests
 okada_wrapper
 cypari
+python-flint
+symengine

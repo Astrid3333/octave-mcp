@@ -1,8 +1,8 @@
 """cas_router_math_tool — router unificado de CAS.
 
-Enruta una consulta al motor mas adecuado entre los seis CAS ya
+Enruta una consulta al motor mas adecuado entre los ocho CAS ya
 integrados en el servidor (maxima, sagebrush, lispium, cadabra2,
-sympy, pari/gp) y, si
+sympy, pari/gp, flint, symengine) y, si
 `fallback=true`, encadena los restantes hasta encontrar uno que
 responda ok. NO traduce sintaxis: el usuario escribe la consulta en la
 sintaxis del motor objetivo; la tool decide el motor (o respeta
@@ -14,6 +14,10 @@ Uso tipico (mode=compute, operation=eval):
   {"query": "(expt 2 10)"}                         -> lispium (sniff)
   {"query": "A_{m n} A^{n k}"}                     -> cadabra2 (sniff)
   {"query": "ellap(ellinit([0,1,1,0,0]), 5)"}      -> pari (sniff)
+  {"query": "(fmpz(2)**67 - 1).factor()",
+   "engine": "flint"}                              -> flint (explicito)
+  {"query": "integrate(sin(x)**2, (x, 0, pi))",
+   "engine": "symengine"}                          -> symengine (explicito)
   {"query": "...", "field": "tensor"}              -> cadabra2 (hint)
   {"query": "(expt 2 10)", "engine": "maxima",
    "fallback": true}                               -> fallback a lispium
@@ -35,17 +39,20 @@ import re
 import time
 
 import cadabra2_math_tool  # noqa: F401 — registra su handler
+import flint_math_tool  # noqa: F401
 import lispium_math_tool  # noqa: F401
 import maxima_eval_tool  # noqa: F401
 import pari_gp_tool  # noqa: F401
 import sagebrush_math_tool  # noqa: F401
+import symengine_math_tool  # noqa: F401
 import sympy_eval_tool  # noqa: F401
 from tool_registry import get_handler, register_tool
 
 # sympy al final: la cadena de fallback existente (maxima ->
-# sagebrush -> lispium) conserva su orden de intentos. pari al final:
-# se agrega como motor opt-in, no altera el orden historico.
-_ENGINES = ["maxima", "sagebrush", "lispium", "cadabra2", "sympy", "pari"]
+# sagebrush -> lispium) conserva su orden de intentos. pari, flint y
+# symengine al final: motores opt-in, no alteran el orden historico.
+_ENGINES = ["maxima", "sagebrush", "lispium", "cadabra2", "sympy",
+            "pari", "flint", "symengine"]
 _TOOL_BY_ENGINE = {
     "maxima": "maxima_eval_tool",
     "sagebrush": "sagebrush_math_tool",
@@ -53,6 +60,8 @@ _TOOL_BY_ENGINE = {
     "cadabra2": "cadabra2_math_tool",
     "sympy": "sympy_eval_tool",
     "pari": "pari_gp_tool",
+    "flint": "flint_math_tool",
+    "symengine": "symengine_math_tool",
 }
 _FIELD_MAP = {
     "tensor": "cadabra2",
@@ -76,6 +85,8 @@ _FIELD_MAP = {
     "lisp": "lispium",
     "pari": "pari",
     "gp": "pari",
+    "flint": "flint",
+    "symengine": "symengine",
 }
 _LATEX_RE = re.compile(r"\\partial|\\psi|\\sum|\\frac|_\{|\^\{")
 _SAGE_RE = re.compile(
@@ -96,12 +107,12 @@ CAS_ROUTER_TOOL_SCHEMA = {
     "name": "cas_router_math_tool",
     "description": (
         "Router unificado de CAS: enruta una consulta al motor adecuado "
-        "entre maxima/sagebrush/lispium/cadabra2/sympy/pari (sniffing + "
-        "hint `field` + `engine` explicito) con cadena de fallback y log "
-        "de intentos, o compara varios motores con operation=crosscheck. "
-        "Sin traduccion de sintaxis. mode=compute (operation=eval, "
-        "operation=crosscheck, operation=guia) o mode=validate "
-        "(16 checks)."
+        "entre maxima/sagebrush/lispium/cadabra2/sympy/pari/flint/"
+        "symengine (sniffing + hint `field` + `engine` explicito) con "
+        "cadena de fallback y log de intentos, o compara varios motores "
+        "con operation=crosscheck. Sin traduccion de sintaxis. "
+        "mode=compute (operation=eval, operation=crosscheck, "
+        "operation=guia) o mode=validate (18 checks)."
     ),
     "inputSchema": {
         "type": "object",
@@ -138,7 +149,8 @@ CAS_ROUTER_TOOL_SCHEMA = {
                 "items": {
                     "type": "string",
                     "enum": ["maxima", "sagebrush", "lispium",
-                             "cadabra2", "sympy", "pari"],
+                             "cadabra2", "sympy", "pari",
+                             "flint", "symengine"],
                 },
                 "description": (
                     "Motores destino en operation=crosscheck cuando se "
@@ -151,7 +163,8 @@ CAS_ROUTER_TOOL_SCHEMA = {
             "engine": {
                 "type": "string",
                 "enum": ["auto", "maxima", "sagebrush", "lispium",
-                         "cadabra2", "sympy", "pari"],
+                         "cadabra2", "sympy", "pari", "flint",
+                         "symengine"],
                 "default": "auto",
                 "description": "Motor explicito o auto (default).",
             },
@@ -159,7 +172,7 @@ CAS_ROUTER_TOOL_SCHEMA = {
                 "type": "string",
                 "description": (
                     "Hint de dominio: tensor/fisica, numero/prime, "
-                    "laplace/ode/calculo, lisp, pari."
+                    "laplace/ode/calculo, lisp, pari, flint, symengine."
                 ),
             },
             "fallback": {
@@ -200,6 +213,9 @@ def _engine_args(engine, query, timeout):
     if engine == "pari":
         # pari_gp_tool: mode=compute + expr (GP crudo)
         return {"mode": "compute", "expr": query, "timeout": timeout}
+    if engine in ("flint", "symengine"):
+        # wrappers py-engine (python-flint / SymEngine): mode=compute + expr
+        return {"mode": "compute", "expr": query, "timeout": timeout}
     # lispium: operation=eval + code (s-expr crudo)
     return {"mode": "compute", "operation": "eval",
             "code": query, "timeout": timeout}
@@ -227,6 +243,8 @@ def _result_str(engine, r):
     if engine == "sympy":
         return r.get("result")
     if engine == "pari":
+        return r.get("result")
+    if engine in ("flint", "symengine"):
         return r.get("result")
     return r.get("stdout")  # cadabra2
 
@@ -410,7 +428,8 @@ def _guia():
         "routing": (
             "1) engine explicito; 2) hint `field` (tensor/fisica -> "
             "cadabra2, numero/prime -> sagebrush, laplace/ode/calculo -> "
-            "maxima, lisp -> lispium, pari/gp -> pari); 3) sniffing del "
+            "maxima, lisp -> lispium, pari/gp -> pari, flint -> flint, "
+            "symengine -> symengine); 3) sniffing del "
             "query (latex \\partial/\\psi/_{{ -> cadabra2; "
             "euler_phi/class_group/ -> sagebrush; (factor|expt|diff|... "
             "espaciado -> lispium; ellinit/ellap/factorint/znorder/ -> "
@@ -418,14 +437,15 @@ def _guia():
         ),
         "fallback": (
             "Con fallback=true el intento 1 es el ruteado y luego se "
-            "prueban maxima, sagebrush, lispium, cadabra2, sympy, pari "
-            "(pari al final) en ese orden. El log completo queda en "
-            "attempts[]."
+            "prueban maxima, sagebrush, lispium, cadabra2, sympy, "
+            "pari, flint, symengine (estos tres al final) en ese "
+            "orden. El log completo queda en attempts[]."
         ),
         "syntax": (
             "El router NO traduce sintaxis: cada motor recibe el query "
             "crudo (maxima: expr sin ';'; sagebrush: codigo python; "
-            "lispium: s-expr; cadabra2: codigo python-cadabra con Ex). "
+            "lispium: s-expr; cadabra2: codigo python-cadabra con Ex; "
+            "flint/symengine: codigo python). "
             "Ver guia de cada tool para su dialecto."
         ),
         "engines": [
@@ -443,6 +463,12 @@ def _guia():
             {"engine": "pari", "tool": "pari_gp_tool",
              "forte": "teoria de numeros, curvas elipticas, "
                       "precision arbitraria"},
+            {"engine": "flint", "tool": "flint_math_tool",
+             "forte": "aritmetica y polinomios (python-flint), "
+                      "sin sniff, solo engine=flint"},
+            {"engine": "symengine", "tool": "symengine_math_tool",
+             "forte": "backend C++ de sympy, rapido, python, "
+                      "sin sniff, solo engine=symengine"},
         ],
         "crosscheck": (
             "operation=crosscheck corre una o mas queries en >=2 "
@@ -550,8 +576,8 @@ def _c_fallback_chain():
 def _c_all_fail():
     r = _r({"query": "raise ValueError('boom')"})
     ok = (not r["ok"]) and r["engine_used"] is None and \
-        len(r["attempts"]) == 6 and all(not a["ok"] for a in r["attempts"])
-    return "raise en 6 motores -> ok=False, 6 intentos fallidos", ok
+        len(r["attempts"]) == 8 and all(not a["ok"] for a in r["attempts"])
+    return "raise en 8 motores -> ok=False, 8 intentos fallidos", ok
 
 
 def _c_result_normalizado():
@@ -607,6 +633,19 @@ def _c_route_pari():
     return "factorint(100) -> pari %r" % r["result"], ok
 
 
+def _c_route_flint():
+    r = _r({"query": "(fmpz(2)**67 - 1).factor()", "engine": "flint",
+            "fallback": False})
+    ok = r["ok"] and r["engine_used"] == "flint" and bool(r["result"])
+    return "(fmpz(2)**67-1).factor() -> flint %r" % r["result"], ok
+
+
+def _c_route_symengine():
+    r = _r({"query": "diff(sin(x)**2, x)", "engine": "symengine", "fallback": False})
+    ok = r["ok"] and r["engine_used"] == "symengine" and bool(r["result"])
+    return "diff(sin(x)**2, x) -> symengine %r" % r["result"], ok
+
+
 def _validate():
     checks = [
         _check("route_explicit", _c_route_explicit),
@@ -624,13 +663,16 @@ def _validate():
         _check("result_normalizado", _c_result_normalizado),
         _check("route_sympy_explicit", _c_route_sympy),
         _check("route_pari_explicit", _c_route_pari),
+        _check("route_flint_explicit", _c_route_flint),
+        _check("route_symengine_explicit", _c_route_symengine),
         _check("unknown_engine_fence", _c_unknown_engine),
     ]
     passed = sum(1 for c in checks if c["passed"])
     return {
         "tool": "cas_router_math_tool",
-        "engine": "cas-router 1.2 "
-                  "(maxima+sagebrush+lispium+cadabra2+sympy+pari)",
+        "engine": "cas-router 1.3 "
+                  "(maxima+sagebrush+lispium+cadabra2+sympy+pari"
+                  "+flint+symengine)",
         "validation_passed": passed == len(checks),
         "checks_passed": passed,
         "checks_total": len(checks),
