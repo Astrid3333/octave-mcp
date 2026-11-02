@@ -90,6 +90,7 @@ import disaster_economics_tool  # auto-registra via tool_registry, no requiere m
 import social_impact_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import math_pipeline_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import ocas_symbolic_tool  # auto-registra via tool_registry, no requiere mas ediciones
+import pipeline_composer_tool  # auto-registra via tool_registry: encadena cualquier tool MCP
 import pipeline_orchestrator_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import ternary_arithmetic_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import mission_runner_tool  # auto-registra via tool_registry, no requiere mas ediciones
@@ -156,6 +157,9 @@ from physics_based_fire_model_tool import physics_based_fire_model
 from chemometrics_tool import compute_chemometrics, CHEMOMETRICS_TOOL_SCHEMA
 from econometrics_tool import compute_econometrics, ECONOMETRICS_TOOL_SCHEMA
 from archaeological_simulation_tool import compute_archaeological_simulation, ARCHAEOLOGICAL_SIMULATION_TOOL_SCHEMA
+import ancestral_octave_tool  # auto-registra via tool_registry
+import goertzel_tool  # auto-registra via tool_registry
+import middle_square_weyl_tool  # auto-registra via tool_registry
 from cfd_tool import compute_cfd, CFD_TOOL_SCHEMA
 from glm_tool import compute_glm, GLM_TOOL_SCHEMA
 from clustering_tool import compute_clustering, CLUSTERING_TOOL_SCHEMA
