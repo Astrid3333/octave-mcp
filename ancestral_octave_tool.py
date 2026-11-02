@@ -43,7 +43,7 @@ ANCESTRAL_OCTAVE_SCHEMA = {
                     "type": "string",
                     "enum": [
                         "suanpan_add", "chinese_remainder", "vedic_multiply",
-                        "archimedes_pi", "quipu_encode", "ifa_cast",
+                        "archimedes_pi", "liu_hui_pi", "quipu_encode", "ifa_cast",
                         "ifa_cast_random", "etak_deadreckoning", "madhava_pi_series",
                         "babylonian_sqrt2", "babylonian_reciprocal",
                         "sexagesimal_to_decimal", "decimal_to_sexagesimal",
@@ -58,7 +58,7 @@ ANCESTRAL_OCTAVE_SCHEMA = {
                 },
             "params": {
                 "type": "object",
-                "description": "Parametros especificos del preset elegido (p. ej. a/b para suanpan_add y vedic_multiply, remainders/moduli para chinese_remainder, iterations para archimedes_pi, value para quipu_encode, bits para ifa_cast, seed para ifa_cast_random, speed_knots/heading_deg/hours/lat0/lon0 para etak_deadreckoning, n_terms para madhava_pi_series).",
+                "description": "Parametros especificos del preset elegido (p. ej. a/b para suanpan_add y vedic_multiply, remainders/moduli para chinese_remainder, iterations para archimedes_pi y liu_hui_pi (mas levels para liu_hui_pi), value para quipu_encode, bits para ifa_cast, seed para ifa_cast_random, speed_knots/heading_deg/hours/lat0/lon0 para etak_deadreckoning, n_terms para madhava_pi_series).",
             },
             "extra_octave": {
                 "type": "string",
@@ -94,6 +94,10 @@ def build_octave_call(preset: str, params: dict, extra_octave: str = None) -> st
             f"[lo, hi, hist] = archimedes_pi({it}); "
             f"r = struct('pi_lower', lo, 'pi_upper', hi, 'iterations', {it});"
         )
+    elif preset == "liu_hui_pi":
+        it = params.get("iterations", 10)
+        lv = params.get("levels", 3)
+        call = f"r = liu_hui_pi({it}, {lv});"
     elif preset == "quipu_encode":
         v = params.get("value", 0)
         call = f"cords = quipu_encode({v}); r = struct('cords', {{cords}});"
@@ -240,6 +244,14 @@ def _validate_ancestral_octave(run_octave_fn) -> dict:
         and (r8["pi_upper"] - r8["pi_lower"]) < (r4["pi_upper"] - r4["pi_lower"])
     )
     checks.append({"name": "archimedes_pi: cota mas angosta con mas iteraciones", "passed": tightened, "got": None})
+
+    r = _call("liu_hui_pi", {"iterations": 10, "levels": 3})
+    ok = (
+        r is not None
+        and abs(r.get("pi_liu_hui", 0) - math.pi) < 1e-12
+        and abs(r.get("pi_liu_hui", 0) - math.pi) < abs(r.get("pi_plain", 0) - math.pi) / 1e3
+    )
+    checks.append({"name": "liu_hui_pi: Liu Hui (3 niveles, 6144 lados) alcanza pi a <1e-12 y mejora >1000x al poligono simple", "passed": ok, "got": r})
 
     r = _call("madhava_pi_series", {"n_terms": 10})
     ok = (

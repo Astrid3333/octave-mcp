@@ -78,6 +78,34 @@ function [pi_lo, pi_hi, hist] = archimedes_pi(iterations)
   pi_lo = b; pi_hi = a;
 end
 
+function r = liu_hui_pi(iterations, levels)
+  % Arquimedes (media armonica/geometrica, hexagono inicial) + extrapolacion de
+  % Liu Hui (s. III): el error del poligono baja como 1/n^2, y
+  % R <- R(k+1) + (R(k+1)-R(k))/(4^j-1) lo anula nivel a nivel (Romberg).
+  % Sin restas inestables. pi_plain = ultima cota inscrita sin extrapolar.
+  if nargin < 1, iterations = 10; end
+  if nargin < 2, levels = 3; end
+  if levels > iterations
+    error('liu_hui_pi: levels (%d) debe ser <= iterations (%d)', levels, iterations);
+  end
+  a = 2*sqrt(3); b = 3;
+  A = zeros(1, iterations+1); B = A; A(1) = a; B(1) = b;
+  for k = 1:iterations
+    a = 2*a*b / (a+b);
+    b = sqrt(a*b);
+    A(k+1) = a; B(k+1) = b;
+  end
+  RA = A; RB = B;
+  for j = 1:levels
+    f = 4^j - 1;
+    RA = RA(2:end) + (RA(2:end) - RA(1:end-1)) / f;
+    RB = RB(2:end) + (RB(2:end) - RB(1:end-1)) / f;
+  end
+  r = struct('pi_liu_hui', RB(end), 'pi_liu_hui_circ', RA(end), 'pi_plain', b, ...
+             'iterations', iterations, 'levels', levels, 'sides', 6*2^iterations, ...
+             'error_real', abs(RB(end) - pi));
+end
+
 function r = quipu_encode(value)
   % Codificación decimal por nudos (nudo largo=unidades por vueltas,
   % nudo en ocho=1, nudos simples=centenas/millares por posición).
