@@ -160,6 +160,7 @@ from archaeological_simulation_tool import compute_archaeological_simulation, AR
 import ancestral_octave_tool  # auto-registra via tool_registry
 import goertzel_tool  # auto-registra via tool_registry
 import middle_square_weyl_tool  # auto-registra via tool_registry
+import hybrid_prng_tool  # auto-registra via tool_registry
 from cfd_tool import compute_cfd, CFD_TOOL_SCHEMA
 from glm_tool import compute_glm, GLM_TOOL_SCHEMA
 from clustering_tool import compute_clustering, CLUSTERING_TOOL_SCHEMA
