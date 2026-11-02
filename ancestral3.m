@@ -229,3 +229,85 @@ function val = greek_ionic(text)
     end
   end
 end
+
+% ---------------- AZTECA / MEXICA (base 20) ----------------
+
+function r = azteca_number_to_text(n)
+  % Sistema numerico mexica/azteca (reconstruccion): vigesimal (base 20),
+  % aditivo dentro de cada nivel. Simbolos:
+  %   1 = punto/palma, 5 = barra/cadena, 20 = bandera/pamitl,
+  %   400 = pluma de pelo/cenotl, 8000 = bolsa de copal/xiquipil.
+  % Reconstruccion arqueologica razonable, no tabla canonica.
+  if n < 1 || n > 99999
+    error('azteca_number_to_text soporta 1..99999');
+  end
+  v8000 = floor(n / 8000);
+  nrem  = mod(n, 8000);
+  v400  = floor(nrem / 400);
+  nrem  = mod(nrem, 400);
+  v20   = floor(nrem / 20);
+  v1    = mod(nrem, 20);
+  s = '';
+  for i = 1:v8000, s = [s, '𐋠']; end   % 8000 (bolsa de copal aproximado)
+  for i = 1:v400,  s = [s, '𐋡']; end   % 400 (pluma)
+  for i = 1:v20,   s = [s, '𐋢']; end   % 20 (bandera)
+  for i = 1:v1,    s = [s, '•']; end    % 1 (punto)
+  r = struct('text', s, 'v8000', v8000, 'v400', v400, 'v20', v20, 'v1', v1);
+end
+
+function n = azteca_text_to_number(text)
+  % Convierte texto azteca (con los simbolos de azteca_number_to_text) a decimal.
+  n = 0;
+  for i = 1:length(text)
+    c = text(i);
+    if c == '𐋠', n = n + 8000;
+    elseif c == '𐋡', n = n + 400;
+    elseif c == '𐋢', n = n + 20;
+    elseif c == '•', n = n + 1;
+    end
+  end
+end
+
+% ---------------- AFRIKAN / YORUBA (base 20 con sustraccion) ----------------
+
+function r = african_counting(n, variant)
+  % Sistema de conteo africano (reconstruccion del sistema yoruba documentado
+  % por traducao de Eglash y fuentes etnomatematicas africanas):
+  %   base 20 (ogoro = 20), con sustraccion para algunos numeros intermedios.
+  %   Ejemplo: 15 = 20 - 5 (aadura ogoro), 16 = 20 - 4, etc.
+  % variant='yoruba' usa sustraccion; variant='aditive' es pura base 20.
+  if nargin < 2, variant = 'yoruba'; end
+  if n < 1 || n > 400
+    error('african_counting soporta 1..400');
+  end
+  if strcmpi(variant, 'yoruba')
+    ogoro = 20;   % base
+    ogun = 5;     % metade de ogoro (10) y ogbon (5) - referencia cultural
+    % Representar como 20*q + r, con r en -10..10 usando sustraccion cuando r > 10
+    q = floor(n / ogoro);
+    r = mod(n, ogoro);
+    if r > 10
+      q = q + 1;
+      r = r - ogoro;  % r negativo -> "ogoro menos (ogoro-r)"
+    end
+    r_str = '';
+    if r > 0
+      for i = 1:r, r_str = [r_str, '|']; end   % palos para unidades
+    elseif r < 0
+      r_str = [r_str, '-'];                    % signo de sustraccion
+      for i = 1:-r, r_str = [r_str, '|']; end
+    end
+    r = struct('decimal', n, 'ogoro_blocks', q, 'remainder', r, ...
+               'representation', [repmat('🌀', 1, max(q,0)), r_str], ...
+               'variant', 'yoruba');
+  else
+    % Variante puramente aditiva base 20
+    q = floor(n / 20);
+    r = mod(n, 20);
+    r_str = '';
+    for i = 1:q, r_str = [r_str, '🌀']; end   % 20
+    for i = 1:r, r_str = [r_str, '|']; end     % 1
+    r = struct('decimal', n, 'v20_blocks', q, 'remainder', r, ...
+               'representation', r_str, 'variant', 'additive');
+  end
+end

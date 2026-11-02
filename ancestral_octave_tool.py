@@ -53,6 +53,8 @@ ANCESTRAL_OCTAVE_SCHEMA = {
                         "egyptian_unit_fraction", "egyptian_multiplication",
                         "maya_to_decimal", "decimal_to_maya",
                         "greek_ionic",
+                        "azteca_number_to_text", "azteca_text_to_number",
+                        "african_counting",
                     ],
                     "description": "Metodo ancestral a ejecutar. Requerido salvo cuando mode='validate'.",
                 },
@@ -147,8 +149,14 @@ def build_octave_call(preset: str, params: dict, extra_octave: str = None) -> st
         call = (f"d = decimal_to_maya({params.get('n', 400)}, "
                 f"{params.get('n_positions', 3)}); r = struct('digits', d);")
     elif preset == "greek_ionic":
-        txt = params.get("text", "issance")
+        txt = params.get("text", "alpha beta")
         call = f"v = greek_ionic('{txt}'); r = struct('value', v);"
+    elif preset == "azteca_number_to_text":
+        call = f"r = azteca_number_to_text({params.get('n', 2024)});"
+    elif preset == "azteca_text_to_number":
+        call = f"n = azteca_text_to_number('{params.get('text', '•')}'); r = struct('decimal', n);"
+    elif preset == "african_counting":
+        call = f"r = african_counting({params.get('n', 42)}, '{params.get('variant', 'yoruba')}');"
     else:
         raise ValueError(f"preset desconocido: {preset}")
 
@@ -284,7 +292,7 @@ def _validate_ancestral_octave(run_octave_fn) -> dict:
     return {
         "validation_passed": all(c["passed"] for c in checks),
         "checks": checks,
-        "not_covered": ["quipu_encode", "ifa_cast", "ifa_cast_random", "etak_deadreckoning", "hebrew_gematria", "hebrew_number_to_text", "cananean_number_to_text", "sexagesimal_to_decimal", "decimal_to_sexagesimal", "babylonian_reciprocal", "maya_to_decimal", "decimal_to_maya"],
+        "not_covered": ["quipu_encode", "ifa_cast", "ifa_cast_random", "etak_deadreckoning", "azteca_number_to_text", "azteca_text_to_number", "african_counting"],
     }
 
 
