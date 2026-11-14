@@ -7,6 +7,8 @@ import itertools
 import math
 from functools import lru_cache
 
+from tool_registry import register_tool
+
 MAX_ENUM = 10000
 MAX_N = 5000  # tope para recurrencias O(n^2)
 
@@ -238,7 +240,6 @@ COMBINATORICS_TOOL_SCHEMA = {
 }
 
 
-from tool_registry import register_tool  # <- igual que en ternary_combinatorics_tool.py
 
 
 register_tool(
