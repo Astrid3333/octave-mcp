@@ -250,6 +250,7 @@ import coordinate_transform_tool  # auto-registra via tool_registry
 import curvilinear_coordinates_tool  # auto-registra via tool_registry
 import trilinear_coordinates_tool  # auto-registra via tool_registry
 import ternary_combinatorics_tool  # auto-registra via tool_registry, no requiere mas ediciones
+import combinatorics_tool  # auto-registra via tool_registry
 import landauer_ternary_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import synchrotron_radiation_tool  # auto-registra via tool_registry
 import pair_production_tool  # auto-registra via tool_registry
