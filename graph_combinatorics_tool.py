@@ -35,7 +35,10 @@ def _graph(
     if len(labels) > MAX_GRAPH_VERTICES:
         raise ValueError(f"la graph admite como maximo {MAX_GRAPH_VERTICES} vertices")
     if len(edges) > MAX_GRAPH_EDGES:
-        raise ValueError(f"la graph admite como maximo {MAX_GRAPH_EDGES} edges")
+        raise ValueError(
+            f"la graph admite como maximo {MAX_GRAPH_EDGES} edges "
+            "(limite de complejidad de deletion-contraction)"
+        )
     return labels, edges
 
 
@@ -70,7 +73,7 @@ def _chromatic_expression(coefficients: dict[int, int]) -> str:
         if degree == 0:
             body = "1"
         else:
-            body = "x" if degree == 1 else f"x**{degree}"
+            body = "x" if degree == 1 else f"x^{degree}"
         if body == "1":
             terms.append(str(coefficient) if not terms else f"+ {coefficient}")
         elif coefficient < 0:
@@ -206,12 +209,12 @@ def _validate() -> dict[str, Any]:
         checks.append({"check": name, "passed": bool(passed), "detail": detail})
 
     triangle = _chromatic_result({"vertices": [0, 1, 2], "edges": [[0, 1], [1, 2], [0, 2]]})
-    check("C3 chromatic polynomial", triangle["chromatic_polynomial"] == "x**3 - 3*x**2 + 2*x", triangle["chromatic_polynomial"])
+    check("C3 chromatic polynomial", triangle["chromatic_polynomial"] == "x^3 - 3*x^2 + 2*x", triangle["chromatic_polynomial"])
     check("C3 chromatic number is 3", triangle["chromatic_number"] == 3)
     cycle4 = _chromatic_result({"vertices": [0, 1, 2, 3], "edges": [[0, 1], [1, 2], [2, 3], [0, 3]]})
-    check("C4 chromatic polynomial", cycle4["chromatic_polynomial"] == "x**4 - 4*x**3 + 6*x**2 - 3*x", cycle4["chromatic_polynomial"])
+    check("C4 chromatic polynomial", cycle4["chromatic_polynomial"] == "x^4 - 4*x^3 + 6*x^2 - 3*x", cycle4["chromatic_polynomial"])
     clique4 = _chromatic_result({"vertices": [0, 1, 2, 3], "edges": [[0, 1], [0, 2], [0, 3], [1, 2], [1, 3], [2, 3]]})
-    check("K4 chromatic polynomial", clique4["chromatic_polynomial"] == "x**4 - 6*x**3 + 11*x**2 - 6*x", clique4["chromatic_polynomial"])
+    check("K4 chromatic polynomial", clique4["chromatic_polynomial"] == "x^4 - 6*x^3 + 11*x^2 - 6*x", clique4["chromatic_polynomial"])
     check("K4 chromatic number is 4", clique4["chromatic_number"] == 4)
     tutte_triangle = _tutte_result({"vertices": [0, 1, 2], "edges": [[0, 1], [1, 2], [0, 2]]})
     check("C3 Tutte polynomial is x^2+x+y", tutte_triangle["tutte_polynomial"] == "x^2 + x + y", tutte_triangle["tutte_polynomial"])
@@ -252,7 +255,9 @@ GRAPH_COMBINATORICS_SCHEMA = {
         "deletion-contraction, polinomio de Tutte con bridges y loops, y "
         "conteo por DP de todos los matchings y emparejamientos perfectos. "
         "Entrada por vertices y edges [u,v]; Tutte admite loops y edges "
-        "paralelas."
+        "paralelas. Los polinomios se devuelven como cadenas con sintaxis de "
+        "Octave (x^3 - 3*x^2 + 2*x), pegables en octave_run. Limites por "
+        "llamada: 12 vertices y 14 edges."
     ),
     "inputSchema": {
         "type": "object",

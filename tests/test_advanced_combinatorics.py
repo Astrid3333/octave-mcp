@@ -98,6 +98,32 @@ class AdvancedCombinatoricsTests(unittest.TestCase):
         )
         self.assertEqual(kostka["kostka"], 1)
 
+    def test_rsk_recording_tableau_is_standard(self):
+        result = young_tableaux_tool.compute_young_tableaux(
+            {"mode": "rsk", "word": list("mississippi")}
+        )
+        self.assertEqual(result["shape"], [5, 5, 1])
+        self.assertEqual(
+            result["recording_tableau"],
+            [[1, 3, 4, 6, 7], [2, 5, 8, 9, 10], [11]],
+        )
+        self.assertTrue(result["recording_is_standard"])
+        self.assertTrue(result["roundtrip"])
+
+    def test_rsk_roundtrip_on_many_words(self):
+        words = ("abc", "cba", "aabbcc", "zyxwvu", "banana", "mississippi")
+        for word in words:
+            result = young_tableaux_tool.compute_young_tableaux(
+                {"mode": "rsk", "word": list(word)}
+            )
+            self.assertTrue(result["roundtrip"], word)
+            entries = [
+                value
+                for row in result["recording_tableau"]
+                for value in row
+            ]
+            self.assertEqual(sorted(entries), list(range(1, len(word) + 1)), word)
+
     def test_fano_matroid_and_base_polytope(self):
         matrix = [
             [1, 0, 0, 1, 1, 0, 1],
@@ -122,7 +148,7 @@ class AdvancedCombinatoricsTests(unittest.TestCase):
                 "edges": [[0, 1], [1, 2], [0, 2]],
             }
         )
-        self.assertEqual(triangle["chromatic_polynomial"], "x**3 - 3*x**2 + 2*x")
+        self.assertEqual(triangle["chromatic_polynomial"], "x^3 - 3*x^2 + 2*x")
         tutte = graph_combinatorics_tool.compute_graph_combinatorics(
             {
                 "mode": "tutte_polynomial",

@@ -136,6 +136,57 @@ def _kostka_result(args: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _rsk_reverse(
+    insertion: list[list[Any]],
+    recording: list[list[int]],
+) -> list[Any]:
+    """Reconstruye la palabra desde (P, Q) deshaciendo la insercion fila a fila.
+
+    El tableau de registro lleva el indice del paso en el cuadrado donde la
+    forma crece, asi que deshacer el paso i consiste en mover hacia arriba la
+    letra de ese cuadrado hasta liberar la letra que fue insertada.
+    """
+    tableau = [row[:] for row in insertion]
+    positions: dict[int, tuple[int, int]] = {}
+    for row_index, row in enumerate(recording):
+        for column, value in enumerate(row):
+            positions[value] = (row_index, column)
+    word: list[Any] = [None] * len(positions)
+    for time in sorted(positions, reverse=True):
+        growth_row, growth_column = positions[time]
+        moving = tableau[growth_row][growth_column]
+        row_index = growth_row
+        while row_index > 0:
+            upper = tableau[row_index - 1]
+            target = None
+            for column, existing in enumerate(upper):
+                if existing < moving:
+                    target = column
+            if target is None:
+                raise ValueError("no se pudo reconstruir la palabra desde P y Q")
+            displaced = upper[target]
+            upper[target] = moving
+            moving = displaced
+            row_index -= 1
+        word[time - 1] = moving
+        del tableau[growth_row][growth_column]
+    return word
+
+
+def _is_standard_tableau(tableau: list[list[int]]) -> bool:
+    for row in tableau:
+        for column in range(1, len(row)):
+            if row[column] <= row[column - 1]:
+                return False
+    for row_index in range(1, len(tableau)):
+        upper = tableau[row_index - 1]
+        lower = tableau[row_index]
+        for column in range(min(len(upper), len(lower))):
+            if lower[column] <= upper[column]:
+                return False
+    return True
+
+
 def _rsk(args: dict[str, Any]) -> dict[str, Any]:
     raw_word = need_list(args, "word", required=True)
     if not raw_word:
@@ -165,23 +216,16 @@ def _rsk(args: dict[str, Any]) -> dict[str, Any]:
                 break
             bumped = row[replace_at]
             row[replace_at] = current
-            recording[row_index][replace_at] = time
             current = bumped
             row_index += 1
-    cells = sorted(
-        (
-            (recording[row][column], insertion[row][column])
-            for row in range(len(insertion))
-            for column in range(len(insertion[row]))
-        )
-    )
-    reconstructed = [value for _, value in cells]
+    reconstructed = _rsk_reverse(insertion, recording)
     return {
         "word": raw_word,
         "alphabet": ordered,
         "insertion_tableau": insertion,
         "recording_tableau": recording,
         "shape": [len(row) for row in insertion],
+        "recording_is_standard": _is_standard_tableau(recording),
         "reconstructed_word": reconstructed,
         "roundtrip": reconstructed == raw_word,
     }
@@ -243,6 +287,39 @@ def _validate() -> dict[str, Any]:
     check("RSK of abc has P=[[1,2,3]]", rsk["insertion_tableau"] == [["a", "b", "c"]], str(rsk["insertion_tableau"]))
     check("RSK of abc has Q=[[1,2,3]]", rsk["recording_tableau"] == [[1, 2, 3]], str(rsk["recording_tableau"]))
     check("RSK roundtrip reconstructs word", rsk["roundtrip"] is True)
+    mississippi = _rsk({"word": list("mississippi")})
+    check(
+        "RSK of mississippi has shape (5,5,1)",
+        mississippi["shape"] == [5, 5, 1],
+        str(mississippi["shape"]),
+    )
+    check(
+        "RSK of mississippi has P=[[i,i,i,i,p],[m,p,s,s,s],[s]]",
+        mississippi["insertion_tableau"]
+        == [["i", "i", "i", "i", "p"], ["m", "p", "s", "s", "s"], ["s"]],
+        str(mississippi["insertion_tableau"]),
+    )
+    check(
+        "RSK of mississippi has Q=[[1,3,4,6,7],[2,5,8,9,10],[11]]",
+        mississippi["recording_tableau"]
+        == [[1, 3, 4, 6, 7], [2, 5, 8, 9, 10], [11]],
+        str(mississippi["recording_tableau"]),
+    )
+    check(
+        "RSK recording tableau is standard",
+        mississippi["recording_is_standard"] is True,
+    )
+    check(
+        "RSK roundtrip reconstructs mississippi",
+        mississippi["roundtrip"] is True,
+        str(mississippi["reconstructed_word"]),
+    )
+    banana_rsk = _rsk({"word": list("banana")})
+    check(
+        "RSK roundtrip reconstructs banana",
+        banana_rsk["roundtrip"] is True,
+        str(banana_rsk["reconstructed_word"]),
+    )
     banana = _word_count({"word": list("banana")})
     check("banana has 60 distinct anagrams", banana["distinct_permutations"] == 60, str(banana["distinct_permutations"]))
     kostka = _kostka_result({"shape": [2, 1], "content": [2, 1]})
@@ -274,9 +351,9 @@ YOUNG_TABLEAUX_SCHEMA = {
     "name": "young_tableaux_tool",
     "description": (
         "Palabras y tableaux de Young: formula de hook-length, numero de "
-        "tableaux estándar, insercion Robinson-Schensted con tableaux P/Q, "
-        "numeros de Kostka por DP y conteo de anagramas distintos. Todos los "
-        "conteos son enteros exactos."
+        "tableaux estándar, insercion Robinson-Schensted con tableau P "
+        "semiestandar y tableau Q estandar, numeros de Kostka por DP y "
+        "conteo de anagramas distintos. Todos los conteos son enteros exactos."
     ),
     "inputSchema": {
         "type": "object",

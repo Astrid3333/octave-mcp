@@ -102,7 +102,7 @@ def _cycle_index_expression(
         for length in cycle_type:
             monomial *= Symbol(f"x{length}")
         terms.append(Rational(multiplicity, group_order) * monomial)
-    return str(together(Add(*terms))) if terms else "0"
+    return str(together(Add(*terms))).replace("**", "^") if terms else "0"
 
 
 def _compute(args: dict[str, Any]) -> dict[str, Any]:
@@ -172,7 +172,7 @@ def _validate() -> dict[str, Any]:
 
     s3 = _compute({"mode": "count_colorings", "n": 3, "group": "symmetric", "colors": 2})
     check("S3 degree 3 over 2 colors has 4 orbits", s3.get("orbits") == 4, str(s3.get("orbits")))
-    expected_index = "(x1**3 + 3*x1*x2 + 2*x3)/6"
+    expected_index = "(x1^3 + 3*x1*x2 + 2*x3)/6"
     check("S3 cycle index", s3.get("cycle_index") == expected_index, str(s3.get("cycle_index")))
     cyclic = _compute({"mode": "count_colorings", "n": 4, "group": "cyclic", "colors": 3})
     check("cyclic n=4 over 3 colors has 24 orbits", cyclic.get("orbits") == 24, str(cyclic.get("orbits")))
@@ -222,7 +222,8 @@ POLYA_BURNSIDE_SCHEMA = {
         "módulo permutaciones. Modos cycle_index y count_colorings; grupos "
         "simétrico, cíclico, diédrico o permutaciones explícitas verificadas "
         "como grupo. Devuelve índices de ciclos, contribuciones por tipo y "
-        "número de órbitas con enteros exactos."
+        "número de órbitas con enteros exactos; el índice de ciclos se emite "
+        "con sintaxis de Octave (x1^4 + 2*x1^2*x2 + ...)."
     ),
     "inputSchema": {
         "type": "object",
