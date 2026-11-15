@@ -21,3 +21,14 @@ concrete_design_tool.py
 pdelta_tool.py
 timber_design_tool.py
 health_check_tool.py
+advanced_combinatorics_common.py
+combinatorics_tool.py
+polya_burnside_tool.py
+generating_functions_tool.py
+block_designs_tool.py
+ramsey_extremal_tool.py
+poset_lattice_tool.py
+young_tableaux_tool.py
+matroid_tool.py
+graph_combinatorics_tool.py
+tests/test_advanced_combinatorics.py

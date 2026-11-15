@@ -29,12 +29,12 @@ SKILL_PATH = "skills/octave-mcp/SKILL.md"
 # regenerar con regenerate_skill_content.py.
 _SKILL_MD_EMBEDDED = r"""---
 name: octave-mcp
-description: Use when the user wants scientific/numeric computation served by their local GNU Octave MCP server — linear algebra, ODEs/PDEs, symbolic math, curve fitting, physics/chemistry/biology simulations, plotting data, or "run this in Octave". Talks to the `octave` MCP (meta-tools only), so it covers all 375 registered tools. Also use when debugging why an octave-mcp tool fails or validating the whole tool suite.
+description: Use when the user wants scientific/numeric computation served by their local GNU Octave MCP server — linear algebra, ODEs/PDEs, symbolic math, curve fitting, physics/chemistry/biology simulations, plotting data, or "run this in Octave". Talks to the `octave` MCP (meta-tools only), so it covers all 386 tools (389 with deprecated aliases). Also use when debugging why an octave-mcp tool fails or validating the whole tool suite.
 ---
 
 # Octave MCP (local)
 
-A local MCP server exposing 375 numeric/simulation tools backed by GNU Octave
+A local MCP server exposing 386 numeric/simulation tools backed by GNU Octave
 and Python. It lives at `/home/astrid/octave-mcp` and is registered in opencode
 as the MCP `octave` (global opencode config, `mcp.octave`, command
 `cd /home/astrid/octave-mcp && exec .venv/bin/python server.py`).
@@ -52,7 +52,7 @@ as the MCP `octave` (global opencode config, `mcp.octave`, command
 Never invent a tool name from memory. Always:
 `list_tools` → `get_tool_schema` → `call_tool`.
 
-`tools/list_full` (372 entries) is a private endpoint for the validation
+`tools/list_full` (386 entries) is a private endpoint for the validation
 harness, not for clients.
 
 ## 1 · Calling convention
@@ -76,11 +76,12 @@ harness, not for clients.
   (`ALTERNATE_VALIDATE_MODE`, `ALTERNATE_VALIDATE_PARAM_NAME`,
   `FLAT_SIGNATURE_TOOLS`).
 
-## 2 · Known gaps in this environment (verified 2026-10-25)
+## 2 · Known gaps in this environment (verified 2026-11-14)
 
-**None open.** The full validation suite is green: 375/375 tools evaluate
-(372 registered + 3 deprecated aliases), 0 FAILED, 0 ERROR, 0 SKIPPED —
-every registered tool now has a validate path (T3, 2026-10-24). If
+**None open.** The full validation suite is green: 383/383 tools that expose
+a `validate` mode pass (386 listed + 3 deprecated aliases = 389), 0 FAILED,
+0 ERROR; the 6 remaining tools expose no `validate` mode and are reported
+as SKIPPED. If
 something breaks after a machine change, check the fixed list
 below first — those are the things that used to fail:
 
@@ -235,6 +236,22 @@ below first — those are the things that used to fail:
   compatibility but cannot interrupt in-process evaluation. Reach for it
   for portable symbolic cross-checks; for big-integer factorization or
   deep number theory use sagebrush/maxima instead.
+- Advanced combinatorics (added 2026-11-14): eight new pure-Python/SymPy
+  tools, auto-registered through `tool_registry` and dispatched by
+  `call_tool`: `polya_burnside_tool` (cycle index, Burnside orbit counts,
+  cyclic/dihedral/explicit groups), `generating_functions_tool` (OGF/EGF,
+  coefficient extraction, closed forms), `block_designs_tool` (BIBD
+  verification, finite-field projective planes, MOLS, Hadamard matrices),
+  `ramsey_extremal_tool` (R(s,t) with explicit `exact_known` flags,
+  Turán-type extremal numbers), `poset_lattice_tool` (Möbius function,
+  Whitney numbers, meet/join checks), `young_tableaux_tool` (hook length,
+  RSK, Kostka), `matroid_tool` (bases, flats, loops/coloops, base-polytope
+  inequalities) and `graph_combinatorics_tool` (chromatic polynomial,
+  Tutte polynomial incl. loops and parallel edges, matching polynomial).
+  Every one exposes `mode="validate"` with exact numeric checks (58 checks
+  in total); `combinatorics_tool` is the classical enumeration tool and
+  `advanced_combinatorics_common.py` holds the shared helpers. Regression
+  tests live in `tests/test_advanced_combinatorics.py` (unittest).
 - `attractor_trajectory` butterfly check now measures at t=40 (empirical
   `d(t)`: the `d>1` crossing is at t≈30.5, max 47 at t≈33.7, d(40)=8.2 —
   a t=30 horizon was just short of the crossing, tool math was fine).
@@ -293,8 +310,9 @@ A local (untracked) `.git/hooks/pre-push` runs the guarded suite before
 every push (~4 min); it aborts on red. Bypass only when urgent:
 `git push --no-verify`.
 
-Both must agree (expected as of 2026-10-25:
-375 registered / 375 evaluated / 375 PASSED / 0 FAILED / 0 ERROR / 0 SKIPPED).
+Both must agree (expected as of 2026-11-14:
+389 registered / 383 evaluated / 383 PASSED / 0 FAILED / 0 ERROR /
+6 SKIPPED for tools without a validate mode).
 These counts drift over time: refresh them from `health_check_tool.py` (JSON
 report) before regenerating this skill, instead of trusting the numbers above.
 Exit code 1 means failures. Always use `.venv/bin/python` (or
@@ -309,14 +327,16 @@ jobs:
 
 - **lint**: installs `ruff==0.15.19` (the version this repo is pinned to)
   and checks ONLY the maintained-file manifest `ci/ruff_files.txt`
-  (17 files: router, sympy_eval, statistics, workspace, materials,
+  (30 files: router, sympy_eval, statistics, workspace, materials,
   composite, eurocode/fire/timber/concrete/pdelta, examples battery,
-  skill_content, etc.). `server.py` is deliberately excluded: it carries
-  815 pre-existing errors (F811/F401/E402 from legacy soil_* tools) that
-  we do not touch — never run repo-wide `ruff check .` as a CI gate.
+  the 9 combinatorics modules + their shared helper + regression test).
+  `server.py` IS in the manifest and relies on the documented
+  `E402`/`F401` per-file ignores in `.ruff.toml` (its imports ARE the
+  registration mechanism) — never run repo-wide `ruff check .` as a CI
+  gate: the legacy tree carries hundreds of pre-existing errors.
 - **smoke**: `pip install -r requirements.txt` (verified sufficient — no
   maxima/sage/lispium needed) then `python ci/smoke.py`, a stdio MCP
-  client that asserts initialize OK, exactly 3 meta-tools, 372 tools in
+  client that asserts initialize OK, exactly 3 meta-tools, 386 tools in
   `list_tools`, and `validate` on `concrete_design_tool` + `pdelta_tool`.
 
 README is generated: edit `render_readme.py` and run

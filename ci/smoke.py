@@ -1,5 +1,5 @@
 """Smoke test de CI: arranca el server stdio, verifica meta-tools, conteo
-de tools (372) y dos validaciones puras-python (concrete + pdelta).
+de tools (386) y dos validaciones puras-python (concrete + pdelta).
 
 No requiere maxima/sage/lispium: solo el venv de requirements.txt.
 Sale con código 0 si todo pasa, 1 si algo falla.
@@ -74,9 +74,9 @@ def main():
             "tools", payload.get("names", []))
         if names and isinstance(names[0], dict):
             names = [t.get("name") for t in names]
-        if len(names) != 372:
-            fail(f"esperaba 372 tools, hay {len(names)}")
-        print("SMOKE: list_tools == 372 ok")
+        if len(names) != 386:
+            fail(f"esperaba 386 tools, hay {len(names)}")
+        print("SMOKE: list_tools == 386 ok")
 
         for i, tool in enumerate(
             ("concrete_design_tool", "pdelta_tool"), start=4

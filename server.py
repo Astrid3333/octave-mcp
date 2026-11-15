@@ -250,6 +250,15 @@ import coordinate_transform_tool  # auto-registra via tool_registry
 import curvilinear_coordinates_tool  # auto-registra via tool_registry
 import trilinear_coordinates_tool  # auto-registra via tool_registry
 import ternary_combinatorics_tool  # auto-registra via tool_registry, no requiere mas ediciones
+import combinatorics_tool  # auto-registra via tool_registry
+import polya_burnside_tool  # auto-registra via tool_registry
+import generating_functions_tool  # auto-registra via tool_registry
+import block_designs_tool  # auto-registra via tool_registry
+import ramsey_extremal_tool  # auto-registra via tool_registry
+import poset_lattice_tool  # auto-registra via tool_registry
+import young_tableaux_tool  # auto-registra via tool_registry
+import matroid_tool  # auto-registra via tool_registry
+import graph_combinatorics_tool  # auto-registra via tool_registry
 import landauer_ternary_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import synchrotron_radiation_tool  # auto-registra via tool_registry
 import pair_production_tool  # auto-registra via tool_registry
