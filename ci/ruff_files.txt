@@ -32,3 +32,4 @@ young_tableaux_tool.py
 matroid_tool.py
 graph_combinatorics_tool.py
 tests/test_advanced_combinatorics.py
+tests/test_octave_infra_tool.py

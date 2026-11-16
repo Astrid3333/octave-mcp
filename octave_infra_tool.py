@@ -34,6 +34,28 @@ def _run_octave(code, working_dir=None, timeout=DEFAULT_TIMEOUT):
         os.unlink(script_path)
 
 
+def _run_octave_file(script_path, timeout=DEFAULT_TIMEOUT):
+    """Ejecuta un script .m en su propia ubicacion.
+
+    El archivo se ejecuta tal cual (no se copia a un temporal) para que
+    `mfilename('fullpath')`, `pwd` y las rutas relativas al script sigan
+    significando lo que el autor del script espera. El cwd es el directorio
+    del script.
+    """
+    path = Path(script_path)
+    try:
+        r = subprocess.run(
+            ["octave", "--no-gui", "--no-init-file", str(path)],
+            capture_output=True, text=True, timeout=timeout,
+            cwd=str(path.parent),
+        )
+        return {"stdout": r.stdout.strip(), "stderr": r.stderr.strip(), "returncode": r.returncode}
+    except subprocess.TimeoutExpired:
+        return {"stdout": "", "stderr": f"Timeout tras {timeout}s", "returncode": -1}
+    except FileNotFoundError:
+        return {"stdout": "", "stderr": "octave no encontrado", "returncode": -2}
+
+
 def _format_result(r):
     parts = []
     if r["stdout"]:
@@ -106,7 +128,7 @@ def octave_run_script(script_path: str = None, timeout: int = DEFAULT_TIMEOUT, m
     p = Path(script_path)
     if not p.exists():
         return "Error: no existe " + script_path
-    r = _run_octave(p.read_text(), working_dir=str(p.parent), timeout=timeout)
+    r = _run_octave_file(p, timeout=timeout)
     return _format_result(r)
 
 

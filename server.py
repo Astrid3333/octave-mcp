@@ -595,9 +595,8 @@ if __name__ == "__main__":
                         if not os.path.exists(script_path):
                             resp = {"jsonrpc": "2.0", "id": req_id, "error": {"code": -32602, "message": f"Script '{script_path}' no encontrado"}}
                         else:
-                            with open(script_path, 'r') as f:
-                                code = f.read()
-                            output = run_octave(code)
+                            timeout = target_args.get("timeout", 60)
+                            output = octave_run_script(script_path=script_path, timeout=timeout)
                             resp = {
                                 "jsonrpc": "2.0", "id": req_id,
                                 "result": {"content": [{"type": "text", "text": output or "(sin salida)"}]},
