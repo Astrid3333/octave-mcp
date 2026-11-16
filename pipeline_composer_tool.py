@@ -32,7 +32,7 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 # Import perezoso para evitar ciclo: server importa este modulo, y este
 # modulo necesita run_octave / tool_registry de server.
@@ -151,11 +151,6 @@ def _call_tool(tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
     if tool_name in reg:
         handler = reg[tool_name]["handler"]
         return handler(arguments)
-    # Legacy: buscar en server.py TOOLS / dispatch. No tenemos acceso directo
-    # al dispatch, pero run_octave puede invocar herramientas octave nativas.
-    run_octave = _get_run_octave()
-    # Intentar como herramienta de Octave nativa (ancestral_octave, etc. ya
-    # estan en el registro; esto es para herramientas legacy de server.py).
     raise ValueError(f"Herramienta no registrada: {tool_name}")
 
 
@@ -197,7 +192,10 @@ def pipeline_composer(steps: List[Dict[str, Any]], stop_on_error: bool = True) -
     return {
         "pasos_ejecutados": len(step_results),
         "pasos_totales": len(steps),
-        "detenido_temprano": len(step_results) < len(steps),
+        "detenido_temprano": (
+            len(step_results) < len(steps)
+            or any(entry.get("detenido") for entry in step_results)
+        ),
         "resultados_por_paso": step_results,
         "resultados": results,
     }

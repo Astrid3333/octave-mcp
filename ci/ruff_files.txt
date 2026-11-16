@@ -33,3 +33,5 @@ matroid_tool.py
 graph_combinatorics_tool.py
 tests/test_advanced_combinatorics.py
 tests/test_octave_infra_tool.py
+tests/test_pipeline_composer.py
+pipeline_composer_tool.py

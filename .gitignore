@@ -54,3 +54,6 @@ skills/octave-mcp/skill_content.py.*.tmp
 
 # PNGs generados por los ejemplos
 examples/*.png
+
+# scratch local de sesiones (mensajes de commit, pruebas descartables)
+commit_msg.txt
