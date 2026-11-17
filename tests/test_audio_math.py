@@ -86,6 +86,26 @@ class AudioMathTests(unittest.TestCase):
         self.assertEqual(result["clipped_samples"], 4)
         self.assertGreaterEqual(result["click_count"], 1)
 
+    def test_multicanal_acepta_canales_por_muestras(self):
+        fs = 48000
+        time = np.arange(fs) / fs
+        izquierda = 0.2 * np.sin(2.0 * np.pi * 1000.0 * time)
+        derecha = 0.1 * np.sin(2.0 * np.pi * 1000.0 * time)
+        stereo = np.vstack([izquierda, derecha])
+        resultado = audio_math_tool.rms_db({"signal": stereo, "fs": fs})
+        esperado = 20.0 * np.log10(np.sqrt(np.mean(np.square(stereo))))
+        self.assertAlmostEqual(resultado["rms_dbfs"], esperado, delta=1e-6)
+
+    def test_multicanal_acepta_muestras_por_canales(self):
+        fs = 48000
+        time = np.arange(fs) / fs
+        izquierda = 0.2 * np.sin(2.0 * np.pi * 1000.0 * time)
+        derecha = 0.1 * np.sin(2.0 * np.pi * 1000.0 * time)
+        transposition = np.vstack([izquierda, derecha]).T
+        resultado = audio_math_tool.rms_db({"signal": transposition, "fs": fs})
+        esperado = 20.0 * np.log10(np.sqrt(np.mean(np.square(transposition.T))))
+        self.assertAlmostEqual(resultado["rms_dbfs"], esperado, delta=1e-6)
+
     def test_validate_passes(self):
         result = audio_math_tool.validate()
         failed = [check["name"] for check in result["checks"] if not check["passed"]]

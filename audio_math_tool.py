@@ -57,7 +57,7 @@ def _channels(signal):
     if signal.ndim == 1:
         return signal[np.newaxis, :]
     if signal.ndim == 2:
-        if signal.shape[0] > signal.shape[1] and signal.shape[0] <= 8:
+        if signal.shape[0] <= 8:
             return signal
         if signal.shape[1] <= 8:
             return signal.T
