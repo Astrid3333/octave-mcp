@@ -1,11 +1,11 @@
 ---
 name: octave-mcp
-description: Use when the user wants scientific/numeric computation served by their local GNU Octave MCP server — linear algebra, ODEs/PDEs, symbolic math, curve fitting, physics/chemistry/biology simulations, plotting data, or "run this in Octave". Talks to the `octave` MCP (meta-tools only), so it covers all 386 tools (389 with deprecated aliases). Also use when debugging why an octave-mcp tool fails or validating the whole tool suite.
+description: Use when the user wants scientific/numeric computation served by their local GNU Octave MCP server — linear algebra, ODEs/PDEs, symbolic math, curve fitting, physics/chemistry/biology simulations, plotting data, or "run this in Octave". Talks to the `octave` MCP (meta-tools only), so it covers all 387 tools (390 with deprecated aliases). Also use when debugging why an octave-mcp tool fails or validating the whole tool suite.
 ---
 
 # Octave MCP (local)
 
-A local MCP server exposing 386 numeric/simulation tools backed by GNU Octave
+A local MCP server exposing 387 numeric/simulation tools backed by GNU Octave
 and Python. It lives at `/home/astrid/octave-mcp` and is registered in opencode
 as the MCP `octave` (global opencode config, `mcp.octave`, command
 `cd /home/astrid/octave-mcp && exec .venv/bin/python server.py`).
@@ -23,7 +23,7 @@ as the MCP `octave` (global opencode config, `mcp.octave`, command
 Never invent a tool name from memory. Always:
 `list_tools` → `get_tool_schema` → `call_tool`.
 
-`tools/list_full` (386 entries) is a private endpoint for the validation
+`tools/list_full` (387 entries) is a private endpoint for the validation
 harness, not for clients.
 
 ## 1 · Calling convention
@@ -49,8 +49,8 @@ harness, not for clients.
 
 ## 2 · Known gaps in this environment (verified 2026-11-14)
 
-**None open.** The full validation suite is green: 383/383 tools that expose
-a `validate` mode pass (386 listed + 3 deprecated aliases = 389), 0 FAILED,
+**None open.** The full validation suite is green: 384/384 tools that expose
+a `validate` mode pass (387 listed + 3 deprecated aliases = 390), 0 FAILED,
 0 ERROR; the 6 remaining tools expose no `validate` mode and are reported
 as SKIPPED. If
 something breaks after a machine change, check the fixed list
@@ -298,7 +298,7 @@ jobs:
 
 - **lint**: installs `ruff==0.15.19` (the version this repo is pinned to)
   and checks ONLY the maintained-file manifest `ci/ruff_files.txt`
-  (30 files: router, sympy_eval, statistics, workspace, materials,
+  (35 files: router, sympy_eval, statistics, workspace, materials, audio math,
   composite, eurocode/fire/timber/concrete/pdelta, examples battery,
   the 9 combinatorics modules + their shared helper + regression test).
   `server.py` IS in the manifest and relies on the documented
@@ -307,7 +307,7 @@ jobs:
   gate: the legacy tree carries hundreds of pre-existing errors.
 - **smoke**: `pip install -r requirements.txt` (verified sufficient — no
   maxima/sage/lispium needed) then `python ci/smoke.py`, a stdio MCP
-  client that asserts initialize OK, exactly 3 meta-tools, 386 tools in
+  client that asserts initialize OK, exactly 3 meta-tools, 387 tools in
   `list_tools`, and `validate` on `concrete_design_tool` + `pdelta_tool`.
 
 README is generated: edit `render_readme.py` and run

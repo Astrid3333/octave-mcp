@@ -174,6 +174,7 @@ from fractional_fourier_tool import compute_fractional_fourier, FRACTIONAL_FOURI
 import wave_propagation_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import dispersion_relation_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import audio_processing_tool  # auto-registra via tool_registry, no requiere mas ediciones
+import audio_math_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import time_frequency_tool  # auto-registra via tool_registry, no requiere mas ediciones
 from information_theory_tool import compute_information_theory, INFORMATION_THEORY_TOOL_SCHEMA
 import control_theory_tool  # auto-registra via tool_registry, no requiere mas ediciones
