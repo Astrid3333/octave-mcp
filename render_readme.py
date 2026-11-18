@@ -98,7 +98,11 @@ CATEGORIES = [
         "plotting_tools", "run_octave", "run_pipeline", "workspace_link",
         "workspace_validate",
     ]),
-    ("Combinatoria y sistemas ternarios", ["ternary_"]),
+    ("Combinatoria, ordenes parciales y grafos", [
+        "ternary_", "combinatorics_tool", "polya_burnside", "generating_functions",
+        "block_designs", "ramsey_extremal", "poset_lattice", "young_tableaux",
+        "matroid_tool", "graph_combinatorics",
+    ]),
     ("Datos externos y fuentes", [
         "arxiv_tool", "nasa_tool", "data_file_reader", "units_constants",
     ]),

@@ -174,6 +174,7 @@ from fractional_fourier_tool import compute_fractional_fourier, FRACTIONAL_FOURI
 import wave_propagation_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import dispersion_relation_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import audio_processing_tool  # auto-registra via tool_registry, no requiere mas ediciones
+import audio_math_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import time_frequency_tool  # auto-registra via tool_registry, no requiere mas ediciones
 from information_theory_tool import compute_information_theory, INFORMATION_THEORY_TOOL_SCHEMA
 import control_theory_tool  # auto-registra via tool_registry, no requiere mas ediciones
@@ -200,6 +201,9 @@ import octave_grammar_tool  # auto-registra via tool_registry, no requiere mas e
 import octave_innovation_doc_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import heating_value_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import units_constants_tool  # auto-registra via tool_registry, no requiere mas ediciones
+import conductor_losses_tool  # auto-registra via tool_registry
+import hydraulic_network_tool  # auto-registra via tool_registry
+import soil_foundation_tool  # auto-registra via tool_registry
 import report_generator_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import arxiv_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import nasa_tool  # auto-registra via tool_registry, no requiere mas ediciones
@@ -251,6 +255,14 @@ import curvilinear_coordinates_tool  # auto-registra via tool_registry
 import trilinear_coordinates_tool  # auto-registra via tool_registry
 import ternary_combinatorics_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import combinatorics_tool  # auto-registra via tool_registry
+import polya_burnside_tool  # auto-registra via tool_registry
+import generating_functions_tool  # auto-registra via tool_registry
+import block_designs_tool  # auto-registra via tool_registry
+import ramsey_extremal_tool  # auto-registra via tool_registry
+import poset_lattice_tool  # auto-registra via tool_registry
+import young_tableaux_tool  # auto-registra via tool_registry
+import matroid_tool  # auto-registra via tool_registry
+import graph_combinatorics_tool  # auto-registra via tool_registry
 import landauer_ternary_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import synchrotron_radiation_tool  # auto-registra via tool_registry
 import pair_production_tool  # auto-registra via tool_registry
@@ -587,9 +599,8 @@ if __name__ == "__main__":
                         if not os.path.exists(script_path):
                             resp = {"jsonrpc": "2.0", "id": req_id, "error": {"code": -32602, "message": f"Script '{script_path}' no encontrado"}}
                         else:
-                            with open(script_path, 'r') as f:
-                                code = f.read()
-                            output = run_octave(code)
+                            timeout = target_args.get("timeout", 60)
+                            output = octave_run_script(script_path=script_path, timeout=timeout)
                             resp = {
                                 "jsonrpc": "2.0", "id": req_id,
                                 "result": {"content": [{"type": "text", "text": output or "(sin salida)"}]},
