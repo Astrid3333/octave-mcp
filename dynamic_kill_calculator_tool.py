@@ -27,6 +27,7 @@ Octave, consistente con el resto del repo.
 
 import json
 import math
+import os
 import subprocess
 from typing import Any, Literal, Optional
 
@@ -207,6 +208,10 @@ def _validate_kick_tolerance_input(payload: dict[str, Any]) -> None:
 # ---------------------------------------------------------------------------
 # Dispatch a Octave (el motor numerico real vive en dynamic_kill_engine.m)
 # ---------------------------------------------------------------------------
+_ENGINE_DIR = os.path.dirname(os.path.abspath(__file__))
+_ENGINE_PATH = os.path.join(_ENGINE_DIR, "dynamic_kill_engine.m")
+
+
 def _call_octave_engine(function_name: str, args_json: str) -> dict[str, Any]:
     """
     Invoca dynamic_kill_engine.m via octave-cli, pasando los argumentos
@@ -214,12 +219,15 @@ def _call_octave_engine(function_name: str, args_json: str) -> dict[str, Any]:
     salida tambien como JSON (jsonencode), igual que el resto de las tools
     del repo que delegan calculo pesado a .m.
     """
+    q = chr(39)
+    safe_json = args_json.replace(q, q + q)  # escapar comillas simples para Octave
     cmd = [
         "octave-cli", "--no-gui", "--eval",
-        f"addpath('.'); source('dynamic_kill_engine.m'); "
-        f"disp(jsonencode({function_name}(jsondecode('{args_json}'))))",
+        f"addpath({q}{_ENGINE_DIR}{q}); source({q}{_ENGINE_PATH}{q}); "
+        f"disp(jsonencode({function_name}(jsondecode({q}{safe_json}{q}))))",
     ]
-    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=60,
+                          cwd=_ENGINE_DIR)
     if proc.returncode != 0:
         raise RuntimeError(f"octave engine error: {proc.stderr.strip()}")
     return json.loads(proc.stdout.strip())
