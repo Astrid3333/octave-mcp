@@ -201,6 +201,9 @@ import octave_grammar_tool  # auto-registra via tool_registry, no requiere mas e
 import octave_innovation_doc_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import heating_value_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import units_constants_tool  # auto-registra via tool_registry, no requiere mas ediciones
+import conductor_losses_tool  # auto-registra via tool_registry
+import hydraulic_network_tool  # auto-registra via tool_registry
+import soil_foundation_tool  # auto-registra via tool_registry
 import report_generator_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import arxiv_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import nasa_tool  # auto-registra via tool_registry, no requiere mas ediciones
@@ -240,6 +243,7 @@ import vector_field_visualizer  # auto-registra via tool_registry
 import vector_optimizer  # auto-registra via tool_registry
 import machine_learning_vector_tool  # auto-registra via tool_registry
 import color_math_tool  # auto-registra via tool_registry
+import step_solver_tool
 import land_use_change_tool  # auto-registra via tool_registry
 import soil_erosion_tool  # auto-registra via tool_registry
 import teaching_strategies_simulator_tool  # auto-registra via tool_registry
