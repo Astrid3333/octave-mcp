@@ -74,9 +74,9 @@ def main():
             "tools", payload.get("names", []))
         if names and isinstance(names[0], dict):
             names = [t.get("name") for t in names]
-        if len(names) != 390:
-            fail(f"esperaba 390 tools, hay {len(names)}")
-        print("SMOKE: list_tools == 390 ok")
+        if len(names) != 391:
+            fail(f"esperaba 391 tools, hay {len(names)}")
+        print("SMOKE: list_tools == 391 ok")
 
         for i, tool in enumerate(
             ("concrete_design_tool", "pdelta_tool"), start=4
