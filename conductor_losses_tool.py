@@ -74,19 +74,31 @@ def skin_depth(rho, freq_hz, mu_r=1.0):
     return math.sqrt(2.0 * rho / (omega * MU0 * mu_r))
 
 
+def ac_to_dc_ratio_exact(radius_m, delta_m):
+    """
+    Relación exacta R_ac/R_dc para un conductor cilíndrico sólido (Bessel):
+      R_ac/R_dc = Re[ (k*a) * J0(k*a) / (2 * J1(k*a)) ],  k = (1 + j)/delta
+    Válida para cualquier relación a/delta. Límites: -> 1 si a << delta,
+    -> a/(2*delta) si a >> delta.
+    """
+    from scipy.special import jv
+    if radius_m <= 0 or delta_m <= 0:
+        raise ValueError("radius_m y delta_m deben ser > 0")
+    z = (1.0 + 1.0j) * radius_m / delta_m
+    return float(((z * jv(0, z)) / (2.0 * jv(1, z))).real)
+
+
 def resistance_ac_round_wire(rho, length_m, radius_m, freq_hz):
     """
-    Cilindro sólido de radio a con a >> delta: corriente en la capa
-    superficial de área ~2*pi*a*delta, así R_ac ~ rho*L/(2*pi*a*delta).
-    Retorna también el factor R_ac/R_dc = a/(2*delta) y si la aproximación
-    es válida (a >= 3*delta).
+    R_ac exacto para cilindro sólido por Bessel. Incluye la aproximación
+    asintótica a/(2*delta) solo como referencia (válida si a >> delta).
     """
     d = skin_depth(rho, freq_hz)
     r_dc = rho * length_m / (math.pi * radius_m ** 2)
-    r_ac = rho * length_m / (2.0 * math.pi * radius_m * d)
-    valid = radius_m >= 3.0 * d
-    return {"skin_depth_m": d, "R_dc_ohm": r_dc, "R_ac_ohm": r_ac,
-            "ratio_ac_dc": r_ac / r_dc, "approximation_valid": valid}
+    ratio = ac_to_dc_ratio_exact(radius_m, d)
+    return {"skin_depth_m": d, "R_dc_ohm": r_dc, "R_ac_ohm": r_dc * ratio,
+            "ratio_ac_dc": ratio, "ratio_asymptotic_a_over_2delta": radius_m / (2.0 * d),
+            "method": "bessel_exact"}
 
 
 def voltage_drop(current_a, rho, length_m, area_m2):
@@ -230,10 +242,23 @@ def _mode_validate():
     # 2. R(T) con alpha de cobre, 75 °C
     chk("R(T) 75C", resistance_temperature(1.0, 75.0), 1.21615, 1e-9)
 
-    # 3. Efecto piel: R_ac/R_dc = a/(2*delta) para a >> delta
-    r = resistance_ac_round_wire(RHO_CU_20C, 1.0, 1e-3, 1e6)
-    chk("skin ratio = a/(2 delta)", r["ratio_ac_dc"],
-        1e-3 / (2 * r["skin_depth_m"]), 1e-9)
+    # 3a. Efecto piel, límite a >> delta: exacto -> a/(2 delta)  (tolerancia relativa 1 %)
+    d_big = 1e-3 / 100.0
+    r_big = ac_to_dc_ratio_exact(1e-3, d_big)
+    chk("skin a>>delta -> a/(2delta)", r_big, 1e-3 / (2 * d_big), 0.01)
+
+    # 3b. Efecto piel, límite a << delta: exacto -> 1
+    chk("skin a<<delta -> 1", ac_to_dc_ratio_exact(1e-3, 1e-3 * 100), 1.0, 1e-4)
+
+    # 3c. R_ac nunca menor que R_dc (MXene, a/delta = 0.2: antes salía 1581 < 15915)
+    rr = [ac_to_dc_ratio_exact(1e-3, 1e-3 / x) for x in (0.1, 0.2, 0.5, 1, 2, 5, 20, 100)]
+    checks.append({"name": "R_ac >= R_dc para todo a/delta",
+                   "passed": all(v >= 1.0 - 1e-12 for v in rr),
+                   "detail": f"min={min(rr):.6f}"})
+
+    # 3d. Monotonía: el cociente crece con a/delta
+    checks.append({"name": "ratio monótono en a/delta",
+                   "passed": all(b > a for a, b in zip(rr, rr[1:])), "detail": ""})
 
     # 4. Dwight: varilla L=3 m, a=0.01 m, rho=100 Ω·m
     want = 100 / (2 * math.pi * 3) * (math.log(4 * 3 / 0.01) - 1)
