@@ -204,6 +204,7 @@ import units_constants_tool  # auto-registra via tool_registry, no requiere mas 
 import conductor_losses_tool  # auto-registra via tool_registry
 import hydraulic_network_tool  # auto-registra via tool_registry
 import soil_foundation_tool  # auto-registra via tool_registry
+import grounding_safety_tool  # auto-registra via tool_registry
 import report_generator_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import arxiv_tool  # auto-registra via tool_registry, no requiere mas ediciones
 import nasa_tool  # auto-registra via tool_registry, no requiere mas ediciones
