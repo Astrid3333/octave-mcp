@@ -15,10 +15,10 @@ def _install_fake_server():
     """
     fake = types.ModuleType("server")
 
-    def run_octave(code):
+    def run_octave(code, timeout=30):
         proc = subprocess.run(
             ["octave", "--no-gui", "--quiet", "--eval", code],
-            capture_output=True, text=True, timeout=120,
+            capture_output=True, text=True, timeout=timeout,
         )
         return proc.stdout + proc.stderr
 

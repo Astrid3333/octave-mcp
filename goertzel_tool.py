@@ -100,10 +100,7 @@ disp_struct(r);
         key = key.strip()
         val = val.strip()
         try:
-            if '.' in val or 'e' in val.lower():
-                parsed[key] = float(val)
-            else:
-                parsed[key] = val
+            parsed[key] = float(val)
         except ValueError:
             parsed[key] = val
     if not parsed:
