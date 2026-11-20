@@ -318,15 +318,18 @@ from plot_tool import plot_run, PLOT_WORKSPACE_RUN_SCHEMA
 from numeral_systems_embedding_tool import compute_numeral_systems_embedding
 
 
-def run_octave(code):
+def run_octave(code, timeout=30):
     # octave-cli evita el binario con GUI: en un servidor sin pantalla
     # (Railway, CI, sandbox) `octave --no-gui` emite avisos de X11 por
     # stderr y ensucian la salida que las tools parsean como JSON.
     octave_bin = shutil.which("octave-cli") or shutil.which("octave") or "octave"
-    result = subprocess.run(
-        [octave_bin, "--no-gui", "--eval", code],
-        capture_output=True, text=True, timeout=30
-    )
+    try:
+        result = subprocess.run(
+            [octave_bin, "--no-gui", "--eval", code],
+            capture_output=True, text=True, timeout=timeout
+        )
+    except subprocess.TimeoutExpired:
+        return f"OCTAVE_TIMEOUT: el script excedio {timeout} s"
     return result.stdout + result.stderr
 
 

@@ -20,6 +20,8 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
+_OCTAVE_TIMEOUT_S = 180
+
 LCG_LEHMER_TOOL_SCHEMA: Dict[str, Any] = {
     "name": "lcg_lehmer",
     "description": (
@@ -250,7 +252,7 @@ r = struct('a', a, 'c', c, 'm', m, 'dim', {dim}, ...
 {_DISP_STRUCT}
 disp_struct(r);
 """
-    raw = run_octave(script)
+    raw = run_octave(script, timeout=_OCTAVE_TIMEOUT_S)
 
     parsed: Dict[str, Any] = {}
     for line in raw.splitlines():

@@ -16,6 +16,8 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
+_OCTAVE_TIMEOUT_S = 180
+
 HYBRID_PRNG_TOOL_SCHEMA: Dict[str, Any] = {
     "name": "hybrid_prng",
     "description": (
@@ -290,7 +292,7 @@ r = struct('middle_square_cycles', n_cycles, ...
 {_DISP_STRUCT}
 disp_struct(r);
 """
-    raw = run_octave(script)
+    raw = run_octave(script, timeout=_OCTAVE_TIMEOUT_S)
 
     parsed: Dict[str, Any] = {}
     for line in raw.splitlines():
