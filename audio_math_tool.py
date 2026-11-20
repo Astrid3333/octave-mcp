@@ -323,14 +323,36 @@ def ducking_gain(params):
 
 
 def silence_samples(params):
-    """Deteccion de pausas por umbral absoluto en dBFS."""
+    """Deteccion de pausas por umbral absoluto en dBFS.
+
+    El criterio por defecto es de nivel: cada trama de `frame_ms` se considera
+    silenciosa si su RMS esta por debajo del umbral. El criterio por pico
+    (cada muestra por debajo del umbral) queda disponible con
+    `metrica="pico"`, pero es inservible con ruido de sala: los picos del
+    ruido perforan el umbral y ninguna pausa de un segundo llega a detectarse.
+    """
     signal = _signal(params)
     fs = _sample_rate(params)
     threshold_dbfs = float(params.get("threshold_dbfs", -60.0))
     minimum_duration_ms = float(params.get("minimum_duration_ms", 100.0))
     max_gap_ms = float(params.get("max_gap_ms", 0.0))
+    metrica = str(params.get("metrica", "rms")).lower()
+    frame_ms = float(params.get("frame_ms", 20.0))
     threshold = 10.0 ** (threshold_dbfs / 20.0)
-    silent = np.abs(signal) <= threshold
+    frame = max(1, int(round(fs * frame_ms / 1000.0)))
+    if metrica == "pico":
+        silent = np.abs(signal) <= threshold
+    else:
+        bloques = signal.size // frame
+        usable = bloques * frame
+        silent = np.zeros(signal.size, dtype=bool)
+        if bloques:
+            tramas = signal[:usable].reshape(bloques, frame)
+            rms_trama = np.sqrt(np.mean(np.square(tramas), axis=1))
+            silent[:usable] = np.repeat(rms_trama <= threshold, frame)
+        if usable < signal.size:
+            cola = signal[usable:]
+            silent[usable:] = bool(np.sqrt(np.mean(np.square(cola))) <= threshold)
     minimum_samples = max(1, int(round(minimum_duration_ms * fs / 1000.0)))
     max_gap_samples = max(0, int(round(max_gap_ms * fs / 1000.0)))
     runs = []
@@ -350,6 +372,20 @@ def silence_samples(params):
         else:
             merged.append(run)
     selected = [run for run in merged if run[1] - run[0] >= minimum_samples]
+    if metrica != "pico":
+        # Las tramas dan el cuerpo de la pausa; los bordes se refinan a nivel de
+        # muestra (dentro de una trama) para no perder los bordes exactos de una
+        # pausa digitalmente silenciosa.
+        refinados = []
+        for inicio, fin in selected:
+            i = inicio
+            while i > max(0, inicio - frame) and abs(signal[i - 1]) <= threshold:
+                i -= 1
+            j = fin
+            while j < min(signal.size, fin + frame) and abs(signal[j]) <= threshold:
+                j += 1
+            refinados.append([i, j])
+        selected = refinados
     pauses = []
     for start, end in selected:
         pauses.append({

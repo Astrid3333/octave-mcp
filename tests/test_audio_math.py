@@ -80,6 +80,31 @@ class AudioMathTests(unittest.TestCase):
         self.assertEqual(result["count"], 1)
         self.assertEqual(result["pauses"][0]["n_samples"], 2000)
 
+    def test_silence_detection_works_with_room_noise(self):
+        # Pausa 1 s de ruido a -60 dBFS dentro de un ruido de sala a -45 dBFS:
+        # el criterio por pico no la ve (los picos del ruido perforan el umbral)
+        # y el criterio de nivel por trama si.
+        fs = 48000
+        rng = np.random.default_rng(5)
+        sala = rng.normal(0.0, 10.0 ** (-45.0 / 20.0), fs)
+        pausa = rng.normal(0.0, 10.0 ** (-60.0 / 20.0), fs)
+        senal = np.concatenate([sala, pausa, sala])
+        por_nivel = audio_math_tool.silence_samples(
+            {"signal": senal, "fs": fs, "threshold_dbfs": -50.0, "minimum_duration_ms": 400.0}
+        )
+        self.assertEqual(por_nivel["count"], 1)
+        self.assertAlmostEqual(por_nivel["pauses"][0]["duration_seconds"], 1.0, delta=0.05)
+        por_pico = audio_math_tool.silence_samples(
+            {
+                "signal": senal,
+                "fs": fs,
+                "threshold_dbfs": -50.0,
+                "minimum_duration_ms": 400.0,
+                "metrica": "pico",
+            }
+        )
+        self.assertEqual(por_pico["count"], 0)
+
     def test_diagnostico_detects_clipping_and_click(self):
         signal = np.concatenate([np.full(1000, 0.1), np.array([1.0, 1.0, -1.0, -1.0])])
         result = audio_math_tool.diagnostico_toma({"signal": signal, "fs": 48000})
