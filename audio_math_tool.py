@@ -381,6 +381,51 @@ def _count_click_runs(candidates, merge_samples=2):
     return len(clusters), clusters
 
 
+def _residuo_local(signal, fs, block_ms=5.0):
+    """Residuo de tres puntos y escalas locales de curvatura y nivel.
+
+    Un clic es una discontinuidad aislada: la muestra se aparta de la media de
+    sus vecinas. El residuo `x[i] - (x[i-1] + x[i+1]) / 2` mide ese apartamiento
+    y vale cero en un tramo suave. Se acompaña de dos escalas locales por
+    bloques de `block_ms`: la mediana de |residuo| (suavidad tipica del entorno)
+    y el RMS de la senal (nivel local), para que el umbral se adapte al material.
+    """
+    n = signal.size
+    residuo = np.zeros(n)
+    if n > 2:
+        residuo[1:-1] = signal[1:-1] - (signal[:-2] + signal[2:]) / 2.0
+    block = max(3, int(round(fs * block_ms / 1000.0)))
+    bloques = n // block + 1
+    relleno = bloques * block - n
+    senal = np.pad(signal, (0, relleno), mode="constant")
+    bloques_senal = senal.reshape(bloques, block)
+    rms = np.sqrt(np.maximum(np.mean(np.square(bloques_senal), axis=1), 1e-20))
+    magnitud = np.pad(np.abs(residuo), (0, relleno), mode="constant")
+    mediana = np.median(magnitud.reshape(bloques, block), axis=1)
+    return residuo, np.repeat(rms, block)[:n], np.repeat(mediana, block)[:n]
+
+
+def _detectar_clics(signal, fs, k_local=12.0, fraccion_rms=0.5):
+    """Detecta discontinuidades aisladas comparando con las escalas locales.
+
+    El criterio antiguo (salto entre muestras por encima de un suelo absoluto)
+    marcaba cualquier transicion brusca de la voz real como clic: en habla
+    limpia a 48 kHz devolvia miles de falsos positivos y `limpiar_clics`
+    interpolaba zonas que no estaban danadas. El umbral combina la suavidad
+    local (mediana del residuo) con el nivel local (RMS), de modo que el mismo
+    criterio sirve para voz, musica y ruido.
+    """
+    residuo, rms_local, mediana_local = _residuo_local(signal, fs)
+    magnitud = np.abs(residuo)
+    umbral = np.maximum(k_local * mediana_local, fraccion_rms * rms_local)
+    candidatos = magnitud > umbral
+    # Un clic es un transitorio breve: agrupamos candidatos separados por menos
+    # de 1 ms para no contar cada muestra de un mismo burst como un clic.
+    merge_samples = max(2, int(round(fs / 1000.0)))
+    conteo, clusters = _count_click_runs(candidatos, merge_samples=merge_samples)
+    return conteo, clusters, float(np.median(umbral)) if umbral.size else 0.0
+
+
 def diagnostico_toma(params):
     """Diagnostico tecnico de una toma: DC, clipping, ruido, SNR y clics."""
     signal = _signal(params)
@@ -410,9 +455,7 @@ def diagnostico_toma(params):
         robust_sigma = 1.4826 * mad
     else:
         robust_sigma = 0.0
-    click_threshold = max(float(params.get("click_abs_threshold", 0.05)), 12.0 * robust_sigma)
-    candidates = np.abs(derivative) > click_threshold
-    click_count, click_clusters = _count_click_runs(candidates)
+    click_count, click_clusters, click_threshold = _detectar_clics(centered, fs)
     return {
         "duration_seconds": signal.size / fs,
         "dc_offset": dc_offset,
@@ -429,6 +472,10 @@ def diagnostico_toma(params):
         "click_count": click_count,
         "click_clusters": click_clusters,
         "click_threshold": click_threshold,
+        "click_criterio": "residuo de tres puntos frente a escala local (mediana de curvatura y RMS local)",
+        "click_escala_sigma_local": 12.0,
+        "click_fraccion_rms_local": 0.5,
+        "derivative_robust_sigma": robust_sigma,
     }
 
 

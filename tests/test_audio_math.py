@@ -86,6 +86,27 @@ class AudioMathTests(unittest.TestCase):
         self.assertEqual(result["clipped_samples"], 4)
         self.assertGreaterEqual(result["click_count"], 1)
 
+    def test_diagnostico_no_reporta_clics_en_senal_limpia(self):
+        fs = 48000
+        time = np.arange(fs) / fs
+        signal = (
+            0.3 * np.sin(2.0 * np.pi * 220.0 * time)
+            + 0.15 * np.sin(2.0 * np.pi * 1700.0 * time)
+            + np.random.default_rng(0).normal(0.0, 0.002, fs)
+        )
+        result = audio_math_tool.diagnostico_toma({"signal": signal, "fs": fs})
+        self.assertEqual(result["click_count"], 0)
+
+    def test_diagnostico_cuenta_cada_transitorio_una_vez(self):
+        fs = 48000
+        time = np.arange(fs) / fs
+        signal = 0.3 * np.sin(2.0 * np.pi * 220.0 * time)
+        burst = int(0.0005 * fs)
+        for inicio in (int(0.3 * fs), int(0.5 * fs), int(0.7 * fs)):
+            signal[inicio:inicio + burst] += 0.8
+        result = audio_math_tool.diagnostico_toma({"signal": signal, "fs": fs})
+        self.assertEqual(result["click_count"], 3)
+
     def test_multicanal_acepta_canales_por_muestras(self):
         fs = 48000
         time = np.arange(fs) / fs
