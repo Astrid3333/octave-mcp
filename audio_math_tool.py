@@ -405,7 +405,7 @@ def _residuo_local(signal, fs, block_ms=5.0):
     return residuo, np.repeat(rms, block)[:n], np.repeat(mediana, block)[:n]
 
 
-def _detectar_clics(signal, fs, k_local=12.0, fraccion_rms=0.5):
+def _detectar_clics(signal, fs, k_local=12.0, fraccion_rms=0.5, suelo_absoluto=1e-3):
     """Detecta discontinuidades aisladas comparando con las escalas locales.
 
     El criterio antiguo (salto entre muestras por encima de un suelo absoluto)
@@ -413,11 +413,13 @@ def _detectar_clics(signal, fs, k_local=12.0, fraccion_rms=0.5):
     limpia a 48 kHz devolvia miles de falsos positivos y `limpiar_clics`
     interpolaba zonas que no estaban danadas. El umbral combina la suavidad
     local (mediana del residuo) con el nivel local (RMS), de modo que el mismo
-    criterio sirve para voz, musica y ruido.
+    criterio sirve para voz, musica y ruido. El suelo absoluto evita que en
+    silencio (donde las escalas locales valen cero) cualquier residuo numerico
+    cuente como clic.
     """
     residuo, rms_local, mediana_local = _residuo_local(signal, fs)
     magnitud = np.abs(residuo)
-    umbral = np.maximum(k_local * mediana_local, fraccion_rms * rms_local)
+    umbral = np.maximum(np.maximum(k_local * mediana_local, fraccion_rms * rms_local), suelo_absoluto)
     candidatos = magnitud > umbral
     # Un clic es un transitorio breve: agrupamos candidatos separados por menos
     # de 1 ms para no contar cada muestra de un mismo burst como un clic.

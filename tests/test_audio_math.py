@@ -122,6 +122,16 @@ class AudioMathTests(unittest.TestCase):
         result = audio_math_tool.diagnostico_toma({"signal": signal, "fs": fs})
         self.assertEqual(result["click_count"], 3)
 
+    def test_diagnostico_ignora_ruido_de_suelo_pero_detecta_un_clic_en_silencio(self):
+        fs = 48000
+        suelo = np.random.default_rng(3).normal(0.0, 1e-5, fs)
+        sin_clic = audio_math_tool.diagnostico_toma({"signal": suelo, "fs": fs})
+        self.assertEqual(sin_clic["click_count"], 0)
+        con_clic = suelo.copy()
+        con_clic[int(0.5 * fs)] += 0.05
+        resultado = audio_math_tool.diagnostico_toma({"signal": con_clic, "fs": fs})
+        self.assertEqual(resultado["click_count"], 1)
+
     def test_multicanal_acepta_canales_por_muestras(self):
         fs = 48000
         time = np.arange(fs) / fs
