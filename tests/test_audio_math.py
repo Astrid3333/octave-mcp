@@ -87,13 +87,28 @@ class AudioMathTests(unittest.TestCase):
         self.assertGreaterEqual(result["click_count"], 1)
 
     def test_diagnostico_no_reporta_clics_en_senal_limpia(self):
+        # Voz sintetica: fundamental suave y rafagas fricativas de ruido con
+        # envolvente coseno (sin ninguna discontinuidad). Reproduce el perfil
+        # del habla real: saltos entre muestras pequenos en mediana (0.0015) con
+        # picos de 0.25. El criterio antiguo por salto absoluto marcaba aqui
+        # cientos de falsos positivos.
         fs = 48000
-        time = np.arange(fs) / fs
-        signal = (
-            0.3 * np.sin(2.0 * np.pi * 220.0 * time)
-            + 0.15 * np.sin(2.0 * np.pi * 1700.0 * time)
-            + np.random.default_rng(0).normal(0.0, 0.002, fs)
-        )
+        n = fs
+        time = np.arange(n) / fs
+        rng = np.random.default_rng(11)
+        signal = 0.20 * np.sin(2.0 * np.pi * 180.0 * time) + 0.05 * np.sin(2.0 * np.pi * 540.0 * time)
+        for inicio in (0.15, 0.35, 0.55, 0.75):
+            duracion = int(0.02 * fs)
+            muestras = int(inicio * fs)
+            envolvente = 0.5 * (1.0 - np.cos(2.0 * np.pi * np.arange(duracion) / duracion))
+            ruido = rng.normal(0.0, 1.0, duracion)
+            ruido = np.convolve(ruido, np.ones(4) / 4.0, mode="same")
+            signal[muestras:muestras + duracion] += (
+                0.30 * envolvente * ruido / np.max(np.abs(ruido))
+            )
+        saltos = np.abs(np.diff(signal))
+        self.assertLess(float(np.median(saltos)), 0.01)
+        self.assertGreater(float(np.max(saltos)), 0.05)
         result = audio_math_tool.diagnostico_toma({"signal": signal, "fs": fs})
         self.assertEqual(result["click_count"], 0)
 
