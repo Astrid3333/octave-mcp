@@ -17,6 +17,7 @@ eurocode_steel_tool.py
 fire_design_tool.py
 octave_infra_tool.py
 tool_registry.py
+ancestral_octave_tool.py
 concrete_design_tool.py
 pdelta_tool.py
 timber_design_tool.py

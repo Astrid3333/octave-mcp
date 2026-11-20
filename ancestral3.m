@@ -257,15 +257,13 @@ end
 
 function n = azteca_text_to_number(text)
   % Convierte texto azteca (con los simbolos de azteca_number_to_text) a decimal.
-  n = 0;
-  for i = 1:length(text)
-    c = text(i);
-    if c == '𐋠', n = n + 8000;
-    elseif c == '𐋡', n = n + 400;
-    elseif c == '𐋢', n = n + 20;
-    elseif c == '•', n = n + 1;
-    end
-  end
+  % Los simbolos son UTF-8 multibyte: text(i) indexa BYTES en Octave, no
+  % caracteres, asi que indexar caracter a caracter nunca encuentra los
+  % glifos. Se cuenta con strfind, que si opera sobre la cadena completa.
+  n = 8000 * numel(strfind(text, '𐋠')) ...
+    +  400 * numel(strfind(text, '𐋡')) ...
+    +   20 * numel(strfind(text, '𐋢')) ...
+    +        numel(strfind(text, '•'));
 end
 
 % ---------------- AFRIKAN / YORUBA (base 20 con sustraccion) ----------------
